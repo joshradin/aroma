@@ -1,0 +1,6 @@
+# Cargo artifacts
+/target
+
+# Misc
+/.idea
+/.vscode
