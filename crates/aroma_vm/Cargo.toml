@@ -1,0 +1,12 @@
+[package]
+name = "aroma_vm"
+authors.workspace = true
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+readme.workspace = true
+repository.workspace = true
+
+[dependencies]
+bitfield = "0.15.0"
+nom = "7.1.3"
