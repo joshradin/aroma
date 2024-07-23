@@ -1,48 +1,53 @@
 //! Contains the format for "binary" files ran by the aroma_vm
 
 use bitfield::bitfield;
+use bytes::Bytes;
 
 /// An aroma binary file
 #[derive(Debug)]
 pub struct AromaBin {
     pub header: AromaHeader,
-    pub program_headers: Box<[ProgramHeader]>,
-    pub section_headers: Box<[ProgramHeader]>
+    pub programs: Box<[Program]>,
+    pub sections: Box<[Section]>,
 }
 
+impl AromaBin {
+    /// Gets the in memory length
+    pub fn read_only_memory_size(&self) -> usize {
+        self.sections
+            .iter()
+            .filter(|sec| !sec.flags.write() && sec.flags.alloc())
+            .map(|header| header.bytes.len())
+            .sum::<usize>()
+    }
+}
+
+/// The aroma header contains the version of the language
 #[derive(Debug)]
 pub struct AromaHeader {
     pub lang_version: usize,
-    pub entry_point: u64,
-    pub program_header_table_offset: u64,
-    pub section_header_table_offset: u64,
-    pub program_header_len: u64,
-    pub program_headers: u64,
-    pub section_header_len: u64,
-    pub section_headers: u64
+}
+
+/// A program just defines a start address
+#[derive(Debug)]
+pub struct Program {
+    pub start_addr: u64,
 }
 
 #[derive(Debug)]
-pub struct ProgramHeader {
-    pub addr: u64,
-    pub file_size: u64,
-    pub memory_size: u64,
-}
-
-#[derive(Debug)]
-pub struct SectionHeader {
+pub struct Section {
     pub name: String,
     pub kind: SectionType,
     pub flags: SectionFlags,
-    pub addr: u64,
-    pub size: u64
+    pub offset: u64,
+    pub bytes: Bytes,
 }
 
 #[derive(Debug)]
 pub enum SectionType {
     Bytecode,
     ConstantPool,
-    DynamicLink
+    DynamicLink,
 }
 
 bitfield! {

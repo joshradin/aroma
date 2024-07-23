@@ -1,5 +1,5 @@
 [package]
-name = "aroma_vm_gc"
+name = "aroma_gc"
 authors.workspace = true
 version.workspace = true
 edition.workspace = true
@@ -7,4 +7,9 @@ license-file.workspace = true
 readme.workspace = true
 repository.workspace = true
 
+[features]
+derive = ["dep:aroma_gc_derive"]
+
 [dependencies]
+aroma_gc_derive = { path = "../aroma_gc_derive" , optional = true }
+static_assertions = "1.1.0"
