@@ -12,4 +12,6 @@ derive = ["dep:aroma_gc_derive"]
 
 [dependencies]
 aroma_gc_derive = { path = "../aroma_gc_derive" , optional = true }
+parking_lot = "0.12.3"
 static_assertions = "1.1.0"
+thiserror = "1.0.63"

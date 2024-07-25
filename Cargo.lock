@@ -7,7 +7,9 @@ name = "aroma_gc"
 version = "0.0.0"
 dependencies = [
  "aroma_gc_derive",
+ "parking_lot",
  "static_assertions",
+ "thiserror",
 ]
 
 [[package]]
