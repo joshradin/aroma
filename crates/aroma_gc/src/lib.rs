@@ -1,79 +1,110 @@
-use std::alloc::Layout;
-use std::fmt::{Debug, Display, Formatter, Pointer};
+use std::collections::HashMap;
+use std::fmt::{Debug, Display, Pointer};
 use std::ops::Deref;
-use static_assertions::assert_impl_all;
-use crate::gc_heap::GcBoxLink;
 
+use static_assertions::assert_impl_all;
+
+#[cfg(feature = "derive")]
+pub use aroma_gc_derive::Trace;
+pub use gc_heap::{GcConfig, GcHeap};
+
+pub use crate::gc::Gc;
+
+mod gc;
 mod gc_box;
 mod gc_heap;
 mod static_linked_list;
 
 /// Trait for tracing all members of an object
 pub unsafe trait Trace {
-    fn finalize_glue(&self) {}
+    fn finalize(&mut self) {}
     fn trace(&self) {}
 }
 
-/// A garbage collected pointer
-pub struct Gc<T: Trace + ?Sized + 'static> {
-    ptr: GcBoxLink<T>,
+assert_impl_all!(Gc<()> : Send);
+
+/// Allows for quickly implementing trace. Only allowed for copy types
+macro_rules! impl_empty_trace {
+    ($($ty:ty)*) => {
+        $(
+        static_assertions::assert_impl_all!($ty : Copy);
+        unsafe impl $crate::Trace for $ty {}
+        )*
+    };
 }
-
-
-impl<T: Trace + ?Sized + 'static> Gc<T> {
-    #[inline]
-    pub fn to_trace_object(self) -> Gc<dyn Trace> {
-        self.cast()
-    }
-
-    /// Casts this to
-    fn cast<U : Trace + ?Sized + 'static>(self) -> Gc<U> {
-        Gc { ptr: self.ptr.cast() }
-    }
-}
-
-impl<T: Trace + ?Sized + 'static> Clone for Gc<T> {
-    fn clone(&self) -> Self {
-        Self { ptr: self.ptr }
-    }
-}
-
-impl<T: Trace + ?Sized + 'static> Copy for Gc<T> {
-}
-
-
-impl<T: Trace + ?Sized + 'static + Debug> Debug for Gc<T> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        self.deref().fmt(f)
-    }
-}
-
-impl<T: Trace + ?Sized + 'static + Display> Display for Gc<T> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        self.deref().fmt(f)
-    }
-}
-
-impl<T: Trace + ?Sized + 'static> Deref for Gc<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        unsafe { &*(*self.ptr.as_ptr()).as_ptr() }
-    }
-}
-
-impl<T: Trace + ?Sized + 'static> Gc<T> {
-    pub(crate) fn new(ptr: GcBoxLink<T>) -> Self {
-        Self { ptr }
-    }
-}
-
-unsafe impl<T : Trace + ?Sized + Send + 'static> Send for Gc<T> {
-}
-
-assert_impl_all!(Gc<usize> : Send);
 
 /// Copy types are always trace-able
-unsafe impl<T : Copy> Trace for T {}
+impl_empty_trace! {
+    ()
+    u8 u16 u32 u64 usize
+    i8 i16 i32 i64 isize
+    f32 f64
+    &'static str
+    &'static std::path::Path
+    char
+    bool
+}
 
+unsafe impl<T: Trace> Trace for Option<T> {
+    fn finalize(&mut self) {
+        match self {
+            None => {}
+            Some(s) => s.finalize(),
+        }
+    }
 
+    fn trace(&self) {
+        match self {
+            None => {}
+            Some(s) => s.trace(),
+        }
+    }
+}
+unsafe impl<T: Trace, E: Trace> Trace for Result<T, E> {
+    fn finalize(&mut self) {
+        match self {
+            Ok(ok) => ok.finalize(),
+            Err(err) => err.finalize(),
+        }
+    }
+
+    fn trace(&self) {
+        match self {
+            Ok(ok) => ok.trace(),
+            Err(err) => err.trace(),
+        }
+    }
+}
+
+unsafe impl<T: Trace, const N: usize> Trace for [T; N] {
+    fn finalize(&mut self) {
+        for elem in self {
+            elem.finalize();
+        }
+    }
+
+    fn trace(&self) {
+        for elem in self {
+            elem.trace();
+        }
+    }
+}
+
+unsafe impl<K: Trace, V: Trace> Trace for HashMap<K, V> {
+    fn finalize(&mut self) {
+        self.drain().for_each(|(mut k, mut v)| {
+            k.finalize();
+            v.finalize();
+        })
+    }
+
+    fn trace(&self) {
+        self.iter().for_each(|(k, v)| {
+            k.trace();
+            v.trace();
+        })
+    }
+}
+
+aroma_gc_derive::derive_tuples!(1..=12);
+assert_impl_all!((bool, char, i64): Trace);

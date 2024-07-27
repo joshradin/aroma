@@ -1,6 +1,6 @@
 //! A statically linked list meaning that all allocations *within* the linked list never move
 
-use std::fmt::{Debug, Formatter};
+use std::fmt::{Debug, Formatter, Pointer};
 use std::iter::FusedIterator;
 use std::marker::PhantomData;
 use std::ptr::{addr_of, addr_of_mut, NonNull};
@@ -15,8 +15,8 @@ pub struct StaticLinkedList<T> {
 impl<T: Debug> Debug for StaticLinkedList<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_list()
-         .entries(self.iter().map(|s| (format!("{s:p}"), s)))
-         .finish()
+            .entries(self.iter().map(|s| (format!("{s:p}"), s)))
+            .finish()
     }
 }
 
@@ -42,13 +42,11 @@ impl<T> StaticLinkedList<T> {
     /// Pushes an element to the front of the linked list
     pub fn push_front(&mut self, elem: T) {
         unsafe {
-            let new = NonNull::new_unchecked(Box::into_raw(
-                Box::new(Node {
-                    next: None,
-                    prev: None,
-                    elem,
-                })
-            ));
+            let new = NonNull::new_unchecked(Box::into_raw(Box::new(Node {
+                next: None,
+                prev: None,
+                elem,
+            })));
             if let Some(old) = self.front {
                 (*old.as_ptr()).prev = Some(new);
                 (*new.as_ptr()).next = Some(old);
@@ -63,12 +61,11 @@ impl<T> StaticLinkedList<T> {
         }
     }
 
-
     /// Pushes an element to the front of the linked list
     pub fn pop_front(&mut self) -> Option<T> {
         unsafe {
             self.front.map(|node| {
-                let boxed_node = Box::from_raw(node.as_ptr());
+                let boxed_node = *Box::from_raw(node.as_ptr());
                 let result = boxed_node.elem;
 
                 self.front = boxed_node.next;
@@ -88,13 +85,11 @@ impl<T> StaticLinkedList<T> {
     /// Pushes an element to the back of the linked list
     pub fn push_back(&mut self, elem: T) {
         unsafe {
-            let new = NonNull::new_unchecked(Box::into_raw(
-                Box::new(Node {
-                    next: None,
-                    prev: None,
-                    elem,
-                })
-            ));
+            let new = NonNull::new_unchecked(Box::into_raw(Box::new(Node {
+                next: None,
+                prev: None,
+                elem,
+            })));
             if let Some(old) = self.back {
                 (*old.as_ptr()).next = Some(new);
                 (*new.as_ptr()).prev = Some(old);
@@ -113,7 +108,7 @@ impl<T> StaticLinkedList<T> {
     pub fn pop_back(&mut self) -> Option<T> {
         unsafe {
             self.back.map(|node| {
-                let boxed_node = Box::from_raw(node.as_ptr());
+                let boxed_node = *Box::from_raw(node.as_ptr());
                 let result = boxed_node.elem;
 
                 self.back = boxed_node.prev;
@@ -129,7 +124,6 @@ impl<T> StaticLinkedList<T> {
             })
         }
     }
-
 
     /// Gets the length of the linked list
     pub fn len(&self) -> usize {
@@ -164,11 +158,13 @@ impl<T> StaticLinkedList<T> {
 
         unsafe {
             let mut ptr = self.front.expect("pointer will be not null");
-            for _ in 0..index {
-                ptr = (*ptr.as_ptr()).next.expect("next pointer must be defined");
+            for _i in 0..index {
+                ptr = (*ptr.as_ptr()).next.unwrap_or_else(|| {
+                    panic!("expected .next to be defined because index({_i}) < len({}), but .next is None: {:?}", self.len, &*ptr.as_ptr())
+                })
             }
-            let elem_ptr = addr_of_mut!((*ptr.as_ptr()).elem);
-            // let elem_ptr = (&mut (*ptr.as_ptr()).elem) as *mut T;
+            // let elem_ptr = addr_of_mut!((*ptr.as_ptr()).elem);
+            let elem_ptr = &mut (*ptr.as_ptr()).elem as *mut _;
             Some(NonNull::new_unchecked(elem_ptr))
         }
     }
@@ -193,13 +189,20 @@ impl<T> StaticLinkedList<T> {
 
 type Link<T> = Option<NonNull<Node<T>>>;
 
-#[repr(C)]
 struct Node<T> {
     next: Link<T>,
     prev: Link<T>,
     elem: T,
 }
 
+impl<T> Debug for Node<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Node")
+            .field("next", &self.next)
+            .field("prev", &self.prev)
+            .finish_non_exhaustive()
+    }
+}
 
 impl<T> IntoIterator for StaticLinkedList<T> {
     type Item = T;
@@ -210,9 +213,8 @@ impl<T> IntoIterator for StaticLinkedList<T> {
     }
 }
 
-
 impl<T> FromIterator<T> for StaticLinkedList<T> {
-    fn from_iter<I: IntoIterator<Item=T>>(iter: I) -> Self {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let mut r = Self::new();
         for x in iter {
             r.push_back(x);
@@ -312,7 +314,6 @@ impl<T> DoubleEndedIterator for IntoIter<T> {
         self.list.pop_back()
     }
 }
-
 
 #[cfg(test)]
 mod tests {

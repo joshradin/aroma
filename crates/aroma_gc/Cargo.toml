@@ -8,10 +8,21 @@ readme.workspace = true
 repository.workspace = true
 
 [features]
-derive = ["dep:aroma_gc_derive"]
+derive = []
 
 [dependencies]
-aroma_gc_derive = { path = "../aroma_gc_derive" , optional = true }
+aroma_gc_derive = { path = "../aroma_gc_derive"  }
+bytesize = "1.3.0"
+log = "0.4.22"
 parking_lot = "0.12.3"
 static_assertions = "1.1.0"
+sysinfo = "0.30.13"
 thiserror = "1.0.63"
+
+[dev-dependencies]
+test-log = "0.2.16"
+criterion = { version = "0.5.1", features = ["html_reports"] }
+
+[[bench]]
+name = "aroma_gc_benchmarks"
+harness = false

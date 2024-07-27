@@ -1,9 +1,11 @@
 //! A chunk of data
 
-use std::fmt::{Debug, Display, Formatter};
-use std::ops::{Deref, Index, IndexMut, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive};
-use strum::AsRefStr;
 use crate::types::Value;
+use std::fmt::{Debug, Display, Formatter};
+use std::ops::{
+    Deref, Index, IndexMut, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive,
+};
+use strum::AsRefStr;
 
 /// An opcode
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone, Copy, AsRefStr)]
@@ -22,11 +24,10 @@ impl TryFrom<u8> for OpCode {
         match value {
             0 => Ok(Constant),
             1 => Ok(Return),
-            unknown => Err(UnknownOpcode(unknown))
+            unknown => Err(UnknownOpcode(unknown)),
         }
     }
 }
-
 
 #[derive(Debug, thiserror::Error)]
 #[error("Unknown opcode 0x{0:02X}")]
@@ -38,7 +39,7 @@ pub struct Chunk {
     capacity: usize,
     code: Option<Box<[u8]>>,
     lines: Vec<usize>,
-    constants: Vec<Value<'static>>
+    constants: Vec<Value>,
 }
 
 macro_rules! grow_capacity {
@@ -55,9 +56,13 @@ impl Debug for Chunk {
 
 impl Display for Chunk {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.code().iter().fold(String::new(), |mut buf, next| {
-            format!("{buf}{}", format!("{next:x}"))
-        }))
+        write!(
+            f,
+            "{}",
+            self.code().iter().fold(String::new(), |mut buf, next| {
+                format!("{buf}{}", format!("{next:x}"))
+            })
+        )
     }
 }
 
@@ -90,15 +95,17 @@ impl Chunk {
     }
 
     /// Add a constant into the constant pool for this chunk
-    pub fn add_constant(&mut self, value: Value<'static>) -> usize {
+    pub fn add_constant(&mut self, value: Value) -> usize {
         self.constants.push(value);
         self.constants.len() - 1
     }
 
     /// Adds all the constants, returning an iterator of the indices of the added constants
-    pub fn add_constants<'a, I : IntoIterator<Item=Value<'static>, IntoIter: 'a>>(&'a mut self, values: I) -> impl Iterator<Item=usize> + '_ {
-        values.into_iter()
-            .map(|value| self.add_constant(value))
+    pub fn add_constants<'a, I: IntoIterator<Item = Value, IntoIter: 'a>>(
+        &'a mut self,
+        values: I,
+    ) -> impl Iterator<Item = usize> + '_ {
+        values.into_iter().map(|value| self.add_constant(value))
     }
 
     /// Writes a byte to this chunk
@@ -128,7 +135,7 @@ impl Chunk {
     }
 
     /// Gets the constants in the constant pool of this chunk
-    pub fn constants(&self) -> &[Value<'static>] {
+    pub fn constants(&self) -> &[Value] {
         &self.constants[..]
     }
 
@@ -139,7 +146,7 @@ impl Chunk {
 
     /// Gets the constant at the given index using the unknown opcode size of 1 byte for referencing
     /// a pool item.
-    pub fn get_constant(&self, idx: u8) -> Option<&Value<'static>> {
+    pub fn get_constant(&self, idx: u8) -> Option<&Value> {
         self.constants.get(idx as usize)
     }
 
@@ -150,7 +157,10 @@ impl Chunk {
 
     /// Gets the code segment of this chunk
     pub fn code(&self) -> &[u8] {
-        self.code.as_ref().map(|s| &s[..self.count]).unwrap_or_else(|| &[])
+        self.code
+            .as_ref()
+            .map(|s| &s[..self.count])
+            .unwrap_or_else(|| &[])
     }
     fn code_mut(&mut self) -> &mut [u8] {
         self.code
@@ -175,11 +185,7 @@ impl Chunk {
         };
         self.code = Some(new_chunk);
     }
-
-
 }
-
-
 
 #[cfg(test)]
 mod tests {

@@ -1,9 +1,9 @@
+use crate::gc_heap::AllocError;
+use crate::Trace;
 use std::cell::Cell;
 use std::mem::MaybeUninit;
 use std::ops::{Deref, DerefMut};
 use std::ptr::NonNull;
-use crate::gc_heap::AllocError;
-use crate::Trace;
 
 /// A GC Box
 #[derive(Debug)]
@@ -14,20 +14,16 @@ pub struct GcBox<T: ?Sized + 'static> {
 }
 
 impl<T: 'static> GcBox<T> {
-
     /// Tries to allocate this box at a given
     pub unsafe fn allocate(buffer: NonNull<u8>, data: T) -> Result<NonNull<Self>, AllocError> {
-        let mut uninit = buffer.as_ptr() as * mut MaybeUninit<Self>;
+        let mut uninit = buffer.as_ptr() as *mut MaybeUninit<Self>;
         uninit.write(MaybeUninit::new(GcBox {
             header: GcBoxHeader::new::<T>(),
-            data
+            data,
         }));
-        println!("gc box created at {uninit:p}");
 
         NonNull::new((*uninit).assume_init_mut() as *mut Self).ok_or(AllocError::NullPtr)
     }
-
-
 }
 
 impl<T: ?Sized + 'static> Deref for GcBox<T> {
@@ -43,7 +39,6 @@ impl<T: ?Sized + 'static> DerefMut for GcBox<T> {
         &mut self.data
     }
 }
-
 
 unsafe impl<T: Send> Send for GcBox<T> {}
 
@@ -67,8 +62,6 @@ impl GcBoxHeader {
             len: std::mem::size_of::<T>(),
         }
     }
-
-
 
     #[inline]
     pub fn roots(&self) -> usize {
@@ -114,8 +107,7 @@ impl GcBoxHeader {
     }
 }
 
-
-impl<T : Trace + ?Sized> GcBox<T> {
+impl<T: Trace + ?Sized> GcBox<T> {
     /// Marks this `GcBox` and marks through its data.
     pub(crate) unsafe fn trace_inner(&self) {
         if !self.header.is_marked() {
@@ -124,8 +116,6 @@ impl<T : Trace + ?Sized> GcBox<T> {
         }
     }
 }
-
-
 
 #[cfg(test)]
 mod tests {
@@ -141,7 +131,10 @@ mod tests {
             println!("allocated: {:?}", *allocated.as_ptr());
             assert_eq!(v, 10.2);
         }
-        assert!(buffer.iter().any(|&b| b != 0), "at least some value should be non-zero");
+        assert!(
+            buffer.iter().any(|&b| b != 0),
+            "at least some value should be non-zero"
+        );
         println!("buffer: {buffer:X?}");
     }
 }

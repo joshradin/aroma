@@ -1,31 +1,28 @@
-use crate::types::Value;
-use gc_arena::Collect;
 use std::collections::HashMap;
-use std::marker::PhantomData;
+use aroma_gc::{Gc, Trace};
+use crate::chunk::Chunk;
+use crate::types::Value;
 
-#[derive(Debug, Collect)]
-#[collect(no_drop)]
-pub struct Obj<'vm> {
-    vtable: VTable<'vm>,
-    _lf: PhantomData<&'vm ()>,
+#[derive(Debug, Trace)]
+pub struct Obj {
+    vtable: VTable,
 }
 
-impl Obj<'_> {
+impl Obj {
     pub fn new() -> Self {
         Self {
             vtable: VTable::default(),
-            _lf: PhantomData,
         }
     }
 }
 
 /// The virtual table
-#[derive(Debug, Default, Collect)]
-#[collect(no_drop)]
-pub struct VTable<'vm> {
+#[derive(Debug, Default, Trace)]
+pub struct VTable {
+    #[req_static]
     class: String,
-    parent: Option<Box<VTable<'vm>>>,
-    fields: HashMap<String, Value<'vm>>,
-    methods: HashMap<String, Vec<u8>>,
-    _lf: PhantomData<&'vm ()>,
+    parent: Option<Gc<VTable>>,
+    fields: HashMap<Gc<&'static str>, Value>,
+    #[req_static]
+    methods: HashMap<Gc<&'static str>, Chunk>,
 }
