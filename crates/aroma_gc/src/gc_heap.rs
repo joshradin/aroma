@@ -22,6 +22,9 @@ mod generation_bump_heap;
 mod memory_lock;
 mod free_list;
 
+
+pub use free_list::FreeList;
+
 /// The generation
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) enum Generation {
@@ -144,7 +147,7 @@ impl GcHeap {
     /// Allocates within the young generation for immediacy
     pub fn allocate<T: Trace + 'static>(&mut self, data: T) -> Result<Gc<T>, AllocError> {
         if !self.young_gen.read().can_allocate(&data) {
-            todo!("garbage collection");
+            self.collect_garbage();
             if !self.young_gen.read().can_allocate(&data) {
                 return Err(AllocError::HeapExhausted(self.stats().used()));
             }
@@ -217,6 +220,11 @@ impl GcHeap {
                     .insert(generation.generation, generation);
                 accum
             })
+    }
+
+    /// Starts a garbage collection cycle.
+    pub fn collect_garbage(&mut self) {
+
     }
 }
 

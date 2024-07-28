@@ -15,6 +15,11 @@ mod gc_box;
 mod gc_heap;
 mod internal_collections;
 
+#[doc(hidden)]
+pub mod __export {
+    pub use super::gc_heap::FreeList;
+}
+
 /// Trait for tracing all members of an object
 pub unsafe trait Trace {
     fn finalize(&mut self) {}

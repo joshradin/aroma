@@ -9,11 +9,12 @@ use std::mem::forget;
 use std::ops::RangeBounds;
 use std::ptr::NonNull;
 
-mod sort;
-mod iters;
 pub use iters::*;
+
 use crate::internal_collections::static_linked_list::sort::merge_sort;
 
+mod iters;
+mod sort;
 pub struct StaticLinkedList<T> {
     front: Link<T>,
     back: Link<T>,
@@ -39,15 +40,19 @@ impl<T> StaticLinkedList<T> {
         let mut tail = head;
 
         while let Some(ptr) = tail {
-            tail = (*ptr.as_ptr()).next;
             len += 1;
+            if (*ptr.as_ptr()).next.is_some() {
+                tail = (*ptr.as_ptr()).next;
+            } else {
+                break;
+            }
         }
 
         Self {
             front: head,
             back: tail,
             len,
-            _t: PhantomData
+            _t: PhantomData,
         }
     }
 
@@ -248,10 +253,21 @@ impl<T> StaticLinkedList<T> {
                 let this_len = index;
                 let split_len = self.len - index;
                 let split_tail = self.back;
-                let mut split_head = self.front.unwrap();
-                for _ in 0..index {
-                    split_head = (*split_head.as_ptr()).next.unwrap();
-                }
+                let split_head = {
+                    if index < self.len / 2 {
+                        let mut split_head = self.front.unwrap();
+                        for _ in 0..index {
+                            split_head = (*split_head.as_ptr()).next.unwrap();
+                        }
+                        split_head
+                    } else {
+                        let mut split_head = self.back.unwrap();
+                        for _ in 0..(self.len - index - 1) {
+                            split_head = (*split_head.as_ptr()).prev.unwrap();
+                        }
+                        split_head
+                    }
+                };
                 let new_self_tail = (*split_head.as_ptr()).prev;
 
                 (*split_head.as_ptr()).prev = None;
@@ -282,6 +298,15 @@ impl<T> StaticLinkedList<T> {
         self.split_at(index)
     }
 
+    /// Tries to split the list at the first index `predicate` matches, from the back
+    pub fn rsplit_when<F>(&mut self, predicate: F) -> Option<Self>
+    where
+        F: Fn(&T) -> bool,
+    {
+        let index = self.len - self.iter().rev().position(|elem| predicate(elem))?;
+        self.split_at(index)
+    }
+
     /// Tries to remove the element from the list at the first index `predicate` matches
     pub fn remove_when<F>(&mut self, predicate: F) -> Option<T>
     where
@@ -308,11 +333,6 @@ impl<T> StaticLinkedList<T> {
         }
     }
 
-    #[inline]
-    fn split_midway(&mut self) -> Self {
-        self.split_at(self.len / 2).expect("Index out of bounds")
-    }
-
     /// Sorts the linked list by a given key
     pub fn sort_by<F>(&mut self, compare: F)
     where
@@ -326,6 +346,7 @@ impl<T> StaticLinkedList<T> {
     }
 
     /// Sorts the linked list by a given key
+    #[inline]
     pub fn sort_by_key<K, F>(&mut self, f: F)
     where
         F: Fn(&T) -> K,
@@ -594,7 +615,7 @@ impl<T> Drop for Drain<'_, T> {
 mod tests {
     use std::cmp::Reverse;
     use std::collections::VecDeque;
-    use std::iter::Rev;
+
     use super::*;
 
     #[test]
@@ -717,6 +738,19 @@ mod tests {
             other.iter().copied().collect::<Vec<_>>(),
             [6, 7, 8, 9, 10, 11]
         );
+    }
+
+    #[test]
+    fn test_split_three_quarters() {
+        let mut list = StaticLinkedList::from_iter(0..12);
+        let other = list.split_at(9).unwrap();
+        assert_eq!(list.len(), 9);
+        assert_eq!(
+            list.iter().copied().collect::<Vec<_>>(),
+            [0, 1, 2, 3, 4, 5, 6, 7, 8]
+        );
+        assert_eq!(other.len(), 3);
+        assert_eq!(other.iter().copied().collect::<Vec<_>>(), [9, 10, 11]);
     }
 
     #[test]
