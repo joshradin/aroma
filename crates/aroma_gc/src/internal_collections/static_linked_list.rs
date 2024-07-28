@@ -9,6 +9,11 @@ use std::mem::forget;
 use std::ops::RangeBounds;
 use std::ptr::NonNull;
 
+mod sort;
+mod iters;
+pub use iters::*;
+use crate::internal_collections::static_linked_list::sort::merge_sort;
+
 pub struct StaticLinkedList<T> {
     front: Link<T>,
     back: Link<T>,
@@ -25,6 +30,36 @@ impl<T> StaticLinkedList<T> {
             len: 0,
             _t: PhantomData,
         }
+    }
+
+    /// Creates a static linked list from existing links
+    unsafe fn from_raw(head: Link<T>) -> Self {
+        let mut len = 0;
+        let mut head = head;
+        let mut tail = head;
+
+        while let Some(ptr) = tail {
+            tail = (*ptr.as_ptr()).next;
+            len += 1;
+        }
+
+        Self {
+            front: head,
+            back: tail,
+            len,
+            _t: PhantomData
+        }
+    }
+
+    /// Extracts the raw pointers and length from this linked list.
+    ///
+    /// Unsafe because the memory allocated must be now manually de-allocated or restructured via
+    /// [StaticLinkedList::from_raw].
+    unsafe fn to_raw(self) -> Link<T> {
+        let front = self.front;
+
+        forget(self);
+        front
     }
 
     /// Pushes an element to the front of the linked list
@@ -190,19 +225,12 @@ impl<T> StaticLinkedList<T> {
 
     /// Creates an iterator over this linked list
     pub fn iter(&self) -> Iter<T> {
-        Iter {
-            _ref: self,
-            ptr: self.front,
-        }
+        Iter::new(self)
     }
 
     /// Creates a mutable iterator over this linked list
     pub fn iter_mut(&mut self) -> IterMut<T> {
-        let link = self.front;
-        IterMut {
-            _ref: self,
-            ptr: link,
-        }
+        IterMut::new(self)
     }
 
     /// Splits the linked list at the given index, returning Some(new_list) starting at the given
@@ -280,12 +308,56 @@ impl<T> StaticLinkedList<T> {
         }
     }
 
+    #[inline]
+    fn split_midway(&mut self) -> Self {
+        self.split_at(self.len / 2).expect("Index out of bounds")
+    }
+
+    /// Sorts the linked list by a given key
+    pub fn sort_by<F>(&mut self, compare: F)
+    where
+        F: FnMut(&T, &T) -> Ordering,
+    {
+        unsafe {
+            let raw = std::mem::replace(self, Self::new()).to_raw();
+            let head = merge_sort(raw, &mut { compare });
+            std::mem::swap(&mut StaticLinkedList::from_raw(head), self);
+        }
+    }
+
+    /// Sorts the linked list by a given key
+    pub fn sort_by_key<K, F>(&mut self, f: F)
+    where
+        F: Fn(&T) -> K,
+        K: Ord,
+    {
+        self.sort_by(|a, b| f(a).cmp(&f(b)))
+    }
+
+    /// Sorts this by the natural order of the elements in this node
+    #[inline]
+    pub fn sort(&mut self)
+    where
+        T: Ord,
+    {
+        self.sort_by(|l, r| l.cmp(r))
+    }
+
     /// Removes the specified range
     ///
     /// # Panic
     /// Panics if start point is greater than the end point or the end point is greater than
     /// the length of the list
     pub fn drain<R: RangeBounds<usize>>(&mut self, range: R) -> Drain<T> {
+        if self.is_empty() {
+            return Drain {
+                ptr: None,
+                first: None,
+                last: None,
+                _ref: self,
+            };
+        }
+
         let start_idx = match range.start_bound() {
             Bound::Included(&i) => i,
             Bound::Excluded(&i) => i + 1,
@@ -429,7 +501,7 @@ impl<T> IntoIterator for StaticLinkedList<T> {
     type IntoIter = IntoIter<T>;
 
     fn into_iter(self) -> Self::IntoIter {
-        IntoIter { list: self }
+        IntoIter::new(self)
     }
 }
 
@@ -467,29 +539,6 @@ impl<T: Ord> Ord for StaticLinkedList<T> {
     }
 }
 
-/// Iterator over linked list
-#[derive(Debug)]
-pub struct Iter<'a, T> {
-    _ref: &'a StaticLinkedList<T>,
-    ptr: Link<T>,
-}
-
-impl<'a, T> Iterator for Iter<'a, T> {
-    type Item = &'a T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        unsafe {
-            self.ptr.map(|ptr| {
-                let node = &(*ptr.as_ptr());
-                let e = &node.elem;
-
-                self.ptr = node.next;
-                e
-            })
-        }
-    }
-}
-
 impl<'a, T> IntoIterator for &'a StaticLinkedList<T> {
     type Item = &'a T;
     type IntoIter = Iter<'a, T>;
@@ -499,63 +548,12 @@ impl<'a, T> IntoIterator for &'a StaticLinkedList<T> {
     }
 }
 
-/// Iterator over linked list
-#[derive(Debug)]
-pub struct IterMut<'a, T> {
-    _ref: &'a mut StaticLinkedList<T>,
-    ptr: Link<T>,
-}
-
-impl<'a, T> Iterator for IterMut<'a, T> {
-    type Item = &'a mut T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        unsafe {
-            self.ptr.map(|ptr| {
-                let node = &mut (*ptr.as_ptr());
-                let e = &mut node.elem;
-
-                self.ptr = node.next;
-                e
-            })
-        }
-    }
-}
-
 impl<'a, T> IntoIterator for &'a mut StaticLinkedList<T> {
     type Item = &'a mut T;
     type IntoIter = IterMut<'a, T>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter_mut()
-    }
-}
-
-/// Iterator over linked list
-#[derive(Debug)]
-pub struct IntoIter<T> {
-    list: StaticLinkedList<T>,
-}
-
-impl<T> Iterator for IntoIter<T> {
-    type Item = T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.list.pop_front()
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.list.len(), Some(self.list.len()))
-    }
-}
-
-impl<T> FusedIterator for IntoIter<T> {}
-
-impl<T> ExactSizeIterator for IntoIter<T> {}
-
-impl<T> DoubleEndedIterator for IntoIter<T> {
-    fn next_back(&mut self) -> Option<Self::Item> {
-        self.list.pop_back()
     }
 }
 
@@ -594,8 +592,9 @@ impl<T> Drop for Drain<'_, T> {
 
 #[cfg(test)]
 mod tests {
+    use std::cmp::Reverse;
     use std::collections::VecDeque;
-
+    use std::iter::Rev;
     use super::*;
 
     #[test]
@@ -761,6 +760,27 @@ mod tests {
         let removed = list.clone().drain(..).collect::<StaticLinkedList<_>>();
         assert_eq!(removed, StaticLinkedList::from_iter(0..12));
         assert_eq!(list, StaticLinkedList::from_iter(0..12));
+    }
+
+    #[test]
+    fn test_sort_natural() {
+        let mut list = StaticLinkedList::from_iter((0..12).rev().chain(12..24));
+        list.sort();
+        assert_eq!(list, StaticLinkedList::from_iter(0..24));
+    }
+
+    #[test]
+    fn test_sort_compare() {
+        let mut list = StaticLinkedList::from_iter((0..12).rev().chain(12..24));
+        list.sort_by(|l, r| l.cmp(r));
+        assert_eq!(list, StaticLinkedList::from_iter(0..24));
+    }
+
+    #[test]
+    fn test_sort_by_key() {
+        let mut list = StaticLinkedList::from_iter((0..12).rev().chain(12..24));
+        list.sort_by_key(|&k| Reverse(k));
+        assert_eq!(list, StaticLinkedList::from_iter((0..24).rev()));
     }
 
     #[test]

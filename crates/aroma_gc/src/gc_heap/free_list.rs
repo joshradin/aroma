@@ -1,6 +1,9 @@
 //! An auto-joining free-list
 
 use std::collections::BTreeMap;
+
+use strum::IntoEnumIterator;
+
 use crate::gc_box::GcBoxHeader;
 use crate::internal_collections::static_linked_list::StaticLinkedList;
 
@@ -16,22 +19,23 @@ enum Bin {
     Bytes2048 = 2048,
     Bytes4096 = 4096,
     Bytes8192 = 8192,
-    BytesMore
+    BytesMore,
 }
 
 impl From<usize> for Bin {
     fn from(value: usize) -> Self {
         use Bin::*;
         match value {
-            ..=32  => Bytes32,
-            33..=64  => Bytes64,
-            65..=128  => Bytes128,
-            129..=256  => Bytes256,
-            257..=512  => Bytes512,
-            513..=1024  => Bytes1024,
-            33..=64  => Bytes64,
-            33..=64  => Bytes64,
-            33..=64  => Bytes64,
+            ..=32 => Bytes32,
+            33..=64 => Bytes64,
+            65..=128 => Bytes128,
+            129..=256 => Bytes256,
+            257..=512 => Bytes512,
+            513..=1024 => Bytes1024,
+            1025..=2048 => Bytes2048,
+            2049..=4096 => Bytes4096,
+            4097..=8192 => Bytes8192,
+            8193.. => BytesMore,
         }
     }
 }
@@ -46,19 +50,30 @@ impl FreeList {
     /// Creates a new, empty free list.
     pub const fn new() -> Self {
         Self {
-            free_nodes: BTreeMap::new()
+            free_nodes: BTreeMap::new(),
         }
     }
 
     /// Adds a free pointer to the list.
     pub fn push(&mut self, offset: usize, size: usize) {
-        self.free_nodes.push_back(Node { offset, len: size });
+        let bin = Bin::from(size);
+        self.free_nodes
+            .entry(bin)
+            .or_default()
+            .push_back(Node { offset, len: size });
         self.compact();
     }
 
     /// Compacts members of the free lis
     fn compact(&mut self) {
-        let mut nodes = self.free_nodes.drain(..).collect::<Vec<_>>();
+        let mut nodes = self
+            .free_nodes
+            .iter_mut()
+            .flat_map(|(_, list)| list.split_at(0))
+            .fold(StaticLinkedList::new(), |mut accum, next| {
+                accum.append(next);
+                accum
+            });
         nodes.sort_by_key(|node| node.offset);
 
         let compacted = nodes
@@ -79,7 +94,10 @@ impl FreeList {
                 accum
             });
 
-        self.free_nodes = compacted;
+        for node in compacted {
+            let bin = node.bin();
+            self.free_nodes.entry(bin).or_default().push_back(node);
+        }
     }
 
     /// Pops an offset from the free list, returning an offset where the targeted space is
@@ -87,37 +105,43 @@ impl FreeList {
     ///
     /// If no free pointer has enough space, `None` is returned.
     pub fn pop(&mut self, size: usize) -> Option<usize> {
-        let mut best_fit = self
-            .free_nodes
-            .iter()
-            .enumerate()
-            .filter(|(_, node)| node.len >= size)
-            .take(128)
-            .collect::<Vec<_>>();
+        let min_bin = Bin::from(size);
+        for (_bin, free_list) in self.free_nodes.range_mut(min_bin..) {
+            let mut best_fit = free_list
+                .iter()
+                .enumerate()
+                .filter(|(_, node)| node.len >= size)
+                .take(128)
+                .collect::<Vec<_>>();
 
-        best_fit.sort_by_cached_key(|(_, node)| node.len - size);
-        let (idx, best_fit_node) = best_fit.pop()?;
-        let offset = best_fit_node.offset;
+            if !best_fit.is_empty() {
+                best_fit.sort_by_cached_key(|(_, node)| node.len - size);
+                let (idx, best_fit_node) = best_fit.pop()?;
+                let offset = best_fit_node.offset;
 
-        let best_fit_node = self.free_nodes.remove(idx)?;
-        if best_fit_node.len - size >= size_of::<GcBoxHeader>() {
-            let node_new_len = best_fit_node.len - size;
-            let new_offset = best_fit_node.offset + size;
-            self.push(new_offset, node_new_len);
+                let best_fit_node = free_list.remove(idx)?;
+                if best_fit_node.len - size >= size_of::<GcBoxHeader>() {
+                    let node_new_len = best_fit_node.len - size;
+                    let new_offset = best_fit_node.offset + size;
+                    self.push(new_offset, node_new_len);
+                }
+
+                return Some(offset);
+            }
         }
-
-        Some(offset)
+        None
     }
 
     /// Gets the number of free nodes in this list
     pub fn len(&self) -> usize {
-        self.free_nodes.len()
+        self.free_nodes.values().map(|s| s.len()).sum()
     }
 
     /// Gets the total amount of space stored in this free list
     pub fn bytes(&self) -> usize {
         self.free_nodes
-            .iter()
+            .values()
+            .flatten()
             .map(|node| node.len)
             .sum()
     }
@@ -139,6 +163,11 @@ impl Node {
     #[inline]
     fn back(&self) -> usize {
         self.offset + self.len
+    }
+
+    #[inline]
+    fn bin(&self) -> Bin {
+        Bin::from(self.len)
     }
 
     /// Checks if this node is adjacent to another node
@@ -169,12 +198,14 @@ enum Adjacency {
 mod tests {
     use super::*;
 
-
     #[test]
     fn test_pop() {
         let mut free_list: FreeList = FreeList::new();
         free_list.push(0, 64);
-        assert!(matches!(free_list.pop(96), None), "Not enough space to make this allocation");
+        assert!(
+            matches!(free_list.pop(96), None),
+            "Not enough space to make this allocation"
+        );
         let popped = free_list.pop(64);
         assert!(matches!(popped, Some(0)), "should get the offset 0");
         assert_eq!(free_list.len(), 0);
@@ -188,7 +219,6 @@ mod tests {
         assert!(matches!(popped, Some(0)), "should get the offset 0");
         assert_eq!(free_list.len(), 1);
         assert_eq!(free_list.bytes(), 128 - 32);
-        assert!(matches!(free_list.free_nodes.front(), Some(Node {offset: 32 , len: 96 })))
     }
 
     #[test]
