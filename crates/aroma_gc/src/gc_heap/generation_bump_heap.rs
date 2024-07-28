@@ -5,14 +5,18 @@ use std::mem::size_of;
 use std::ptr::NonNull;
 use std::sync::Arc;
 use std::time::Duration;
+
 use log::{info, trace};
 use parking_lot::RwLock;
 
 use crate::gc::Gc;
 use crate::gc_box::{GcBox, GcBoxHeader};
-use crate::gc_heap::{AllocError, GcBoxLink, IndirectionTable, GcBoxPtr, Generation};
-use crate::gc_heap::move_guard::MoveGuard;
-use crate::static_linked_list::StaticLinkedList;
+use crate::gc_heap::{
+    AllocError, debug_gc_box_ptr, GcBoxLink, GcBoxPtr, Generation, IndirectionTable,
+};
+use crate::gc_heap::free_list::FreeList;
+use crate::gc_heap::memory_lock::{MemoryGuard, MemoryLock};
+use crate::internal_collections::static_linked_list::StaticLinkedList;
 use crate::Trace;
 
 macro_rules! grow_capacity {
@@ -70,7 +74,8 @@ pub(crate) struct GenerationBumpHeap {
     capacity: usize,
     owned_gc_ptrs: IndirectionTable,
     resizes: usize,
-    move_guard: MoveGuard,
+    free_list: FreeList,
+    move_guard: MemoryLock,
     collection_details: BTreeSet<CollectionDetails>,
 }
 
@@ -89,7 +94,7 @@ impl GenerationBumpHeap {
     pub const fn new(
         generation: Generation,
         gc_pointers: Arc<RwLock<StaticLinkedList<GcBoxPtr>>>,
-        guard: MoveGuard,
+        guard: MemoryLock,
     ) -> Self {
         Self {
             generation,
@@ -98,6 +103,7 @@ impl GenerationBumpHeap {
             capacity: 0,
             owned_gc_ptrs: gc_pointers,
             resizes: 0,
+            free_list: FreeList::new(),
             move_guard: guard,
             collection_details: BTreeSet::new(),
         }
@@ -107,7 +113,7 @@ impl GenerationBumpHeap {
     pub fn with_capacity(
         generation: Generation,
         gc_pointers: Arc<RwLock<StaticLinkedList<GcBoxPtr>>>,
-        guard: MoveGuard,
+        guard: MemoryLock,
         capacity: usize,
     ) -> Result<Self, AllocError> {
         let mut heap = Self::new(generation, gc_pointers, guard);
@@ -161,6 +167,14 @@ impl GenerationBumpHeap {
 
     /// Allocates enough space for an allocation of a given size
     unsafe fn allocate_bytes(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocError> {
+        if let Some(offset) = self.free_list.pop(layout.size()) {
+            if let Some(ptr) = self.ptr {
+                let data_ptr = ptr.add(offset);
+                return Ok(data_ptr);
+            }
+
+        }
+
         while layout.size() > self.capacity - self.bmp {
             self.set_capacity(grow_capacity!(self.capacity))?;
         }
@@ -179,7 +193,7 @@ impl GenerationBumpHeap {
         Ok(gc_box_ptr)
     }
 
-    pub fn can_allocate<T : Trace + Sized + 'static>(&self, _elem: &T) -> bool {
+    pub fn can_allocate<T: Trace + Sized + 'static>(&self, _elem: &T) -> bool {
         let layout = Layout::new::<GcBox<T>>();
         layout.size() <= self.capacity - self.bmp
     }
@@ -200,15 +214,20 @@ impl GenerationBumpHeap {
             return Err(AllocError::GcPointerListMustBeShared);
         }
 
+        let old_allocation = elem.ptr.read();
         let new_allocation = self._allocate_elem(elem.ptr.as_ptr().read().as_ptr().read().data)?;
-        let link = dbg!(elem.ptr);
+        let link = elem.ptr;
 
         let _guard = self.owned_gc_ptrs.write();
         link.as_ptr().write(new_allocation);
 
+        drop(_guard);
+        other.free_ptr(old_allocation)?;
+
         Ok(())
     }
 
+    /// Frees a gc ptr. Zeros the original data while keeping the original header in place
     pub unsafe fn free<T: Trace + ?Sized + 'static>(
         &mut self,
         obj: Gc<T>,
@@ -221,15 +240,22 @@ impl GenerationBumpHeap {
         &mut self,
         ptr: GcBoxPtr<T>,
     ) -> Result<(), AllocError> {
-        let size = (*ptr.as_ptr()).header.len();
-        if size == 0 {
+        let header = &mut (*ptr.as_ptr()).header;
+        let size = header.len();
+        if header.len() == 0 {
             return Err(AllocError::InvalidFree);
         }
 
-        let len = size + size_of::<GcBoxHeader>();
-        let byte_ptr = ptr.as_ptr() as *mut u8;
-        let mut bytes = std::slice::from_raw_parts_mut(byte_ptr, len);
+        let total_size = size + size_of::<GcBoxHeader>();
+        let byte_ptr = (&mut *ptr.as_ptr()) as *mut _ as *mut u8;
+        let mut bytes = std::slice::from_raw_parts_mut(byte_ptr, total_size);
         bytes.iter_mut().for_each(|b| *b = 0);
+
+        if let Some(self_ptr) = self.ptr {
+            let offset = ptr.cast::<u8>().offset_from(self_ptr) as usize;
+            self.free_list.push(offset, total_size);
+        }
+
         Ok(())
     }
 
@@ -269,7 +295,7 @@ impl GenerationBumpHeap {
                     }
                     let new_ptr = NonNull::new_unchecked(realloc_ptr);
                     if old_ptr != new_ptr {
-                        self.move_guard.try_lock()?;
+                        let _guard = self.move_guard.try_lock()?;
                         let old_range = old_ptr.as_ptr()..(old_ptr.as_ptr().add(old_capacity));
 
                         let mut guard = self.owned_gc_ptrs.write();
@@ -282,7 +308,6 @@ impl GenerationBumpHeap {
                                 *elem = non_null;
                             }
                         }
-                        self.move_guard.unlock();
                     }
                     self.capacity = new_capacity;
                     self.ptr = Some(new_ptr);
@@ -309,15 +334,17 @@ impl GenerationBumpHeap {
     }
 }
 
+
 #[cfg(test)]
 mod tests {
-    use super::*;
     use test_log::test;
+
+    use super::*;
 
     #[test]
     fn test_allocate() {
         let mut gc_heap =
-            GenerationBumpHeap::new(Generation::Eden, Default::default(), MoveGuard::new());
+            GenerationBumpHeap::new(Generation::Eden, Default::default(), MemoryLock::new());
         unsafe {
             let gc = gc_heap.allocate_elem(11).expect("couldnt allocate");
             assert_eq!(*gc.get().unwrap(), 11);
@@ -328,7 +355,7 @@ mod tests {
     #[test]
     fn test_grow_heap() {
         let mut gc_heap =
-            GenerationBumpHeap::new(Generation::Eden, Default::default(), MoveGuard::new());
+            GenerationBumpHeap::new(Generation::Eden, Default::default(), MemoryLock::new());
         unsafe {
             let mut ptrs = vec![];
             for i in 0..1000 {
@@ -354,7 +381,7 @@ mod tests {
         unsafe impl Trace for Test {}
 
         let mut gc_heap =
-            GenerationBumpHeap::new(Generation::Eden, Default::default(), MoveGuard::new());
+            GenerationBumpHeap::new(Generation::Eden, Default::default(), MemoryLock::new());
         unsafe {
             let mut ptrs = vec![];
             for i in 0..1000 {
@@ -384,7 +411,7 @@ mod tests {
     #[test]
     fn test_grow_heap_variable_size() {
         let mut gc_heap =
-            GenerationBumpHeap::new(Generation::Eden, Default::default(), MoveGuard::new());
+            GenerationBumpHeap::new(Generation::Eden, Default::default(), MemoryLock::new());
         unsafe {
             let mut ptrs: Vec<Gc<dyn Trace>> = vec![];
             for i in 0..1000 {
@@ -407,7 +434,7 @@ mod tests {
                 gc_heap.free(ptrs[i].clone()).unwrap();
                 gc_heap
                     .free(ptrs[i].clone())
-                    .expect_err("can't double free");
+                    .expect_err("shouldn't be allowed to double free");
             }
         }
     }
@@ -416,9 +443,9 @@ mod tests {
     fn test_move_data_between_heaps() {
         let all_pointers: Arc<RwLock<StaticLinkedList<_>>> = Default::default();
         let mut gc_heap1 =
-            GenerationBumpHeap::new(Generation::S0, all_pointers.clone(), MoveGuard::new());
+            GenerationBumpHeap::new(Generation::S0, all_pointers.clone(), MemoryLock::new());
         let mut gc_heap2 =
-            GenerationBumpHeap::new(Generation::S1, all_pointers.clone(), MoveGuard::new());
+            GenerationBumpHeap::new(Generation::S1, all_pointers.clone(), MemoryLock::new());
         unsafe {
             let mut ptrs: Vec<Gc<usize>> = vec![];
             for i in 0..20 {
@@ -433,30 +460,13 @@ mod tests {
                     .take(&ptr, &mut gc_heap1)
                     .expect("could not take pointer");
             }
-            println!("{all_pointers:#?}");
+            println!("heap: {:#?}", gc_heap1);
             for i in 0..20 {
                 let ptr = &ptrs[i].get().unwrap();
                 assert_eq!(**ptr, i);
             }
+
         }
     }
 
-    #[test]
-    #[should_panic]
-    #[ignore]
-    fn test_move_data_reference() {
-        let all_pointers: Arc<RwLock<StaticLinkedList<_>>> = Default::default();
-        let mut gc_heap1 =
-            GenerationBumpHeap::new(Generation::S0, all_pointers.clone(), MoveGuard::new());
-        unsafe {
-            let ptr = gc_heap1.allocate_elem(255).unwrap();
-            let borrowed = &*ptr.get().unwrap();
-            for i in 0..20 {
-                gc_heap1
-                    .allocate_elem(i)
-                    .unwrap_or_else(|e| panic!("Could not allocate {i}: {e}"));
-            }
-            assert_eq!(borrowed, &255);
-        }
-    }
 }

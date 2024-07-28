@@ -1,32 +1,34 @@
+use std::marker::PhantomData;
 use parking_lot::Mutex;
 use std::sync::{Arc, Weak};
 use std::thread::yield_now;
 
 #[derive(Debug, Default)]
-pub struct GuardState {
+struct LockState {
     /// counts the number of objects current accessing memory
     accessing_memory: usize,
     /// If locked, can not increment
     locked: usize,
 }
 
+/// Used for restricting access to the memory,
 #[derive(Debug, Clone)]
-pub struct MoveGuard {
+pub struct MemoryLock {
     /// a guard
-    guard: Arc<Mutex<GuardState>>,
+    guard: Arc<Mutex<LockState>>,
 }
 
 #[derive(Debug, Clone)]
-pub struct WeakMoveGuard(Weak<Mutex<GuardState>>);
+pub struct WeakMemoryLock(Weak<Mutex<LockState>>);
 
-impl WeakMoveGuard {
+impl WeakMemoryLock {
     /// Upgrade to a MoveGuard
-    pub fn upgrade(&self) -> Option<MoveGuard> {
-        self.0.upgrade().map(|s| MoveGuard { guard: s })
+    pub fn upgrade(&self) -> Option<MemoryLock> {
+        self.0.upgrade().map(|s| MemoryLock { guard: s })
     }
 }
 
-impl MoveGuard {
+impl MemoryLock {
     /// Creates a new move guard
     pub fn new() -> Self {
         Self {
@@ -35,8 +37,8 @@ impl MoveGuard {
     }
 
     /// Creates a weak version
-    pub fn weak(self: &Self) -> WeakMoveGuard {
-        WeakMoveGuard(Arc::downgrade(&self.guard))
+    pub fn weak(self: &Self) -> WeakMemoryLock {
+        WeakMemoryLock(Arc::downgrade(&self.guard))
     }
 
     /// Increment current accessing
@@ -60,7 +62,7 @@ impl MoveGuard {
 
     /// Locks any increment request coming in, forcing any inc to wait.
     /// Each lock call must be accompanied by an unlock call. Lock waits until no more memory accesses.
-    pub fn lock(&self) {
+    pub fn lock(&self) -> MemoryGuard {
         let mut guard = self.guard.lock();
         guard.locked += 1;
         drop(guard);
@@ -71,18 +73,22 @@ impl MoveGuard {
             }
             yield_now();
         }
+        MemoryGuard { lock: self.clone(), _lf: PhantomData }
     }
 
     /// Tries to lock any increment request coming in, forcing any inc to wait. If any accesses currently
     /// exist this will fail.
     /// Each lock call must be accompanied by an unlock call. Lock waits until no more memory accesses.
-    pub fn try_lock(&self) -> Result<(), MoveGuardLockError> {
+    pub fn try_lock(&self) -> Result<MemoryGuard, MoveGuardLockError> {
         let mut guard = self.guard.lock();
         if guard.accessing_memory > 0 {
             Err(MoveGuardLockError(guard.accessing_memory))
         } else {
             guard.locked += 1;
-            Ok(())
+            Ok(MemoryGuard {
+                lock: self.clone(),
+                _lf: Default::default(),
+            })
         }
     }
 
@@ -92,7 +98,7 @@ impl MoveGuard {
     }
 
     /// Unlocks this guard, allowing for more inc calls.
-    pub fn unlock(&self) {
+    fn unlock(&self) {
         let mut guard = self.guard.lock();
         if guard.locked > 0 {
             guard.locked -= 1;
@@ -103,3 +109,18 @@ impl MoveGuard {
 #[derive(Debug, thiserror::Error)]
 #[error("Can't lock because {0} accesses exist")]
 pub struct MoveGuardLockError(usize);
+
+/// A guard that's produced by a [MemoryLock].
+///
+/// While a guard exists, the [MemoryLock::inc] methods becomes a blocking method.
+#[derive(Debug)]
+pub struct MemoryGuard<'a> {
+    lock: MemoryLock,
+    _lf: PhantomData<&'a ()>
+}
+
+impl Drop for MemoryGuard<'_> {
+    fn drop(&mut self) {
+        self.lock.unlock();
+    }
+}

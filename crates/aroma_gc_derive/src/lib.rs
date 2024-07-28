@@ -32,7 +32,6 @@ pub fn derive_tuples(_tok: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 }
             }
         };
-        eprintln!("created: {quoted}");
         impls.push(quoted);
     }
 
@@ -62,10 +61,6 @@ fn derive_trace_struct(
 ) -> proc_macro2::TokenStream {
     let traces = call_method_on_fields(&d_struct.fields, "trace", false);
     let finalizes = call_method_on_fields(&d_struct.fields, "finalize", true);
-
-    eprintln!("traces: {}", quote! { traces });
-    eprintln!("finalizes: {}", quote! { finalizes });
-
     let DeriveInput {
         attrs,
         vis,
@@ -120,9 +115,6 @@ fn call_method_on_fields(
                 }
             }
         })
-        .inspect(|created| {
-            eprintln!("created: {created}");
-        })
         .collect::<Vec<_>>()
 }
 
@@ -163,7 +155,6 @@ fn derive_trace_enum(derive_input: &DeriveInput, d_enum: &DataEnum) -> proc_macr
         .variants
         .iter()
         .map(|variant| {
-            // eprintln!("variant = {variant:?}");
             let idents = variant
                 .fields
                 .iter()
@@ -181,7 +172,6 @@ fn derive_trace_enum(derive_input: &DeriveInput, d_enum: &DataEnum) -> proc_macr
                     Some(ident) => ident.clone(),
                 })
                 .collect::<Vec<_>>();
-            eprintln!("idents = {idents:?}");
             if idents.is_empty() {
                 return (quote! {}, quote! {});
             }
@@ -196,8 +186,6 @@ fn derive_trace_enum(derive_input: &DeriveInput, d_enum: &DataEnum) -> proc_macr
             let traces = call_method_on_idents(idents.clone(), "trace");
             let finalizers = call_method_on_idents(idents, "finalize");
 
-            eprintln!("traces: {}", quote! { #(#traces),* });
-            eprintln!("finalizes: {}", quote! { #(#finalizers),* });
 
             let id = &variant.ident;
             (

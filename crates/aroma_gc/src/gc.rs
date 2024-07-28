@@ -3,12 +3,12 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 
 use crate::{GcHeap, Trace};
-use crate::gc_heap::{GcBoxLink, MoveGuard, WeakMoveGuard};
+use crate::gc_heap::{GcBoxLink, MemoryLock, WeakMemoryLock};
 
 /// A garbage collected pointer
 pub struct Gc<T: Trace + ?Sized + 'static> {
     pub(crate) ptr: GcBoxLink<T>,
-    guard: WeakMoveGuard,
+    guard: WeakMemoryLock,
 }
 
 impl<T: Trace + ?Sized + 'static> Gc<T> {
@@ -66,10 +66,10 @@ impl<T: Trace + ?Sized + 'static + Display> Display for Gc<T> {
 }
 
 impl<T: Trace + ?Sized + 'static> Gc<T> {
-    pub(crate) fn new(ptr: GcBoxLink<T>, guard: &MoveGuard) -> Self {
+    pub(crate) fn new(ptr: GcBoxLink<T>, guard: &MemoryLock) -> Self {
         Self {
             ptr,
-            guard: MoveGuard::weak(guard),
+            guard: MemoryLock::weak(guard),
         }
     }
 }
@@ -80,7 +80,7 @@ unsafe impl<T: Trace + ?Sized + Send + 'static> Send for Gc<T> {}
 #[derive(Debug)]
 pub struct Ref<'a, T: ?Sized + 'static> {
     ptr: GcBoxLink<T>,
-    guard: MoveGuard,
+    guard: MemoryLock,
     _lf: PhantomData<&'a ()>,
 }
 
@@ -91,7 +91,7 @@ impl<'a, T: ?Sized + 'static> Drop for Ref<'a, T> {
 }
 
 impl<'a, T: ?Sized + 'static> Ref<'a, T> {
-    pub fn new(guard: MoveGuard, ptr: GcBoxLink<T>) -> Self {
+    pub fn new(guard: MemoryLock, ptr: GcBoxLink<T>) -> Self {
         guard.inc();
         Self {
             ptr,

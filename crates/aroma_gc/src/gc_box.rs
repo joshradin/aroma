@@ -1,9 +1,10 @@
-use crate::gc_heap::AllocError;
-use crate::Trace;
 use std::cell::Cell;
 use std::mem::MaybeUninit;
 use std::ops::{Deref, DerefMut};
-use std::ptr::NonNull;
+use std::ptr::{addr_of, addr_of_mut, NonNull};
+
+use crate::gc_heap::AllocError;
+use crate::Trace;
 
 /// A GC Box
 #[derive(Debug)]
@@ -23,6 +24,20 @@ impl<T: 'static> GcBox<T> {
         }));
 
         NonNull::new((*uninit).assume_init_mut() as *mut Self).ok_or(AllocError::NullPtr)
+    }
+
+
+}
+
+impl<T : ?Sized> GcBox<T> {
+    /// Gets the underlying data as bytes
+    pub(crate) fn data_bytes(&self) -> Box<[u8]>
+    {
+        let data_ptr = addr_of!(self.data) as *const u8;
+        unsafe {
+            let slice = std::slice::from_raw_parts(data_ptr, self.header.len);
+            Vec::from(slice).into_boxed_slice()
+        }
     }
 }
 
@@ -47,7 +62,7 @@ const ROOTS_MASK: usize = !MARK_MASK;
 const ROOTS_MAX: usize = ROOTS_MASK;
 
 // max allowed value of roots
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[repr(C)]
 pub(crate) struct GcBoxHeader {
     roots: Cell<usize>, // high bit is used as mark flag
@@ -59,7 +74,7 @@ impl GcBoxHeader {
     pub fn new<T>() -> Self {
         GcBoxHeader {
             roots: Cell::new(1), // unmarked and roots count
-            len: std::mem::size_of::<T>(),
+            len: size_of::<T>(),
         }
     }
 
@@ -105,6 +120,7 @@ impl GcBoxHeader {
     pub fn len(&self) -> usize {
         self.len
     }
+
 }
 
 impl<T: Trace + ?Sized> GcBox<T> {

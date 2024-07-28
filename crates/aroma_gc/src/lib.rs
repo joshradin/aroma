@@ -13,7 +13,7 @@ pub use crate::gc::Gc;
 mod gc;
 mod gc_box;
 mod gc_heap;
-mod static_linked_list;
+mod internal_collections;
 
 /// Trait for tracing all members of an object
 pub unsafe trait Trace {

@@ -9,17 +9,18 @@ use std::time::Duration;
 use parking_lot::RwLock;
 use sysinfo::System;
 
-pub(crate) use move_guard::{MoveGuard, WeakMoveGuard};
+pub(crate) use memory_lock::{MemoryLock, WeakMemoryLock};
 
 use crate::gc::Gc;
-use crate::gc_box::GcBox;
+use crate::gc_box::{GcBox, GcBoxHeader};
 use crate::gc_heap::generation_bump_heap::{GenerationBumpHeap, GenerationStats};
-use crate::gc_heap::move_guard::MoveGuardLockError;
-use crate::static_linked_list::StaticLinkedList;
+use crate::gc_heap::memory_lock::MoveGuardLockError;
+use crate::internal_collections::static_linked_list::StaticLinkedList;
 use crate::Trace;
 
 mod generation_bump_heap;
-mod move_guard;
+mod memory_lock;
+mod free_list;
 
 /// The generation
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -33,6 +34,34 @@ pub(crate) enum Generation {
 pub type GcBoxPtr<T = dyn Trace> = NonNull<GcBox<T>>;
 pub type GcBoxLink<T = dyn Trace> = NonNull<GcBoxPtr<T>>;
 
+
+fn _debug_gc_box_ptr<T : Trace + ?Sized>(ptr: GcBoxPtr<T>) {
+    #[derive(Debug)]
+    struct GcBoxData {
+        header: GcBoxHeader,
+        data: Box<[u8]>
+    }
+
+    unsafe {
+        let debug = GcBoxData {
+            header: (*ptr.as_ptr()).header.clone(),
+            data:(*ptr.as_ptr()).data_bytes()
+        };
+
+        println!("{debug:#?}");
+    }
+}
+
+macro_rules! debug_gc_box_ptr {
+    ($ptr:expr) => {
+        #[cfg(debug_assertions)] {
+            $crate::gc_heap::_debug_gc_box_ptr($ptr);
+        }
+    };
+}
+
+pub(crate) use debug_gc_box_ptr;
+
 pub(crate) type IndirectionTable = Arc<RwLock<StaticLinkedList<GcBoxPtr>>>;
 
 
@@ -45,7 +74,7 @@ pub struct GcHeap {
     s1: RwLock<GenerationBumpHeap>,
     tenured: RwLock<GenerationBumpHeap>,
     all: IndirectionTable,
-    move_guard: MoveGuard,
+    move_guard: MemoryLock,
     gc_config: GcConfig,
 }
 
@@ -79,7 +108,7 @@ impl GcHeap {
     /// Creates a new gc heap from a given config
     pub fn with_config(config: GcConfig) -> Result<Self, AllocError> {
         let all: IndirectionTable = Arc::new(Default::default());
-        let guard = MoveGuard::new();
+        let guard = MemoryLock::new();
 
         Ok(Self {
             young_gen: RwLock::new(GenerationBumpHeap::with_capacity(
@@ -163,7 +192,7 @@ impl GcHeap {
     }
 
     /// Gets the move guard for this heap
-    pub fn guard(&self) -> &MoveGuard {
+    pub fn guard(&self) -> &MemoryLock {
         &self.move_guard
     }
 
