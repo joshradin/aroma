@@ -1,7 +1,7 @@
+use aroma_gc::__export::FreeList;
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput};
 use rand::prelude::SliceRandom;
-use rand::{Rng, thread_rng};
-use aroma_gc::__export::FreeList;
+use rand::{thread_rng, Rng};
 
 pub fn free_list_throughput(c: &mut Criterion) {
     let mut group = c.benchmark_group("free_list");

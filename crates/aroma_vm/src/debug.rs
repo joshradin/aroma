@@ -1,8 +1,9 @@
 //! Helps with debugging
 
-use crate::chunk::{Chunk, OpCode};
 use std::io;
-use std::io::{stdout, BufWriter, Write};
+use std::io::{BufWriter, stdout, Write};
+
+use crate::chunk::{Chunk, OpCode};
 
 /// Responsible for disassembling bytes
 #[derive(Debug)]
@@ -53,6 +54,9 @@ impl Disassembler {
                 OpCode::Return => self.simple_instruction(opcode.as_ref(), offset, &mut w),
                 OpCode::Constant => {
                     self.constant_instruction(opcode.as_ref(), chunk, offset, &mut w)
+                }
+                _opcode => {
+                    unimplemented!("Disassembly for {_opcode:?}")
                 }
             },
             Err(unknown) => {

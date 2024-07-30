@@ -1,10 +1,11 @@
+use crate::gc_heap::AllocError;
+use crate::{Trace, Tracer};
+use static_assertions::assert_obj_safe;
 use std::cell::Cell;
 use std::mem::MaybeUninit;
 use std::ops::{Deref, DerefMut};
 use std::ptr::{addr_of, addr_of_mut, NonNull};
-
-use crate::gc_heap::AllocError;
-use crate::Trace;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 /// A GC Box
 #[derive(Debug)]
@@ -25,19 +26,47 @@ impl<T: 'static> GcBox<T> {
 
         NonNull::new((*uninit).assume_init_mut() as *mut Self).ok_or(AllocError::NullPtr)
     }
-
-
 }
 
-impl<T : ?Sized> GcBox<T> {
+impl<T: ?Sized + Trace> GcBox<T> {
     /// Gets the underlying data as bytes
-    pub(crate) fn data_bytes(&self) -> Box<[u8]>
-    {
+    pub(crate) fn data_bytes(&self) -> Box<[u8]> {
         let data_ptr = addr_of!(self.data) as *const u8;
         unsafe {
             let slice = std::slice::from_raw_parts(data_ptr, self.header.len);
             Vec::from(slice).into_boxed_slice()
         }
+    }
+
+    /// Mark this GcBox, and trace through it's data
+    pub unsafe fn mark(&self, mark: bool) {
+        // Mark this node
+        let marked = self.header.marked.swap(mark, Ordering::Relaxed);
+
+        // If we weren't already marked, trace through child nodes
+        if marked != mark {
+            self.data._cgc_mark(mark);
+        }
+    }
+
+    /// Increase the root count on this GcBox.
+    pub unsafe fn root(&self) {
+        // // Will block during GC
+        // let _modifyroots_ok = GCBOX_CHANS.rootlock.read();
+
+        self.header.roots.fetch_add(1, Ordering::SeqCst);
+    }
+
+    /// Decrease the root count on this GcBox.
+    pub unsafe fn unroot(&self) {
+        // Won't block during GC
+
+        self.header.roots.fetch_sub(1, Ordering::SeqCst);
+    }
+
+    /// Get the value form the GcBox
+    pub fn value(&self) -> &T {
+        &self.data
     }
 }
 
@@ -62,10 +91,13 @@ const ROOTS_MASK: usize = !MARK_MASK;
 const ROOTS_MAX: usize = ROOTS_MASK;
 
 // max allowed value of roots
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 #[repr(C)]
 pub(crate) struct GcBoxHeader {
-    roots: Cell<usize>, // high bit is used as mark flag
+    /// Number of root role `Cgc`s pointing to this box
+    roots: AtomicUsize,
+    /// Marked or not -- use during GC
+    marked: AtomicBool,
     len: usize,
 }
 
@@ -73,63 +105,37 @@ impl GcBoxHeader {
     #[inline]
     pub fn new<T>() -> Self {
         GcBoxHeader {
-            roots: Cell::new(1), // unmarked and roots count
+            roots: AtomicUsize::new(1),
+            marked: AtomicBool::new(false),
             len: size_of::<T>(),
         }
-    }
-
-    #[inline]
-    pub fn roots(&self) -> usize {
-        self.roots.get() & ROOTS_MASK
-    }
-
-    #[inline]
-    pub fn inc_roots(&self) {
-        let roots = self.roots.get();
-
-        // abort if the count overflows to prevent `mem::forget` loops
-        // that could otherwise lead to erroneous drops
-        if (roots & ROOTS_MASK) < ROOTS_MAX {
-            self.roots.set(roots + 1); // we checked that this won't affect the high bit
-        } else {
-            panic!("roots counter overflow");
-        }
-    }
-
-    #[inline]
-    pub fn dec_roots(&self) {
-        self.roots.set(self.roots.get() - 1); // no underflow check
-    }
-
-    #[inline]
-    pub fn is_marked(&self) -> bool {
-        self.roots.get() & MARK_MASK != 0
-    }
-
-    #[inline]
-    pub fn mark(&self) {
-        self.roots.set(self.roots.get() | MARK_MASK);
-    }
-
-    #[inline]
-    pub fn unmark(&self) {
-        self.roots.set(self.roots.get() & !MARK_MASK);
     }
 
     #[inline]
     pub fn len(&self) -> usize {
         self.len
     }
-
 }
 
-impl<T: Trace + ?Sized> GcBox<T> {
-    /// Marks this `GcBox` and marks through its data.
-    pub(crate) unsafe fn trace_inner(&self) {
-        if !self.header.is_marked() {
-            self.header.mark();
-            self.data.trace();
-        }
+/// Must be implemented for *every* garbage collected allocation
+pub trait GcBoxObj {
+    fn header(&self) -> &GcBoxHeader;
+    unsafe fn mark_value(&self, mark: bool);
+    fn size_of(&self) -> usize;
+}
+assert_obj_safe!(GcBoxObj);
+
+impl<T: Trace> GcBoxObj for GcBox<T> {
+    fn header(&self) -> &GcBoxHeader {
+        &self.header
+    }
+
+    unsafe fn mark_value(&self, mark: bool) {
+        self.mark(mark)
+    }
+
+    fn size_of(&self) -> usize {
+        size_of::<T>()
     }
 }
 

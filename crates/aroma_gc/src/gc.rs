@@ -2,23 +2,18 @@ use std::fmt::{Debug, Display, Formatter, Pointer};
 use std::marker::PhantomData;
 use std::ops::Deref;
 
-use crate::{GcHeap, Trace};
 use crate::gc_heap::{GcBoxLink, MemoryLock, WeakMemoryLock};
+use crate::{GcHeap, Trace, Tracer};
 
 /// A garbage collected pointer
-pub struct Gc<T: Trace + ?Sized + 'static> {
+pub struct Gc<T: ?Sized + 'static> {
     pub(crate) ptr: GcBoxLink<T>,
     guard: WeakMemoryLock,
 }
 
-impl<T: Trace + ?Sized + 'static> Gc<T> {
-    #[inline]
-    pub fn to_trace_object(self) -> Gc<dyn Trace> {
-        self.cast()
-    }
-
+impl<T: ?Sized + 'static> Gc<T> {
     /// Casts this to
-    fn cast<U: Trace + ?Sized + 'static>(self) -> Gc<U> {
+    pub fn cast<U: ?Sized + 'static>(self) -> Gc<U> {
         Gc {
             ptr: self.ptr.cast(),
             guard: self.guard,
@@ -31,14 +26,20 @@ impl<T: Trace + ?Sized + 'static> Gc<T> {
 }
 
 unsafe impl<T: Trace + ?Sized + 'static> Trace for Gc<T> {
-    fn trace(&self) {
-        unsafe {
-            ( *self.ptr.read().as_ptr() ).trace()
-        }
+    unsafe fn trace<U>(&self, tracer: &U)
+    where
+        U: Tracer,
+    {
+        (*self.ptr.read().as_ptr()).trace(tracer)
     }
+    // fn trace(&self, tracer: U) {
+    //     unsafe {
+    //         ( *self.ptr.read().as_ptr() ).trace()
+    //     }
+    // }
 }
 
-impl<T: Trace + ?Sized + 'static> Clone for Gc<T> {
+impl<T: ?Sized + 'static> Clone for Gc<T> {
     fn clone(&self) -> Self {
         Self {
             ptr: self.ptr,
@@ -47,19 +48,21 @@ impl<T: Trace + ?Sized + 'static> Clone for Gc<T> {
     }
 }
 
-impl<T: Trace + ?Sized + 'static + Debug> Debug for Gc<T> {
+impl<T: ?Sized + 'static + Debug> Debug for Gc<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("Gc").field(&&*self.get().unwrap()).finish()
     }
 }
 
-impl<T: Trace + ?Sized + 'static> Pointer for Gc<T> {
+impl<T: ?Sized + 'static> Pointer for Gc<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Object[{:p} -> {:p}]", self.ptr, unsafe { self.ptr.read() })
+        write!(f, "Object[{:p} -> {:p}]", self.ptr, unsafe {
+            self.ptr.read()
+        })
     }
 }
 
-impl<T: Trace + ?Sized + 'static + Display> Display for Gc<T> {
+impl<T: ?Sized + 'static + Display> Display for Gc<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         Display::fmt(&*self.get().unwrap(), f)
     }

@@ -1,17 +1,18 @@
 //! A chunk of data
 
-use crate::types::Value;
 use std::fmt::{Debug, Display, Formatter};
-use std::ops::{
-    Deref, Index, IndexMut, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive,
-};
+use std::ops::{Deref, Index, IndexMut};
+
 use strum::AsRefStr;
+
+use crate::types::Value;
 
 /// An opcode
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone, Copy, AsRefStr)]
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
 pub enum OpCode {
     Constant,
+    Negate,
     Return,
 }
 

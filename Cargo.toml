@@ -1,5 +1,6 @@
 [workspace]
 members = ["crates/*"]
+exclude = ["crates/aroma_gc", "crates/aroma_gc_derive"]
 resolver = "2"
 
 [workspace.package]

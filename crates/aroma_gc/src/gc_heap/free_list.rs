@@ -351,7 +351,7 @@ mod tests {
         let mut free_list: FreeList = FreeList::with_auto_compact(false);
         for i in 0..1024 {
             free_list.push(i * 8, 8);
-            free_list.push(i * 8 + 8*1024, 8);
+            free_list.push(i * 8 + 8 * 1024, 8);
         }
         assert_eq!(free_list.len(), 2048);
         free_list.compact();

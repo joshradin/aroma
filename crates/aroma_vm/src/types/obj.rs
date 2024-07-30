@@ -1,9 +1,9 @@
-use std::collections::HashMap;
-use aroma_gc::{Gc, Trace};
 use crate::chunk::Chunk;
 use crate::types::Value;
+use std::collections::HashMap;
+use std::sync::Arc;
 
-#[derive(Debug, Trace)]
+#[derive(Debug)]
 pub struct Obj {
     vtable: VTable,
 }
@@ -17,12 +17,10 @@ impl Obj {
 }
 
 /// The virtual table
-#[derive(Debug, Default, Trace)]
+#[derive(Debug, Default)]
 pub struct VTable {
-    #[req_static]
     class: String,
-    parent: Option<Gc<VTable>>,
-    fields: HashMap<Gc<&'static str>, Value>,
-    #[req_static]
-    methods: HashMap<Gc<&'static str>, Chunk>,
+    parent: Option<Arc<VTable>>,
+    fields: HashMap<&'static str, Value>,
+    methods: HashMap<&'static str, Chunk>,
 }

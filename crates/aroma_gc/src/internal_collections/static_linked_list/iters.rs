@@ -1,5 +1,5 @@
-use std::iter::FusedIterator;
 use crate::internal_collections::static_linked_list::{Link, StaticLinkedList};
+use std::iter::FusedIterator;
 
 /// Iterator over linked list
 #[derive(Debug)]
@@ -7,7 +7,7 @@ pub struct Iter<'a, T> {
     _ref: &'a StaticLinkedList<T>,
     ptr: Link<T>,
     last: Link<T>,
-    len: usize
+    len: usize,
 }
 
 impl<'a, T> Iter<'a, T> {
@@ -70,9 +70,7 @@ impl<'a, T> DoubleEndedIterator for Iter<'a, T> {
     }
 }
 
-impl<'a, T> ExactSizeIterator for Iter<'a, T> {
-
-}
+impl<'a, T> ExactSizeIterator for Iter<'a, T> {}
 
 /// Iterator over linked list, in reverse
 #[derive(Debug)]
@@ -85,7 +83,7 @@ impl<'a, T> RevIter<'a, T> {
     pub(super) fn new(list: &'a StaticLinkedList<T>) -> Self {
         Self {
             _ref: list,
-            ptr: list.back
+            ptr: list.back,
         }
     }
 }
@@ -118,7 +116,7 @@ impl<'a, T> IterMut<'a, T> {
         let front = list.front;
         Self {
             _ref: list,
-            ptr: front
+            ptr: front,
         }
     }
 }

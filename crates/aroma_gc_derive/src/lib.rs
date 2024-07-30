@@ -1,5 +1,5 @@
 use quote::{format_ident, quote};
-use syn::{Data, DataEnum, DataStruct, DeriveInput, Fields, Ident, parse_macro_input};
+use syn::{parse_macro_input, Data, DataEnum, DataStruct, DeriveInput, Fields, Ident};
 
 #[doc(hidden)]
 #[proc_macro]
@@ -21,9 +21,9 @@ pub fn derive_tuples(_tok: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 where
                     #(#generics : crate::Trace),*
             {
-                fn trace(&self) {
+                unsafe fn trace<U: crate::Tracer>(&self, tracer: &U) {
                     let (#(#idents),*,) = self;
-                    #(crate::Trace::trace(#idents);)*
+                    #(crate::Trace::trace(#idents, tracer);)*
                 }
 
                 fn finalize(&mut self) {
@@ -186,7 +186,6 @@ fn derive_trace_enum(derive_input: &DeriveInput, d_enum: &DataEnum) -> proc_macr
             let traces = call_method_on_idents(idents.clone(), "trace");
             let finalizers = call_method_on_idents(idents, "finalize");
 
-
             let id = &variant.ident;
             (
                 quote! {
@@ -212,7 +211,7 @@ fn derive_trace_enum(derive_input: &DeriveInput, d_enum: &DataEnum) -> proc_macr
     } = derive_input;
     quote! {
         unsafe impl #generics aroma_gc::Trace for #ident #generics {
-            fn trace(&self) {
+            unsafe fn trace<U : aroma_gc::Tracer>(&self, tracer:U) {
                 match self {
                     #( #traces )*
                     _ => {}

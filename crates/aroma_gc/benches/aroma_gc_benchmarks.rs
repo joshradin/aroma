@@ -1,10 +1,10 @@
 use std::iter;
 
-use criterion::{BatchSize, BenchmarkId, Criterion, criterion_group, criterion_main, Throughput};
+use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion, Throughput};
 use rand::prelude::*;
 
-use aroma_gc::__export::FreeList;
 use aroma_gc::GcHeap;
+use aroma_gc::__export::FreeList;
 
 mod free_list_benches;
 
@@ -26,5 +26,9 @@ fn gc_throughput(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(memory, gc_throughput, free_list_benches::free_list_throughput);
+criterion_group!(
+    memory,
+    gc_throughput,
+    free_list_benches::free_list_throughput
+);
 criterion_main!(memory);

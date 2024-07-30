@@ -7,9 +7,12 @@ license-file.workspace = true
 readme.workspace = true
 repository.workspace = true
 
+[features]
+debug_all = ["debug_trace_execution"]
+debug_trace_execution = []
+
 [dependencies]
-aroma_gc = { version = "0.0.0", path = "../aroma_gc", features = ["derive"] }
-bitfield = "0.15.0"
+bitfield = "0.16.1"
 bytes = "1.6.1"
 nom = "7.1.3"
 parking_lot = "0.12.3"

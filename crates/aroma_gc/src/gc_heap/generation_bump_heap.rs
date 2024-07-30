@@ -11,11 +11,10 @@ use parking_lot::RwLock;
 
 use crate::gc::Gc;
 use crate::gc_box::{GcBox, GcBoxHeader};
-use crate::gc_heap::{
-    AllocError, debug_gc_box_ptr, GcBoxLink, GcBoxPtr, Generation, IndirectionTable,
-};
 use crate::gc_heap::free_list::FreeList;
+use crate::gc_heap::indirection_table::IndirectionTable;
 use crate::gc_heap::memory_lock::{MemoryGuard, MemoryLock};
+use crate::gc_heap::{debug_gc_box_ptr, AllocError, GcBoxLink, GcBoxPtr, Generation};
 use crate::internal_collections::static_linked_list::StaticLinkedList;
 use crate::Trace;
 
@@ -93,7 +92,7 @@ impl GenerationBumpHeap {
     /// Creates a new, empty generational bump
     pub const fn new(
         generation: Generation,
-        gc_pointers: Arc<RwLock<StaticLinkedList<GcBoxPtr>>>,
+        gc_pointers: IndirectionTable,
         guard: MemoryLock,
     ) -> Self {
         Self {
@@ -112,7 +111,7 @@ impl GenerationBumpHeap {
     /// Creates a new generational bump with a preset capacity
     pub fn with_capacity(
         generation: Generation,
-        gc_pointers: Arc<RwLock<StaticLinkedList<GcBoxPtr>>>,
+        gc_pointers: IndirectionTable,
         guard: MemoryLock,
         capacity: usize,
     ) -> Result<Self, AllocError> {
@@ -143,7 +142,7 @@ impl GenerationBumpHeap {
         elem: T,
     ) -> Result<Gc<T>, AllocError> {
         let gc_box_ptr = self._allocate_elem(elem)?;
-        let mut guard = self.owned_gc_ptrs.write();
+        let mut guard = self.owned_gc_ptrs.lock();
         guard.push_back(gc_box_ptr);
 
         let gc_box_link: GcBoxLink<T> = guard
@@ -172,7 +171,6 @@ impl GenerationBumpHeap {
                 let data_ptr = ptr.add(offset);
                 return Ok(data_ptr);
             }
-
         }
 
         while layout.size() > self.capacity - self.bmp {
@@ -218,7 +216,7 @@ impl GenerationBumpHeap {
         let new_allocation = self._allocate_elem(elem.ptr.as_ptr().read().as_ptr().read().data)?;
         let link = elem.ptr;
 
-        let _guard = self.owned_gc_ptrs.write();
+        let _guard = self.owned_gc_ptrs.lock();
         link.as_ptr().write(new_allocation);
 
         drop(_guard);
@@ -298,7 +296,7 @@ impl GenerationBumpHeap {
                         let _guard = self.move_guard.try_lock()?;
                         let old_range = old_ptr.as_ptr()..(old_ptr.as_ptr().add(old_capacity));
 
-                        let mut guard = self.owned_gc_ptrs.write();
+                        let mut guard = self.owned_gc_ptrs.lock();
                         for elem in &mut *guard {
                             let elem_ptr = elem.as_ptr();
                             if old_range.contains(&(elem_ptr as *mut u8)) {
@@ -334,12 +332,12 @@ impl GenerationBumpHeap {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use test_log::test;
-
     use super::*;
+    use crate::gc_box::GcBoxObj;
+    use crate::Tracer;
+    use test_log::test;
 
     #[test]
     fn test_allocate() {
@@ -378,7 +376,13 @@ mod tests {
             byte: u8,
             long: u64,
         }
-        unsafe impl Trace for Test {}
+        unsafe impl Trace for Test {
+            unsafe fn trace<T>(&self, tracer: &T)
+            where
+                T: Tracer,
+            {
+            }
+        }
 
         let mut gc_heap =
             GenerationBumpHeap::new(Generation::Eden, Default::default(), MemoryLock::new());
@@ -413,27 +417,27 @@ mod tests {
         let mut gc_heap =
             GenerationBumpHeap::new(Generation::Eden, Default::default(), MemoryLock::new());
         unsafe {
-            let mut ptrs: Vec<Gc<dyn Trace>> = vec![];
+            let mut ptrs: Vec<Gc<dyn GcBoxObj>> = vec![];
             for i in 0..1000 {
-                let ptr: Gc<dyn Trace> = if i % 2 == 0 {
+                let ptr: Gc<dyn GcBoxObj> = if i % 2 == 0 {
                     gc_heap
                         .allocate_elem(i as u8)
                         .unwrap_or_else(|e| panic!("Could not allocate {i}: {e}"))
-                        .to_trace_object()
+                        .cast()
                 } else {
                     gc_heap
                         .allocate_elem(i as u16)
                         .unwrap_or_else(|e| panic!("Could not allocate {i}: {e}"))
-                        .to_trace_object()
+                        .cast()
                 };
                 ptrs.push(ptr);
                 println!("{:?}", gc_heap.stats());
             }
             for i in 0..1000 {
-                let ptr = &*ptrs[i].get().unwrap();
-                gc_heap.free(ptrs[i].clone()).unwrap();
+                // let ptr = &*ptrs[i].get().unwrap();
+                gc_heap.free(ptrs[i].clone().cast::<u8>()).unwrap();
                 gc_heap
-                    .free(ptrs[i].clone())
+                    .free(ptrs[i].clone().cast::<u8>())
                     .expect_err("shouldn't be allowed to double free");
             }
         }
@@ -441,7 +445,7 @@ mod tests {
 
     #[test]
     fn test_move_data_between_heaps() {
-        let all_pointers: Arc<RwLock<StaticLinkedList<_>>> = Default::default();
+        let all_pointers: IndirectionTable = Default::default();
         let mut gc_heap1 =
             GenerationBumpHeap::new(Generation::S0, all_pointers.clone(), MemoryLock::new());
         let mut gc_heap2 =
@@ -465,8 +469,6 @@ mod tests {
                 let ptr = &ptrs[i].get().unwrap();
                 assert_eq!(**ptr, i);
             }
-
         }
     }
-
 }

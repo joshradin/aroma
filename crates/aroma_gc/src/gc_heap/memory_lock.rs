@@ -1,5 +1,5 @@
-use std::marker::PhantomData;
 use parking_lot::Mutex;
+use std::marker::PhantomData;
 use std::sync::{Arc, Weak};
 use std::thread::yield_now;
 
@@ -73,7 +73,10 @@ impl MemoryLock {
             }
             yield_now();
         }
-        MemoryGuard { lock: self.clone(), _lf: PhantomData }
+        MemoryGuard {
+            lock: self.clone(),
+            _lf: PhantomData,
+        }
     }
 
     /// Tries to lock any increment request coming in, forcing any inc to wait. If any accesses currently
@@ -116,7 +119,7 @@ pub struct MoveGuardLockError(usize);
 #[derive(Debug)]
 pub struct MemoryGuard<'a> {
     lock: MemoryLock,
-    _lf: PhantomData<&'a ()>
+    _lf: PhantomData<&'a ()>,
 }
 
 impl Drop for MemoryGuard<'_> {

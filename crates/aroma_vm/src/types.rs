@@ -1,8 +1,6 @@
 use std::fmt::{Display, Formatter};
-use aroma_gc::Trace;
-pub use obj::Obj;
 
-use crate::vm::ObjectPtr;
+pub use obj::Obj;
 
 mod obj;
 
@@ -11,15 +9,15 @@ mod obj;
 pub struct FunctionPtr(usize);
 
 /// A value that can be stored in a stack frame
-#[derive(Debug, Clone, Trace)]
+#[derive(Debug, Clone)]
 pub enum Value {
-    Object(ObjectPtr),
+    Object(()),
     Long(i64),
     Int(i32),
     Char(char),
     Boolean(bool),
     Byte(i8),
-    String(#[req_static] String),
+    String(String),
     Double(f64),
     Float(f64),
 }

@@ -12,16 +12,15 @@ use sysinfo::System;
 pub(crate) use memory_lock::{MemoryLock, WeakMemoryLock};
 
 use crate::gc::Gc;
-use crate::gc_box::{GcBox, GcBoxHeader};
+use crate::gc_box::{GcBox, GcBoxHeader, GcBoxObj};
 use crate::gc_heap::generation_bump_heap::{GenerationBumpHeap, GenerationStats};
 use crate::gc_heap::memory_lock::MoveGuardLockError;
-use crate::internal_collections::static_linked_list::StaticLinkedList;
 use crate::Trace;
 
-mod generation_bump_heap;
-mod memory_lock;
 mod free_list;
-
+mod generation_bump_heap;
+mod indirection_table;
+mod memory_lock;
 
 pub use free_list::FreeList;
 
@@ -37,18 +36,17 @@ pub(crate) enum Generation {
 pub type GcBoxPtr<T = dyn Trace> = NonNull<GcBox<T>>;
 pub type GcBoxLink<T = dyn Trace> = NonNull<GcBoxPtr<T>>;
 
-
-fn _debug_gc_box_ptr<T : Trace + ?Sized>(ptr: GcBoxPtr<T>) {
+fn _debug_gc_box_ptr<T: Trace + ?Sized>(ptr: GcBoxPtr<T>) {
     #[derive(Debug)]
-    struct GcBoxData {
-        header: GcBoxHeader,
-        data: Box<[u8]>
+    struct GcBoxData<'a> {
+        header: &'a GcBoxHeader,
+        data: Box<[u8]>,
     }
 
     unsafe {
         let debug = GcBoxData {
-            header: (*ptr.as_ptr()).header.clone(),
-            data:(*ptr.as_ptr()).data_bytes()
+            header: &(*ptr.as_ptr()).header,
+            data: (*ptr.as_ptr()).data_bytes(),
         };
 
         println!("{debug:#?}");
@@ -57,16 +55,15 @@ fn _debug_gc_box_ptr<T : Trace + ?Sized>(ptr: GcBoxPtr<T>) {
 
 macro_rules! debug_gc_box_ptr {
     ($ptr:expr) => {
-        #[cfg(debug_assertions)] {
+        #[cfg(debug_assertions)]
+        {
             $crate::gc_heap::_debug_gc_box_ptr($ptr);
         }
     };
 }
 
 pub(crate) use debug_gc_box_ptr;
-
-pub(crate) type IndirectionTable = Arc<RwLock<StaticLinkedList<GcBoxPtr>>>;
-
+pub(crate) use indirection_table::IndirectionTable;
 
 /// A garbage collecting heap
 ///
@@ -101,7 +98,6 @@ macro_rules! get_generation {
 }
 
 impl GcHeap {
-
     /// Creates a new GcHeap with the default GcConfig
     #[inline]
     pub fn new() -> Result<Self, AllocError> {
@@ -110,7 +106,7 @@ impl GcHeap {
 
     /// Creates a new gc heap from a given config
     pub fn with_config(config: GcConfig) -> Result<Self, AllocError> {
-        let all: IndirectionTable = Arc::new(Default::default());
+        let all: IndirectionTable = IndirectionTable::new();
         let guard = MemoryLock::new();
 
         Ok(Self {
@@ -223,9 +219,7 @@ impl GcHeap {
     }
 
     /// Starts a garbage collection cycle.
-    pub fn collect_garbage(&mut self) {
-
-    }
+    pub fn collect_garbage(&mut self) {}
 }
 
 #[derive(Debug, thiserror::Error)]
