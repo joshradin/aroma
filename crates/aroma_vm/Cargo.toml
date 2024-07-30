@@ -8,10 +8,14 @@ readme.workspace = true
 repository.workspace = true
 
 [features]
-default = ["macros"]
+default = []
 macros = []
 debug_all = ["debug_trace_execution"]
 debug_trace_execution = []
+
+[[example]]
+name = "fibonacci"
+required-features = ["macros"]
 
 
 [dependencies]

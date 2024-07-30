@@ -2,7 +2,7 @@ use std::fmt::{Display, Formatter};
 use std::ops::{Add, BitAnd, BitOr, Div, Mul, Neg, Sub};
 use std::sync::Arc;
 pub use obj::Obj;
-use crate::function::Function;
+use crate::function::ObjFunction;
 use crate::vm::error::VmError;
 
 mod obj;
@@ -19,7 +19,7 @@ pub enum Value {
     String(String),
     Double(f64),
     Float(f32),
-    Function(Arc<Function>)
+    Function(Arc<ObjFunction>)
 }
 
 impl Value {
@@ -208,28 +208,28 @@ impl Display for Value {
                 write!(f, "<object>")
             }
             Value::Long(l) => {
-                write!(f, "{l}")
+                write!(f, "l{l}")
             }
             Value::Int(l) => {
-                write!(f, "{l}")
+                write!(f, "i{l}")
             }
             Value::Char(l) => {
-                write!(f, "{l}")
+                write!(f, "c{l}")
             }
             Value::Boolean(l) => {
-                write!(f, "{l}")
+                write!(f, "z{l}")
             }
             Value::Byte(l) => {
-                write!(f, "{l}")
+                write!(f, "b{l}")
             }
             Value::String(l) => {
-                write!(f, "{l}")
+                write!(f, "s{l}")
             }
             Value::Double(d) => {
-                write!(f, "{d}")
+                write!(f, "d{d}")
             }
             Value::Float(d) => {
-                write!(f, "{d}")
+                write!(f, "f{d}")
             }
             Value::Function(func) => {
                 write!(f, "func<{}>", func.name())

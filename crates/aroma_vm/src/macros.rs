@@ -1,7 +1,7 @@
 //! Provide some macros for working with aroma_vm
 
-#[macro_export]
 #[doc(hidden)]
+#[cfg_attr(feature = "macros", macro_export)]
 macro_rules! _instruction_to_bytecode {
     (ret) => {
         $crate::chunk::OpCode::Return as u8
@@ -52,6 +52,13 @@ macro_rules! _instruction_to_bytecode {
         $crate::chunk::OpCode::Or as u8
     };
 
+    (ltoi) => {
+        $crate::chunk::OpCode::LtoI as u8
+    };
+    (itol) => {
+        $crate::chunk::OpCode::IToL as u8
+    };
+
     (lset) => {
         $crate::chunk::OpCode::SetLocalVar as u8
     };
@@ -76,14 +83,13 @@ macro_rules! _instruction_to_bytecode {
         $crate::chunk::OpCode::Pop as u8
     };
 
-
     (call) => {
         $crate::chunk::OpCode::Call as u8
     };
 }
 
-#[macro_export]
 #[doc(hidden)]
+#[cfg_attr(feature = "macros", macro_export)]
 macro_rules! _literal_to_constant {
     (utf8 $literal:literal) => {
         $crate::chunk::Constant::Utf8($literal)
@@ -91,12 +97,15 @@ macro_rules! _literal_to_constant {
     (int $literal:literal) => {
         $crate::chunk::Constant::Int($literal)
     };
+    (long $literal:literal) => {
+        $crate::chunk::Constant::Long($literal)
+    };
     (function_ref $literal:literal) => {
         $crate::chunk::Constant::FunctionId($literal)
     };
 }
 
-#[macro_export]
+#[cfg_attr(feature = "macros", macro_export)]
 macro_rules! bytecode {
     (
         $(consts {
@@ -127,7 +136,7 @@ macro_rules! bytecode {
     };
 }
 
-#[macro_export]
+#[cfg_attr(feature = "macros", macro_export)]
 macro_rules! function {
     (
         name $name:literal,
@@ -135,26 +144,96 @@ macro_rules! function {
         $($tt:tt)*
     ) => {
         {
-            use $crate::{function::Function};
+            use $crate::{function::ObjFunction};
             let bytecode = $crate::bytecode!($($tt)*);
-            Function::new($name, $arity, vec![bytecode])
+            ObjFunction::new($name, $arity, vec![bytecode])
         }
     };
 }
 
+#[cfg_attr(feature = "macros", macro_export)]
+macro_rules! native {
+    (fn $name:ident($($param:ident: $param_ty:ty),* $(,)?) $block:block) => {{
+        use crate::types::Value;
+        use crate::vm::error::VmError;
+
+        fn $name($($param: $param_ty),*) -> Result<(), VmError>{
+            $block
+        }
+
+        fn __wrapper(values: &[Value]) -> Result<Option<Value>, VmError> {
+            let mut values = std::collections::VecDeque::from_iter(values.iter().cloned());
+            $(
+                let $param: $param_ty = values.pop_front().unwrap().try_into()?;
+            )*
+            $name($($param),*)?;
+            Ok(None)
+        }
+
+        crate::function::ObjNative::new(
+            stringify!($name),
+            #[allow(unsed)] {
+                let mut sum = 0;
+                $(
+                    let $param: $param_ty;
+                    sum += 1;
+                )*
+                sum
+            },
+            __wrapper
+        )}
+    };
+    (fn $name:ident($($param:ident: $param_ty:ty),* $(,)?) -> $ret:ty $block:block) => {{
+        use crate::types::Value;
+         use crate::vm::error::VmError;
+
+        fn $name($($param: $param_ty),*) -> Result<$ret, VmError> {
+            $block
+        }
+
+        fn __wrapper(values: &[Value]) -> Result<Option<Value>, VmError> {
+            let mut values = std::collections::VecDeque::from_iter(values.iter().cloned());
+            $(
+                let $param: $param_ty = values.pop_front().unwrap().try_into()?;
+            )*
+            let raw_ty = $name($($param),*)?;
+            let to_value = Value::try_from(raw_ty)?;
+            Ok(Some(to_value))
+        }
+
+        crate::function::ObjNative::new(
+            stringify!($name),
+            #[allow(unsed)] {
+                let mut sum = 0;
+                $(
+                    let $param: $param_ty;
+                    sum += 1;
+                )*
+                sum
+            },
+            __wrapper
+        )}
+    };
+}
+
+use std::collections::VecDeque;
+#[cfg(not(feature = "macros"))]
+pub(crate) use {_instruction_to_bytecode, _literal_to_constant, bytecode, function, native};
+use crate::vm::error::VmError;
 
 #[cfg(test)]
 mod tests {
     use crate::debug::Disassembler;
+    use crate::function::ObjNative;
 
     #[test]
     fn test_bytecode_macro() {
         let bytecode = bytecode! {
             consts {
-                "hello, world!"
+                utf8 "hello, world!"
             }
             bytecode {
-                const(0)
+                const(0_u8)
                 neg
                 ret
             }
@@ -162,5 +241,37 @@ mod tests {
         Disassembler
             .disassemble_chunk(&bytecode, "bytecode")
             .expect("could not disassemble");
+    }
+
+    #[test]
+    fn test_native_no_ret_macro() {
+        let native: ObjNative = native!(
+            fn print(any: Value) {
+                Ok(())
+            }
+        );
+        assert_eq!(native.name(), "print");
+    }
+
+    #[test]
+    fn test_native_macro() {
+        let native: ObjNative = native!(
+            fn sq(v: i32) -> i32 {
+                Ok(v * v)
+            }
+        );
+        assert_eq!(native.name(), "sq");
+        assert_eq!(native.arity(), 1);
+    }
+
+    #[test]
+    fn test_static_macro() {
+        static NATIVE: ObjNative = native!(
+            fn sq(v: i32) -> i32 {
+                Ok(v * v)
+            }
+        );
+        assert_eq!(NATIVE.name(), "sq");
+        assert_eq!(NATIVE.arity(), 1);
     }
 }

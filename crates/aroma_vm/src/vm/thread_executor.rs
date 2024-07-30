@@ -1,4 +1,4 @@
-use std::cell::{Ref, RefCell};
+use std::cell::{Ref, RefCell, RefMut};
 use std::collections::BTreeMap;
 use std::io::BufWriter;
 use std::num::NonZero;
@@ -14,7 +14,7 @@ use parking_lot::Mutex;
 
 use crate::chunk::{Chunk, Constant, OpCode};
 use crate::debug::Disassembler;
-use crate::function::Function;
+use crate::function::ObjFunction;
 use crate::types::Value;
 use crate::vm::{Chunks, Globals, InstructionPointer, StaticFunctionTable};
 use crate::vm::error::VmError;
@@ -47,7 +47,7 @@ macro_rules! binary_op {
 
 #[derive(Debug)]
 struct StackFrame {
-    function: Arc<Function>,
+    function: Arc<ObjFunction>,
     stack: Vec<Value>,
     vars: BTreeMap<u8, Value>,
     pc: InstructionPointer,
@@ -58,7 +58,7 @@ struct StackFrame {
 pub struct ThreadExecutor {
     id: AromaThreadId,
     chunks: Chunks,
-    current_chunk: RefCell<Option<Rc<Chunk>>>,
+    current_chunk: RefCell<Option<Arc<Chunk>>>,
     name: Option<String>,
     frame_stack: Vec<StackFrame>,
     state: ThreadState,
@@ -71,7 +71,7 @@ pub struct ThreadExecutor {
 
 impl ThreadExecutor {
     pub fn start(
-        calling_function: Arc<Function>,
+        calling_function: Arc<ObjFunction>,
         id: AromaThreadId,
         chunks: Chunks,
         globals: Globals,
@@ -149,7 +149,7 @@ impl ThreadExecutor {
                 } else {
                     let chunk = self.chunks.read()[self.current_frame().pc.0 - 1].clone();
                     let c = chunk.len();
-                    (Rc::new(chunk), c - 1)
+                    (chunk, c - 1)
                 };
                 Disassembler
                     .disassemble_instruction(&chunk, offset, &mut buffer)
@@ -287,6 +287,20 @@ impl ThreadExecutor {
                     let value = self.pop()?;
                     self.call_value(value, argc as usize)?;
                 }
+                OpCode::LtoI => {
+                    let p = self.pop()?;
+                    let Value::Long(long) =p else {
+                        return Err(VmError::TypeError(p, "Long".to_string()))
+                    };
+                    self.push(Value::Int(long as i32))
+                }
+                OpCode::IToL => {
+                    let p = self.pop()?;
+                    let Value::Int(long) =p else {
+                        return Err(VmError::TypeError(p, "Int".to_string()))
+                    };
+                    self.push(Value::Long(long as i64))
+                }
             }
         }
 
@@ -302,7 +316,7 @@ impl ThreadExecutor {
         Ok(())
     }
 
-    fn call(&mut self, function: Arc<Function>, argc: usize) -> Result<(), VmError> {
+    fn call(&mut self, function: Arc<ObjFunction>, argc: usize) -> Result<(), VmError> {
         let mut stack = vec![];
         for _ in 0..argc {
             stack.push(self.pop()?);
@@ -373,6 +387,7 @@ impl ThreadExecutor {
         } else {
             next_ip = (chunk_p, next_offset);
         }
+        drop(chunk);
         if self.current_frame().pc.0 != next_ip.0 {
             let _ = self.current_chunk.borrow_mut().take();
         }
@@ -382,13 +397,13 @@ impl ThreadExecutor {
     /// Read a byte from the chunks based on the IP
     fn read_byte(&mut self) -> Result<u8, VmError> {
         let (_, ip) = self.current_frame().pc;
-        let chunk = &self.current_frame_chunk();
+        let chunk = self.current_frame_chunk();
         let out = chunk
             .code()
             .get(ip)
             .copied()
             .ok_or_else(|| VmError::NoInstruction);
-
+        drop(chunk);
         self.add_offset(1);
         out
     }
@@ -396,7 +411,7 @@ impl ThreadExecutor {
     /// Read an u16 from the chunks based on the IP
     fn read_short(&mut self) -> Result<u16, VmError> {
         let (_, ip) = self.current_frame().pc;
-        let chunk = &self.current_frame_chunk();
+        let chunk = self.current_frame_chunk();
         let out = chunk
             .code()
             .get(ip..)
@@ -405,26 +420,23 @@ impl ThreadExecutor {
                 <u16>::from_be_bytes(<[u8; 2]>::try_from(bytes).expect("expected two bytes"))
             })
             .ok_or_else(|| VmError::NoInstruction);
-
+        drop(chunk);
         self.add_offset(2);
         out
     }
 
     fn read_constant(&mut self) -> Result<Value, VmError> {
         let get_constant = {
-            let chunk = self.current_frame_chunk().clone();
+            let chunk = Vec::from(self.current_frame_chunk().constants());
             move |idx: u8| {
-                chunk
-                    .get_constant(idx)
-                    .copied()
-                    .ok_or_else(|| VmError::NoConstant(idx))
+                chunk[idx as usize]
             }
         };
 
         let constant_idx = self.read_byte()?;
-        let mut constant: Constant = get_constant(constant_idx)?;
+        let mut constant: Constant = get_constant(constant_idx);
         match constant {
-            Constant::FunctionId(id) => match get_constant(id)? {
+            Constant::FunctionId(id) => match get_constant(id) {
                 Constant::Utf8(utf8) => {
                     let function = self
                         .static_functions
@@ -437,7 +449,8 @@ impl ThreadExecutor {
                 other => Err(VmError::UnexpectedConstant(other)),
             },
             Constant::Int(i) => Ok(Value::Int(i)),
-            Constant::String(s) => match get_constant(s)? {
+            Constant::Long(i) => Ok(Value::Long(i)),
+            Constant::String(s) => match get_constant(s) {
                 Constant::Utf8(utf8) => Ok(Value::String(utf8.to_string())),
                 other => Err(VmError::UnexpectedConstant(other)),
             },
@@ -446,14 +459,18 @@ impl ThreadExecutor {
     }
 
     // provides a
-    fn current_frame_chunk(&self) -> Rc<Chunk> {
+    fn current_frame_chunk(&self) -> Arc<Chunk> {
+        // self.chunks.read()[self.current_frame().pc.0].clone()
         let pc = self.current_frame().pc.0;
-        let mut binding = self.current_chunk.borrow_mut();
-        let ret = binding.get_or_insert_with(|| {
-            let guard = self.chunks.read();
-            Rc::new(guard[pc].clone())
-        });
-        ret.clone()
+        {
+            let mut binding = self.current_chunk.borrow_mut();
+            if binding.is_none() {
+                let guard = self.chunks.read();
+                let _ = binding.insert(guard[pc].clone());
+            }
+        }
+        let borrowed = self.current_chunk.borrow();
+        borrowed.as_ref().unwrap().clone()
     }
 }
 

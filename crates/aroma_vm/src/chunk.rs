@@ -2,10 +2,9 @@
 
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Deref, Index, IndexMut};
-use derive_more::{Display, From, TryInto};
-use strum::AsRefStr;
 
-use crate::types::Value;
+use derive_more::TryInto;
+use strum::AsRefStr;
 
 /// An opcode
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone, Copy, AsRefStr)]
@@ -33,6 +32,8 @@ pub enum OpCode {
     Or,
 
     Pop,
+    LtoI,
+    IToL,
 
     SetLocalVar = 32,
     GetLocalVar,
@@ -81,6 +82,8 @@ impl TryFrom<u8> for OpCode {
             15 => Ok(Or),
 
             16 => Ok(Pop),
+            17 => Ok(LtoI),
+            18 => Ok(IToL),
 
             32 => Ok(SetLocalVar),
             33 => Ok(GetLocalVar),
@@ -101,16 +104,39 @@ impl TryFrom<u8> for OpCode {
 #[error("Unknown opcode 0x{0:02X}")]
 pub struct UnknownOpcode(u8);
 
-#[derive(Debug, Clone, Copy, TryInto, Display)]
+#[derive(Debug, Clone, Copy, TryInto)]
 pub enum Constant {
     Int(i32),
+    Long(i64),
     String(u8),
     FunctionId(u8),
-    Utf8(&'static str)
+    Utf8(&'static str),
+}
+
+impl Display for Constant {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Constant::Int(i) => {
+                write!(f, "int({i})")
+            }
+            Constant::Long(l) => {
+                write!(f, "long({l})")
+            }
+            Constant::String(s) => {
+                write!(f, "string(#{s})")
+            }
+            Constant::FunctionId(fid) => {
+                write!(f, "function_ref(#{fid})")
+            }
+            Constant::Utf8(utf8) => {
+                write!(f, "{utf8:?}")
+            }
+        }
+    }
 }
 
 /// A chunk of data
-#[derive(Clone)]
+#[derive()]
 pub struct Chunk {
     count: usize,
     capacity: usize,

@@ -4,3 +4,5 @@
 # Misc
 /.idea
 /.vscode
+
+flamegraph.svg

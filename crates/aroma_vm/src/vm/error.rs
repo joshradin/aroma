@@ -1,3 +1,4 @@
+use std::convert::Infallible;
 use crate::chunk::{Constant, UnknownOpcode};
 use crate::types::Value;
 
@@ -36,11 +37,19 @@ pub enum VmError {
     #[error("Function {0:?} previously defined")]
     FunctionAlreadyDefined(String),
     #[error("Constant {0:?} was not expected at this point")]
-    UnexpectedConstant(Constant)
+    UnexpectedConstant(Constant),
+    #[error("Expected type {1} but got {0:?}")]
+    TypeError(Value, String),
 }
 
 impl From<&'static str> for VmError {
     fn from(value: &'static str) -> Self {
         Self::Custom(value)
+    }
+}
+
+impl From<Infallible> for VmError {
+    fn from(value: Infallible) -> Self {
+        panic!("infallible can never be created")
     }
 }

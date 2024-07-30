@@ -6,5 +6,8 @@ pub mod vm;
 pub mod chunk;
 pub mod debug;
 pub mod function;
-#[cfg(feature = "macros")]
+
 mod macros;
+
+#[cfg(not(feature = "macros"))]
+pub use macros::*;

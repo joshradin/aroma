@@ -10,7 +10,7 @@ use parking_lot::{Mutex, RwLock};
 use error::VmError;
 
 use crate::chunk::Chunk;
-use crate::function::Function;
+use crate::function::ObjFunction;
 use crate::types::Value;
 use crate::vm::thread_executor::{
     AromaThreadHandle, AromaThreadId, ThreadExecutor, ThreadResult, ThreadResultHolder,
@@ -19,10 +19,11 @@ use crate::vm::thread_executor::{
 pub mod error;
 mod thread_executor;
 
-pub type Chunks = Arc<RwLock<Vec<Chunk>>>;
+pub type Chunks = Arc<RwLock<Vec<Arc<Chunk>>>>;
+
 pub type InstructionPointer = (usize, usize);
 pub type Globals = Arc<RwLock<HashMap<String, Value>>>;
-pub type StaticFunctionTable = Arc<RwLock<HashMap<String, Arc<Function>>>>;
+pub type StaticFunctionTable = Arc<RwLock<HashMap<String, Arc<ObjFunction>>>>;
 
 /// A virtual machine
 #[derive(Debug)]
@@ -48,7 +49,7 @@ impl AromaVm {
         }
     }
 
-    pub fn load(&mut self, mut function: Function) -> Result<(), VmError> {
+    pub fn load(&mut self, mut function: ObjFunction) -> Result<(), VmError> {
         let function_chunks = function.chunks().clone();
         let mut all_chunks = self.chunks.write();
         let start_idx = all_chunks.len();
@@ -97,7 +98,7 @@ impl AromaVm {
     }
 
     /// Starts a thread with a given initial thread
-    fn start_thread(&self, function: Arc<Function>) -> AromaThreadHandle {
+    fn start_thread(&self, function: Arc<ObjFunction>) -> AromaThreadHandle {
         let id = self.next_thread_id();
         let result_mutex = self
             .thread_results
