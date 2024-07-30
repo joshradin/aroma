@@ -1,55 +1,103 @@
 //! The virtual machine that runs aroma programs
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::num::NonZero;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicIsize, AtomicUsize, Ordering};
-use std::thread::JoinHandle;
 
 use parking_lot::{Mutex, RwLock};
 
-use crate::chunk::Chunk;
-use crate::types::Value;
+use error::VmError;
 
-type InstructionPointer = (usize, usize);
-type ThreadResultHolder = Arc<Mutex<Option<Result<ThreadResult, VmError>>>>;
+use crate::chunk::Chunk;
+use crate::function::Function;
+use crate::types::Value;
+use crate::vm::thread_executor::{
+    AromaThreadHandle, AromaThreadId, ThreadExecutor, ThreadResult, ThreadResultHolder,
+};
+
+pub mod error;
+mod thread_executor;
+
+pub type Chunks = Arc<RwLock<Vec<Chunk>>>;
+pub type InstructionPointer = (usize, usize);
+pub type Globals = Arc<RwLock<HashMap<String, Value>>>;
+pub type StaticFunctionTable = Arc<RwLock<HashMap<String, Arc<Function>>>>;
 
 /// A virtual machine
+#[derive(Debug)]
 pub struct AromaVm {
-    chunks: Arc<Vec<Chunk>>,
+    chunks: Chunks,
     next_thread: AtomicUsize,
     thread_results: RwLock<HashMap<AromaThreadId, ThreadResultHolder>>,
     run_control: Arc<AtomicIsize>,
+    functions: StaticFunctionTable,
+    globals: Globals,
 }
 
 impl AromaVm {
     /// Creates a new aroma vm
     pub fn new() -> Self {
         Self {
-            chunks: Arc::new(vec![]),
+            chunks: Arc::new(RwLock::new(Default::default())),
             next_thread: AtomicUsize::new(1),
             thread_results: RwLock::new(HashMap::with_capacity(8)),
             run_control: Arc::new(Default::default()),
+            functions: Arc::new(Default::default()),
+            globals: Arc::new(Default::default()),
         }
     }
 
-    /// Starts the VM
-    pub fn start(&mut self, chunks: Vec<Chunk>) -> Result<(), VmError> {
-        self.chunks = Arc::new(chunks);
-        let handle = self.start_thread(0);
+    pub fn load(&mut self, mut function: Function) -> Result<(), VmError> {
+        let function_chunks = function.chunks().clone();
+        let mut all_chunks = self.chunks.write();
+        let start_idx = all_chunks.len();
+        function.set_chunk_idx(start_idx);
+        all_chunks.extend(function_chunks);
+        self.functions
+            .write()
+            .insert(function.name().to_string(), Arc::new(function));
+
+        Ok(())
+    }
+
+    /// Starts the VM by running a static function
+    pub fn start(&mut self, name: impl AsRef<str>) -> Result<i32, VmError> {
+        let name = name.as_ref().to_string();
+        let functino = self
+            .functions
+            .read()
+            .get(&name)
+            .ok_or_else(|| VmError::FunctionNotDefined(name))?
+            .clone();
+
+        let handle = self.start_thread(functino);
+        let id = *handle.id();
         match handle.join() {
-            Ok(()) => Ok(()),
+            Ok(()) => {
+                let guard = self.thread_results.read();
+                let r = guard.get(&id).unwrap();
+                let result_guard = r.lock();
+                let result = result_guard.as_ref().unwrap().as_ref();
+                match result {
+                    Ok(ThreadResult::Done(code)) => Ok(*code),
+                    Ok(ThreadResult::Exception(e)) => {
+                        Err(VmError::MainThreadEndedExceptionally(e.clone()))
+                    }
+                    Err(e) => Err(e.clone()),
+                }
+            }
             Err(e) => Err(e),
         }
     }
 
     #[inline]
     fn next_thread_id(&self) -> AromaThreadId {
-        AromaThreadId(NonZero::new(self.next_thread.fetch_add(1, Ordering::SeqCst)).unwrap())
+        AromaThreadId::new(NonZero::new(self.next_thread.fetch_add(1, Ordering::SeqCst)).unwrap())
     }
 
     /// Starts a thread with a given initial thread
-    fn start_thread(&self, initial_chunk: usize) -> AromaThreadHandle {
+    fn start_thread(&self, function: Arc<Function>) -> AromaThreadHandle {
         let id = self.next_thread_id();
         let result_mutex = self
             .thread_results
@@ -58,12 +106,16 @@ impl AromaVm {
             .or_insert_with(|| Arc::new(Mutex::new(None)))
             .clone();
 
+        let i = function.chunk_idx().unwrap();
         let handle = ThreadExecutor::start(
+            function,
             id,
             self.chunks.clone(),
-            (initial_chunk, 0),
+            self.globals.clone(),
+            (i, 0),
             self.run_control.clone(),
             result_mutex,
+            self.functions.clone()
         );
         handle
     }
@@ -77,103 +129,6 @@ impl AromaVm {
             .get(aroma_thread_id)
             .and_then(|holder| holder.lock().clone())
     }
-}
-
-#[derive(Debug, thiserror::Error, Clone)]
-pub enum VmError {
-    #[error("Main thread ended in exception {0:?}")]
-    MainThreadEndedExceptionally(Value),
-    #[error("{}", .0.as_ref().map(|p| format!("Thread Panicked: {p}")).unwrap_or_else(|| "Thead Panicked".to_string()))]
-    ThreadPanicked(Option<String>),
-}
-
-/// Thread executor
-#[derive(Debug)]
-pub struct ThreadExecutor {
-    id: AromaThreadId,
-    chunks: Arc<Vec<Chunk>>,
-    ip: InstructionPointer,
-    name: Option<String>,
-    frame_stack: Vec<StackFrame>,
-    state: ThreadState,
-
-    vm_run_control: Arc<AtomicIsize>,
-    thread_run_control: Arc<AtomicIsize>,
-}
-
-impl ThreadExecutor {
-    fn start(
-        id: AromaThreadId,
-        chunks: Arc<Vec<Chunk>>,
-        ip: InstructionPointer,
-        vm_run_control: Arc<AtomicIsize>,
-        result_mutex: ThreadResultHolder,
-    ) -> AromaThreadHandle {
-        let thread_controller = Arc::new(AtomicIsize::new(0));
-        let mut this = Self {
-            id,
-            chunks,
-            ip,
-            name: None,
-            frame_stack: vec![],
-            state: ThreadState::Dead,
-            vm_run_control,
-            thread_run_control: thread_controller.clone(),
-        };
-        let handle = {
-            std::thread::spawn(move || {
-                let ret = this.run();
-                *result_mutex.lock() = Some(ret);
-            })
-        };
-        AromaThreadHandle {
-            handle,
-            thread_run_control: thread_controller,
-        }
-    }
-
-    fn run(&mut self) -> Result<ThreadResult, VmError> {
-        todo!()
-    }
-}
-
-#[derive(Debug)]
-struct AromaThreadHandle {
-    handle: JoinHandle<()>,
-    thread_run_control: Arc<AtomicIsize>,
-}
-
-impl AromaThreadHandle {
-    pub fn join(self) -> Result<(), VmError> {
-        self.thread_run_control.store(-1, Ordering::SeqCst);
-        self.handle.join().map_err(|e| {
-            VmError::ThreadPanicked(e.downcast_ref::<&str>().map(|s| s.to_string()))
-        })?;
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum ThreadResult {
-    Done,
-    Exception(Value),
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub enum ThreadState {
-    Dead,
-    Running,
-    Waiting,
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct AromaThreadId(NonZero<usize>);
-
-#[derive(Debug)]
-struct StackFrame {
-    stack: Vec<()>,
-    vars: BTreeMap<usize, Value>,
-    pc: usize,
 }
 
 #[cfg(test)]

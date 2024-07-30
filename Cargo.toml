@@ -11,4 +11,5 @@ license-file = "LICENSE"
 readme = "README.md"
 repository = "https://github.com/joshradin/aroma"
 
-
+[profile.release]
+debug = true

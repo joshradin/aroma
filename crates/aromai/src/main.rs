@@ -5,12 +5,16 @@ use clap::Parser;
 use log::{Level, LevelFilter, trace};
 use owo_colors::OwoColorize;
 use owo_colors::Stream::Stdout;
+use aroma_vm::vm::AromaVm;
 
 fn main() -> eyre::Result<ExitCode> {
     color_eyre::install()?;
     let app = App::parse();
     init_logging(app.log.unwrap_or(LevelFilter::Info))?;
-    trace!("starting aromi with args {app:#?}");
+    trace!("starting aromi with args {app:?}");
+
+    let vm = AromaVm::new();
+    trace!("Created aroma vm: {:?}", vm);
 
     Ok(ExitCode::SUCCESS)
 }
@@ -20,7 +24,7 @@ fn init_logging(level_filter: LevelFilter) -> eyre::Result<()> {
     fern::Dispatch::new()
         .format(|out, message, record| {
             out.finish(format_args!(
-                "{} {} {} --- [] : {}",
+                "{} {:>5} {} --- [{:>16}] {:<32} : {}",
                 Utc::now().format("%Y-%m-%d %H:%M:%S%.3f"),
                 record.level()
                     .if_supports_color(Stdout, |text| match text {
@@ -30,6 +34,8 @@ fn init_logging(level_filter: LevelFilter) -> eyre::Result<()> {
                         Level::Debug => { text.blue().to_string()}
                         Level::Trace => { text.purple().to_string()}
                     }),
+                sysinfo::get_current_pid().unwrap(),
+                std::thread::current().name().map(|s| s.to_string()).unwrap_or_else(|| format!("{:?}", std::thread::current().id())),
                 record.target(),
                 message
             ))

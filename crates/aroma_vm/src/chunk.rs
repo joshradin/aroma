@@ -2,7 +2,7 @@
 
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Deref, Index, IndexMut};
-
+use derive_more::{Display, From, TryInto};
 use strum::AsRefStr;
 
 use crate::types::Value;
@@ -10,10 +10,48 @@ use crate::types::Value;
 /// An opcode
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone, Copy, AsRefStr)]
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
+#[repr(u8)]
 pub enum OpCode {
     Constant,
-    Negate,
     Return,
+
+    Negate,
+    Add,
+    Subtract,
+    Mult,
+    Divide,
+
+    Eq,
+    Neq,
+    Gt,
+    Gte,
+    Lt,
+    Lte,
+
+    And,
+    Not,
+    Or,
+
+    Pop,
+
+    SetLocalVar = 32,
+    GetLocalVar,
+    GetGlobalVar,
+    SetGlobalVar,
+
+    /// Jump on false
+    JumpIfFalse = 100,
+    /// Unconditional jump
+    Jump,
+
+    /// call a function
+    Call = 128,
+}
+
+impl Display for OpCode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_ref())
+    }
 }
 
 impl TryFrom<u8> for OpCode {
@@ -25,22 +63,60 @@ impl TryFrom<u8> for OpCode {
         match value {
             0 => Ok(Constant),
             1 => Ok(Return),
+            2 => Ok(Negate),
+            3 => Ok(Add),
+            4 => Ok(Subtract),
+            5 => Ok(Mult),
+            6 => Ok(Divide),
+
+            7 => Ok(Eq),
+            8 => Ok(Neq),
+            9 => Ok(Gt),
+            10 => Ok(Gte),
+            11 => Ok(Lt),
+            12 => Ok(Lte),
+
+            13 => Ok(And),
+            14 => Ok(Not),
+            15 => Ok(Or),
+
+            16 => Ok(Pop),
+
+            32 => Ok(SetLocalVar),
+            33 => Ok(GetLocalVar),
+            34 => Ok(GetGlobalVar),
+            35 => Ok(SetGlobalVar),
+
+            100 => Ok(JumpIfFalse),
+            101 => Ok(Jump),
+
+            128 => Ok(Call),
+
             unknown => Err(UnknownOpcode(unknown)),
         }
     }
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error)]
 #[error("Unknown opcode 0x{0:02X}")]
 pub struct UnknownOpcode(u8);
 
+#[derive(Debug, Clone, Copy, TryInto, Display)]
+pub enum Constant {
+    Int(i32),
+    String(u8),
+    FunctionId(u8),
+    Utf8(&'static str)
+}
+
 /// A chunk of data
+#[derive(Clone)]
 pub struct Chunk {
     count: usize,
     capacity: usize,
     code: Option<Box<[u8]>>,
     lines: Vec<usize>,
-    constants: Vec<Value>,
+    constants: Vec<Constant>,
 }
 
 macro_rules! grow_capacity {
@@ -96,13 +172,13 @@ impl Chunk {
     }
 
     /// Add a constant into the constant pool for this chunk
-    pub fn add_constant(&mut self, value: Value) -> usize {
+    pub fn add_constant(&mut self, value: Constant) -> usize {
         self.constants.push(value);
         self.constants.len() - 1
     }
 
     /// Adds all the constants, returning an iterator of the indices of the added constants
-    pub fn add_constants<'a, I: IntoIterator<Item = Value, IntoIter: 'a>>(
+    pub fn add_constants<'a, I: IntoIterator<Item = Constant, IntoIter: 'a>>(
         &'a mut self,
         values: I,
     ) -> impl Iterator<Item = usize> + '_ {
@@ -136,7 +212,7 @@ impl Chunk {
     }
 
     /// Gets the constants in the constant pool of this chunk
-    pub fn constants(&self) -> &[Value] {
+    pub fn constants(&self) -> &[Constant] {
         &self.constants[..]
     }
 
@@ -147,7 +223,7 @@ impl Chunk {
 
     /// Gets the constant at the given index using the unknown opcode size of 1 byte for referencing
     /// a pool item.
-    pub fn get_constant(&self, idx: u8) -> Option<&Value> {
+    pub fn get_constant(&self, idx: u8) -> Option<&Constant> {
         self.constants.get(idx as usize)
     }
 
