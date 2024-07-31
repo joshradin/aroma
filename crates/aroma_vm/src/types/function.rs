@@ -3,32 +3,34 @@
 use std::cmp::Ordering;
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
+
 use crate::chunk::Chunk;
-use crate::chunk::OpCode::Pop;
-use crate::types::Value;
+use crate::types::{Type, Value};
 use crate::vm::error::VmError;
 
 /// A function, an immutable piece of code.
 #[derive(Clone)]
 pub struct ObjFunction {
-    arity: usize,
+    name: String,
+    params_ty: Box<[Type]>,
+    return_ty: Option<Type>,
     chunks: Vec<Arc<Chunk>>,
     chunk_idx: Option<usize>,
-    name: String,
 }
 
 impl Debug for ObjFunction {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Function")
             .field("name", &self.name)
-            .field("arity", &self.arity)
+            .field("params", &self.params_ty)
+            .field("ret", &self.return_ty)
             .finish_non_exhaustive()
     }
 }
 
 impl ObjFunction {
     pub fn arity(&self) -> usize {
-        self.arity
+        self.params_ty.len()
     }
 
     pub fn chunks(&self) -> &Vec<Arc<Chunk>> {
@@ -39,12 +41,18 @@ impl ObjFunction {
         &self.name
     }
 
-    pub fn new(name: impl AsRef<str>, arity: usize, chunks: Vec<Chunk>) -> Self {
+    pub fn new(
+        name: impl AsRef<str>,
+        params: &[Type],
+        ret_type: Option<&Type>,
+        chunks: Vec<Chunk>,
+    ) -> Self {
         Self {
-            arity,
+            name: name.as_ref().to_string(),
             chunks: Vec::from_iter(chunks.into_iter().map(|c| Arc::new(c))),
             chunk_idx: None,
-            name: name.as_ref().to_string(),
+            params_ty: Vec::from(params).into_boxed_slice(),
+            return_ty: ret_type.cloned(),
         }
     }
 
@@ -54,6 +62,14 @@ impl ObjFunction {
 
     pub fn set_chunk_idx(&mut self, chunk_idx: usize) {
         let _ = self.chunk_idx.insert(chunk_idx);
+    }
+
+    pub fn params_ty(&self) -> &[Type] {
+        &*self.params_ty
+    }
+
+    pub fn return_ty(&self) -> Option<&Type> {
+        self.return_ty.as_ref()
     }
 }
 
@@ -80,13 +96,17 @@ pub type NativeFn = fn(&[Value]) -> Result<Option<Value>, VmError>;
 pub struct ObjNative {
     name: &'static str,
     arity: usize,
-    native: NativeFn
+    native: NativeFn,
 }
 
 impl ObjNative {
     /// Creates a new native function
     pub const fn new(name: &'static str, arity: usize, native: NativeFn) -> Self {
-        Self { name, arity, native }
+        Self {
+            name,
+            arity,
+            native,
+        }
     }
 
     pub fn name(&self) -> &'static str {

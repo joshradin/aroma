@@ -1,10 +1,10 @@
 //! Helps with debugging
 
 use std::io;
-use std::io::{BufWriter, stdout, Write};
+use std::io::{stdout, BufWriter, Write};
 
 use crate::chunk::{Chunk, Constant, OpCode};
-use crate::function::ObjFunction;
+use crate::types::function::ObjFunction;
 
 /// Responsible for disassembling bytes
 #[derive(Debug)]
@@ -19,7 +19,11 @@ impl Disassembler {
 
     /// Disassembles a function
     #[inline]
-    pub fn disassemble_function_to<W: Write>(&self, func: &ObjFunction, mut w: W) -> io::Result<()> {
+    pub fn disassemble_function_to<W: Write>(
+        &self,
+        func: &ObjFunction,
+        mut w: W,
+    ) -> io::Result<()> {
         self._disassemble_function_to(func, &mut w)
     }
 
@@ -144,11 +148,7 @@ impl Disassembler {
         mut writer: W,
     ) -> io::Result<usize> {
         let constant_idx = chunk.code()[offset + 1];
-        write!(
-            writer,
-            "{:<16} #{constant_idx:<5} // ",
-            opcode.as_ref()
-        )?;
+        write!(writer, "{:<16} #{constant_idx:<5} // ", opcode.as_ref())?;
         self.format_constant(chunk, constant_idx, &mut writer)?;
         writeln!(writer)?;
         Ok(offset + 2)

@@ -140,13 +140,18 @@ macro_rules! bytecode {
 macro_rules! function {
     (
         name $name:literal,
-        arity $arity:literal,
+        params ($($p_ty:expr),* $(,)?),
+        ret $($r_ty:expr)?,
         $($tt:tt)*
     ) => {
         {
-            use $crate::{function::ObjFunction};
+            use $crate::types::function::ObjFunction;
             let bytecode = $crate::bytecode!($($tt)*);
-            ObjFunction::new($name, $arity, vec![bytecode])
+            let mut ret_type = None;
+            $(
+                ret_type = Some($r_ty);
+            )?
+            ObjFunction::new($name, &[$($p_ty),*], ret_type.as_ref(),vec![bytecode])
         }
     };
 }
@@ -170,7 +175,7 @@ macro_rules! native {
             Ok(None)
         }
 
-        crate::function::ObjNative::new(
+        crate::types::function::ObjNative::new(
             stringify!($name),
             #[allow(unsed)] {
                 let mut sum = 0;
@@ -201,7 +206,7 @@ macro_rules! native {
             Ok(Some(to_value))
         }
 
-        crate::function::ObjNative::new(
+        crate::types::function::ObjNative::new(
             stringify!($name),
             #[allow(unsed)] {
                 let mut sum = 0;
@@ -216,15 +221,12 @@ macro_rules! native {
     };
 }
 
-use std::collections::VecDeque;
 #[cfg(not(feature = "macros"))]
 pub(crate) use {_instruction_to_bytecode, _literal_to_constant, bytecode, function, native};
-use crate::vm::error::VmError;
-
 #[cfg(test)]
 mod tests {
     use crate::debug::Disassembler;
-    use crate::function::ObjNative;
+    use crate::types::function::ObjNative;
 
     #[test]
     fn test_bytecode_macro() {

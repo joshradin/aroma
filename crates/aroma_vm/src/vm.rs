@@ -2,15 +2,15 @@
 
 use std::collections::HashMap;
 use std::num::NonZero;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicIsize, AtomicUsize, Ordering};
+use std::sync::Arc;
 
 use parking_lot::{Mutex, RwLock};
 
 use error::VmError;
 
 use crate::chunk::Chunk;
-use crate::function::ObjFunction;
+use crate::types::function::ObjFunction;
 use crate::types::Value;
 use crate::vm::thread_executor::{
     AromaThreadHandle, AromaThreadId, ThreadExecutor, ThreadResult, ThreadResultHolder,
@@ -116,7 +116,7 @@ impl AromaVm {
             (i, 0),
             self.run_control.clone(),
             result_mutex,
-            self.functions.clone()
+            self.functions.clone(),
         );
         handle
     }

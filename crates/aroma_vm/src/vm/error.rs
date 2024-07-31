@@ -1,6 +1,6 @@
-use std::convert::Infallible;
 use crate::chunk::{Constant, UnknownOpcode};
 use crate::types::Value;
+use std::convert::Infallible;
 
 #[derive(Debug, thiserror::Error, Clone)]
 pub enum VmError {

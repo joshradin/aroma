@@ -1,13 +1,12 @@
 //! The aroma vm
 
-pub mod types;
-pub mod vm;
+#[cfg(not(feature = "macros"))]
+pub use macros::*;
 
 pub mod chunk;
 pub mod debug;
-pub mod function;
-
+#[cfg(feature = "jit")]
+pub mod jit;
 mod macros;
-
-#[cfg(not(feature = "macros"))]
-pub use macros::*;
+pub mod types;
+pub mod vm;

@@ -4,8 +4,8 @@ use std::io::BufWriter;
 use std::num::NonZero;
 use std::ops::Neg;
 use std::rc::Rc;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicIsize, Ordering};
+use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 
@@ -14,10 +14,10 @@ use parking_lot::Mutex;
 
 use crate::chunk::{Chunk, Constant, OpCode};
 use crate::debug::Disassembler;
-use crate::function::ObjFunction;
+use crate::types::function::ObjFunction;
 use crate::types::Value;
-use crate::vm::{Chunks, Globals, InstructionPointer, StaticFunctionTable};
 use crate::vm::error::VmError;
+use crate::vm::{Chunks, Globals, InstructionPointer, StaticFunctionTable};
 
 pub type ThreadResultHolder = Arc<Mutex<Option<Result<ThreadResult, VmError>>>>;
 
@@ -104,6 +104,11 @@ impl ThreadExecutor {
                     pc: ip,
                 });
                 let ret = this.run();
+                if let Err(e) = &ret {
+                    eprintln!("{}", e);
+                    eprintln!("{:#?}", this.frame_stack);
+                }
+
                 *result_mutex.lock() = Some(ret);
             })
         };
@@ -289,15 +294,15 @@ impl ThreadExecutor {
                 }
                 OpCode::LtoI => {
                     let p = self.pop()?;
-                    let Value::Long(long) =p else {
-                        return Err(VmError::TypeError(p, "Long".to_string()))
+                    let Value::Long(long) = p else {
+                        return Err(VmError::TypeError(p, "Long".to_string()));
                     };
                     self.push(Value::Int(long as i32))
                 }
                 OpCode::IToL => {
                     let p = self.pop()?;
-                    let Value::Int(long) =p else {
-                        return Err(VmError::TypeError(p, "Int".to_string()))
+                    let Value::Int(long) = p else {
+                        return Err(VmError::TypeError(p, "Int".to_string()));
                     };
                     self.push(Value::Long(long as i64))
                 }
@@ -325,7 +330,12 @@ impl ThreadExecutor {
 
         #[cfg(feature = "debug_trace_execution")]
         {
-            debug!("{}calling {:?} with {:?}", ".".repeat(self.frame_stack.len()), function.name(), stack);
+            debug!(
+                "{}calling {:?} with {:?}",
+                ".".repeat(self.frame_stack.len()),
+                function.name(),
+                stack
+            );
         }
         let chunk_idx = function
             .chunk_idx()
@@ -428,9 +438,7 @@ impl ThreadExecutor {
     fn read_constant(&mut self) -> Result<Value, VmError> {
         let get_constant = {
             let chunk = Vec::from(self.current_frame_chunk().constants());
-            move |idx: u8| {
-                chunk[idx as usize]
-            }
+            move |idx: u8| chunk[idx as usize]
         };
 
         let constant_idx = self.read_byte()?;

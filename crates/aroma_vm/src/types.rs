@@ -1,11 +1,34 @@
 use std::fmt::{Display, Formatter};
 use std::ops::{Add, BitAnd, BitOr, Div, Mul, Neg, Sub};
 use std::sync::Arc;
+
+use function::ObjFunction;
 pub use obj::Obj;
-use crate::function::ObjFunction;
+
 use crate::vm::error::VmError;
 
+pub mod function;
 mod obj;
+
+/// Every value has a type
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Type {
+    Object {
+        signature: String,
+    },
+    Long,
+    Int,
+    Char,
+    Boolean,
+    Byte,
+    String,
+    Double,
+    Float,
+    Function {
+        input: Box<[Type]>,
+        output: Option<Box<Type>>,
+    },
+}
 
 /// A value that can be stored in a stack frame
 #[derive(Debug, Clone, PartialEq, PartialOrd, derive_more::TryInto)]
@@ -19,7 +42,7 @@ pub enum Value {
     String(String),
     Double(f64),
     Float(f32),
-    Function(Arc<ObjFunction>)
+    Function(Arc<ObjFunction>),
 }
 
 impl Value {
@@ -28,6 +51,26 @@ impl Value {
             Some(bool)
         } else {
             None
+        }
+    }
+
+    pub fn get_type(&self) -> Type {
+        match self {
+            Value::Object(_) => {
+                unimplemented!("type signatures for objects")
+            }
+            Value::Long(_) => Type::Long,
+            Value::Int(_) => Type::Int,
+            Value::Char(_) => Type::Char,
+            Value::Boolean(_) => Type::Boolean,
+            Value::Byte(_) => Type::Byte,
+            Value::String(_) => Type::String,
+            Value::Double(_) => Type::Double,
+            Value::Float(_) => Type::Float,
+            Value::Function(f) => Type::Function {
+                input: Box::from(f.params_ty()),
+                output: f.return_ty().map(|b| Box::new(b.clone())),
+            },
         }
     }
 }
