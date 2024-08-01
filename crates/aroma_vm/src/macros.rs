@@ -94,10 +94,10 @@ macro_rules! _literal_to_constant {
     (utf8 $literal:literal) => {
         $crate::chunk::Constant::Utf8($literal)
     };
-    (int $literal:literal) => {
+    (int $literal:expr) => {
         $crate::chunk::Constant::Int($literal)
     };
-    (long $literal:literal) => {
+    (long $literal:expr) => {
         $crate::chunk::Constant::Long($literal)
     };
     (function_ref $literal:literal) => {
@@ -142,6 +142,7 @@ macro_rules! function {
         name $name:literal,
         params ($($p_ty:expr),* $(,)?),
         ret $($r_ty:expr)?,
+        variables ($($v_ty:expr),* $(,)?),
         $($tt:tt)*
     ) => {
         {
@@ -151,7 +152,7 @@ macro_rules! function {
             $(
                 ret_type = Some($r_ty);
             )?
-            ObjFunction::new($name, &[$($p_ty),*], ret_type.as_ref(),vec![bytecode])
+            ObjFunction::new($name, &[$($p_ty),*], ret_type.as_ref(), &[$($v_ty),*], vec![bytecode])
         }
     };
 }

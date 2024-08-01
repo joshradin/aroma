@@ -8,7 +8,7 @@ readme.workspace = true
 repository.workspace = true
 
 [features]
-default = ["jit"]
+default = []
 macros = []
 debug_all = ["debug_trace_execution"]
 debug_trace_execution = []
@@ -25,7 +25,9 @@ required-features = ["macros"]
 [[example]]
 name = "factorial"
 required-features = ["macros"]
-
+[[example]]
+name = "fibonacci_jit_compare"
+required-features = ["macros", "jit"]
 
 [dependencies]
 bitfield = "0.16.1"

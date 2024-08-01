@@ -10,6 +10,23 @@ use crate::vm::error::VmError;
 pub mod function;
 mod obj;
 
+/// A signature for a function
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct FnSignature {
+    input: Box<[Type]>,
+    output: Option<Box<Type>>,
+}
+
+impl FnSignature {
+    pub fn parameters(&self) -> &[Type] {
+        &self.input
+    }
+
+    pub fn ret(&self) -> Option<&Type> {
+        self.output.as_ref().map(|s| &**s)
+    }
+}
+
 /// Every value has a type
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Type {
@@ -24,11 +41,9 @@ pub enum Type {
     String,
     Double,
     Float,
-    Function {
-        input: Box<[Type]>,
-        output: Option<Box<Type>>,
-    },
+    Function(FnSignature),
 }
+
 
 /// A value that can be stored in a stack frame
 #[derive(Debug, Clone, PartialEq, PartialOrd, derive_more::TryInto)]
@@ -67,10 +82,10 @@ impl Value {
             Value::String(_) => Type::String,
             Value::Double(_) => Type::Double,
             Value::Float(_) => Type::Float,
-            Value::Function(f) => Type::Function {
+            Value::Function(f) => Type::Function(FnSignature {
                 input: Box::from(f.params_ty()),
                 output: f.return_ty().map(|b| Box::new(b.clone())),
-            },
+            }),
         }
     }
 }

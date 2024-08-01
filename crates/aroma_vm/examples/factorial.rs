@@ -8,6 +8,7 @@ fn main() {
             name "factorial",
             params (Type::Int),
             ret Type::Int,
+            variables (),
             consts {
                 int 0
                 int 1
@@ -38,6 +39,7 @@ fn main() {
         name "main",
         params (),
         ret,
+        variables (),
         consts { function_ref 1 utf8 "factorial" int 10 },
         bytecode { const(2_u8) const(0_u8) call(1_u8) ret }
     );

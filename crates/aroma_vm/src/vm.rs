@@ -2,14 +2,18 @@
 
 use std::collections::HashMap;
 use std::num::NonZero;
-use std::sync::atomic::{AtomicIsize, AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicIsize, AtomicUsize, Ordering};
+use std::thread;
+use std::thread::JoinHandle;
 
 use parking_lot::{Mutex, RwLock};
 
 use error::VmError;
 
 use crate::chunk::Chunk;
+#[cfg(feature = "jit")]
+use crate::jit::JIT;
 use crate::types::function::ObjFunction;
 use crate::types::Value;
 use crate::vm::thread_executor::{
@@ -34,6 +38,8 @@ pub struct AromaVm {
     run_control: Arc<AtomicIsize>,
     functions: StaticFunctionTable,
     globals: Globals,
+    #[cfg(feature = "jit")]
+    jit: Arc<Mutex<JIT>>,
 }
 
 impl AromaVm {
@@ -46,6 +52,8 @@ impl AromaVm {
             run_control: Arc::new(Default::default()),
             functions: Arc::new(Default::default()),
             globals: Arc::new(Default::default()),
+            #[cfg(feature = "jit")]
+            jit: Arc::new(Mutex::new(JIT::new())),
         }
     }
 
@@ -65,15 +73,16 @@ impl AromaVm {
     /// Starts the VM by running a static function
     pub fn start(&mut self, name: impl AsRef<str>) -> Result<i32, VmError> {
         let name = name.as_ref().to_string();
-        let functino = self
+        let function = self
             .functions
             .read()
             .get(&name)
             .ok_or_else(|| VmError::FunctionNotDefined(name))?
             .clone();
 
-        let handle = self.start_thread(functino);
+        let handle = self.start_thread(function);
         let id = *handle.id();
+        #[cfg(feature = "jit")] self.jit_thread();
         match handle.join() {
             Ok(()) => {
                 let guard = self.thread_results.read();
@@ -90,6 +99,18 @@ impl AromaVm {
             }
             Err(e) => Err(e),
         }
+    }
+
+    #[cfg(feature = "jit")]
+    fn jit_thread(&mut self) -> JoinHandle<()> {
+        let jit = Arc::downgrade(&self.jit);
+        let functions = Arc::downgrade(&self.functions.clone());
+
+        thread::spawn(move || loop {
+            if let (Some(jit), Some(functions)) = (jit.upgrade(), functions.upgrade()) {
+
+            }
+        })
     }
 
     #[inline]

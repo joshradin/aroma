@@ -340,6 +340,7 @@ impl ThreadExecutor {
         let chunk_idx = function
             .chunk_idx()
             .ok_or_else(|| VmError::FunctionNotLoaded(function.name().to_string()))?;
+        function.mark_executed();
         self.frame_stack.push(StackFrame {
             function,
             stack,
@@ -350,6 +351,7 @@ impl ThreadExecutor {
             let mut binding = self.current_chunk.borrow_mut();
             let _ = binding.take();
         }
+
 
         Ok(())
     }

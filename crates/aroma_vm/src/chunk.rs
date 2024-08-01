@@ -5,6 +5,8 @@ use std::ops::{Deref, Index, IndexMut};
 
 use derive_more::TryInto;
 use strum::AsRefStr;
+use crate::types::Value;
+use crate::vm::error::VmError;
 
 /// An opcode
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone, Copy, AsRefStr)]
@@ -112,6 +114,8 @@ pub enum Constant {
     FunctionId(u8),
     Utf8(&'static str),
 }
+
+
 
 impl Display for Constant {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

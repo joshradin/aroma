@@ -2,10 +2,12 @@
 
 use std::cmp::Ordering;
 use std::fmt::{Debug, Formatter};
-use std::sync::Arc;
+use std::ptr::{NonNull, null_mut};
+use std::sync::{Arc, atomic};
+use std::sync::atomic::{AtomicPtr, AtomicUsize};
 
 use crate::chunk::Chunk;
-use crate::types::{Type, Value};
+use crate::types::{FnSignature, Type, Value};
 use crate::vm::error::VmError;
 
 /// A function, an immutable piece of code.
@@ -14,8 +16,13 @@ pub struct ObjFunction {
     name: String,
     params_ty: Box<[Type]>,
     return_ty: Option<Type>,
+    variables: Box<[Type]>,
     chunks: Vec<Arc<Chunk>>,
     chunk_idx: Option<usize>,
+    #[cfg(feature = "jit")]
+    jit: Arc<AtomicPtr<u8>>,
+    /// tracks how many times this function has been called
+    executions: Arc<AtomicUsize>,
 }
 
 impl Debug for ObjFunction {
@@ -29,6 +36,26 @@ impl Debug for ObjFunction {
 }
 
 impl ObjFunction {
+    pub fn new(
+        name: impl AsRef<str>,
+        params: &[Type],
+        ret_type: Option<&Type>,
+        variables: &[Type],
+        chunks: Vec<Chunk>,
+    ) -> Self {
+        Self {
+            name: name.as_ref().to_string(),
+            chunks: Vec::from_iter(chunks.into_iter().map(|c| Arc::new(c))),
+            chunk_idx: None,
+            params_ty: Vec::from(params).into_boxed_slice(),
+            return_ty: ret_type.cloned(),
+            variables: Vec::from(variables).into_boxed_slice(),
+            #[cfg(feature = "jit")]
+            jit: Arc::new(Default::default()),
+            executions: Arc::new(Default::default()),
+        }
+    }
+
     pub fn arity(&self) -> usize {
         self.params_ty.len()
     }
@@ -39,21 +66,6 @@ impl ObjFunction {
 
     pub fn name(&self) -> &str {
         &self.name
-    }
-
-    pub fn new(
-        name: impl AsRef<str>,
-        params: &[Type],
-        ret_type: Option<&Type>,
-        chunks: Vec<Chunk>,
-    ) -> Self {
-        Self {
-            name: name.as_ref().to_string(),
-            chunks: Vec::from_iter(chunks.into_iter().map(|c| Arc::new(c))),
-            chunk_idx: None,
-            params_ty: Vec::from(params).into_boxed_slice(),
-            return_ty: ret_type.cloned(),
-        }
     }
 
     pub fn chunk_idx(&self) -> Option<usize> {
@@ -70,6 +82,45 @@ impl ObjFunction {
 
     pub fn return_ty(&self) -> Option<&Type> {
         self.return_ty.as_ref()
+    }
+
+    pub fn mark_executed(&self) {
+        self.executions.fetch_add(1, atomic::Ordering::Relaxed);
+    }
+
+    pub fn executions(&self) -> usize {
+        self.executions.load(atomic::Ordering::Relaxed)
+    }
+
+    /// gets a pointer to the JIT compiled code, if present.
+    #[cfg(feature = "jit")]
+    pub(crate) fn jit(&self) -> Option<NonNull<u8>> {
+        let loaded = self.jit.load(atomic::Ordering::Relaxed);
+        NonNull::new(loaded)
+    }
+
+    /// Sets the JIT code for this function, if not already present
+    #[cfg(feature = "jit")]
+    pub(crate) fn set_jit(&self, jit: NonNull<u8>) {
+        let as_ptr = jit.as_ptr();
+        let _ = self.jit.compare_exchange(
+            null_mut(),
+            as_ptr,
+            atomic::Ordering::Acquire,
+            atomic::Ordering::Relaxed,
+        );
+    }
+
+    /// Gets the signature of this function
+    pub fn signature(&self) -> FnSignature {
+        FnSignature {
+            input: self.params_ty.clone(),
+            output: self.return_ty.as_ref().map(|s| Box::new(s.clone())),
+        }
+    }
+
+    pub fn variables(&self) -> &[Type] {
+        &self.variables
     }
 }
 

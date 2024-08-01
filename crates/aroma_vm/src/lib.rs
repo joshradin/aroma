@@ -10,3 +10,4 @@ pub mod jit;
 mod macros;
 pub mod types;
 pub mod vm;
+pub mod examples;
