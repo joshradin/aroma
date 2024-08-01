@@ -2,11 +2,12 @@
 
 use std::collections::HashMap;
 use std::num::NonZero;
+use std::ptr::NonNull;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicIsize, AtomicUsize, Ordering};
 use std::thread;
 use std::thread::JoinHandle;
-
+use log::{debug, trace, warn};
 use parking_lot::{Mutex, RwLock};
 
 use error::VmError;
@@ -14,6 +15,8 @@ use error::VmError;
 use crate::chunk::Chunk;
 #[cfg(feature = "jit")]
 use crate::jit::JIT;
+#[cfg(feature = "jit")]
+use crate::jit::JitResult;
 use crate::types::function::ObjFunction;
 use crate::types::Value;
 use crate::vm::thread_executor::{
@@ -82,7 +85,8 @@ impl AromaVm {
 
         let handle = self.start_thread(function);
         let id = *handle.id();
-        #[cfg(feature = "jit")] self.jit_thread();
+        #[cfg(feature = "jit")]
+        self.jit_thread();
         match handle.join() {
             Ok(()) => {
                 let guard = self.thread_results.read();
@@ -107,8 +111,27 @@ impl AromaVm {
         let functions = Arc::downgrade(&self.functions.clone());
 
         thread::spawn(move || loop {
+            trace!("started JIT thread");
             if let (Some(jit), Some(functions)) = (jit.upgrade(), functions.upgrade()) {
-
+                let guard = functions.read();
+                if let Some(func) = guard
+                    .values()
+                    .find(|i| i.executions() > 5 && i.jit().is_none())
+                {
+                    let func = func.clone();
+                    drop(guard);
+                    debug!("Starting JIT on {}", func.name());
+                    let mut jit = jit.lock();
+                    match jit.compile(&*func) {
+                        Ok(ptr) => {
+                            debug!("created JIT compilation for {:?}", ptr);
+                            func.set_jit(NonNull::new(ptr as *mut u8).unwrap())
+                        }
+                        Err(err) => {
+                            warn!("Failed to compile {} because {err}", func.name());
+                        }
+                    }
+                }
             }
         })
     }

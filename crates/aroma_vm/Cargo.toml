@@ -8,7 +8,7 @@ readme.workspace = true
 repository.workspace = true
 
 [features]
-default = []
+default = ["jit"]
 macros = []
 debug_all = ["debug_trace_execution"]
 debug_trace_execution = []
@@ -38,7 +38,7 @@ strum = { version = "0.26.3", features = ["derive"] }
 thiserror = "1.0.63"
 log = { version = "0.4.22", features = ["max_level_trace", "release_max_level_off"] }
 derive_more = "0.99.18"
-
+cfg-if = "1.0.0"
 
 cranelift = { version = "0.110.1", optional = true }
 cranelift-module = { version = "0.110.1", optional = true }
@@ -47,3 +47,6 @@ cranelift-native = { version = "0.110.1", optional = true }
 
 [dev-dependencies]
 test-log = "0.2.16"
+
+[build-dependencies]
+itertools = "0.13.0"

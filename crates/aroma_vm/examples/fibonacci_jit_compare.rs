@@ -6,7 +6,7 @@ use aroma_vm::jit::JIT;
 use aroma_vm::types::function::ObjFunction;
 use aroma_vm::vm::AromaVm;
 
-const TEST_N: i64 = 30;
+const TEST_N: i64 = 47;
 
 fn main() {
     let expected = quick_fib(TEST_N);
@@ -31,8 +31,8 @@ fn run_vm(expected: i64) -> Duration {
     vm.load(main).expect("could not add main");
     vm.load(fibonacci).expect("could not add main");
     let start = Instant::now();
-    let result = vm.start("main").expect("could not run") as i64;
-    assert_eq!(result, expected);
+    let result = vm.start("main").expect("could not run");
+    assert_eq!(result, expected as i32);
     start.elapsed()
 }
 

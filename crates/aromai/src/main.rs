@@ -6,15 +6,29 @@ use owo_colors::OwoColorize;
 use owo_colors::Stream::Stdout;
 use std::io::{stderr, stdout};
 use std::process::ExitCode;
+use aroma_vm::function;
 
 fn main() -> eyre::Result<ExitCode> {
     color_eyre::install()?;
     let app = App::parse();
-    init_logging(app.log.unwrap_or(LevelFilter::Info))?;
+    init_logging(app.log.unwrap_or(LevelFilter::Debug))?;
     trace!("starting aromi with args {app:?}");
-
-    let vm = AromaVm::new();
+    let mut vm = AromaVm::new();
     trace!("Created aroma vm: {:?}", vm);
+    let fibonacci = aroma_vm::examples::fibonacci();
+    let main = function!(
+        name "main",
+        params (),
+        ret,
+        variables (),
+        consts { function_ref 1 utf8 "fibonacci" long 45 },
+        bytecode { const(2_u8) const(0_u8) call(1_u8) ltoi ret }
+    );
+
+    vm.load(main).expect("could not add main");
+    vm.load(fibonacci).expect("could not add main");
+
+    vm.start("main")?;
 
     Ok(ExitCode::SUCCESS)
 }
@@ -52,6 +66,8 @@ fn init_logging(level_filter: LevelFilter) -> eyre::Result<()> {
             ))
         })
         .level(level_filter)
+        .level_for("cranelift_codegen", LevelFilter::Off)
+        .level_for("cranelift_jit", LevelFilter::Off)
         .chain(stdout())
         .apply()?;
     Ok(())

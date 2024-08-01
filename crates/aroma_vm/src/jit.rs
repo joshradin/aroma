@@ -14,6 +14,7 @@ use crate::types::function::ObjFunction;
 use crate::types::Value as AromaValue;
 
 pub mod ir;
+pub mod abi;
 
 /// JIT compiler, converting [ObjFunction](crate::types::function::ObjFunction) function objects into
 /// compiled machine code.
@@ -44,7 +45,6 @@ impl Default for JIT {
         let mut flag_builder = settings::builder();
         flag_builder.set("use_colocated_libcalls", "false").unwrap();
         flag_builder.set("is_pic", "false").unwrap();
-        flag_builder.set("regalloc_verbose_logs", "true").unwrap();
         let isa_builder = cranelift_native::builder()
             .unwrap_or_else(|msg| panic!("host machine is not supported: {msg}"));
         let isa = isa_builder

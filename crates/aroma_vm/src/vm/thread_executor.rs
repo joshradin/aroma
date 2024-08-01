@@ -4,11 +4,12 @@ use std::io::BufWriter;
 use std::num::NonZero;
 use std::ops::Neg;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicIsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicIsize, Ordering};
 use std::thread;
 use std::thread::JoinHandle;
 
+use cfg_if::cfg_if;
 use log::{debug, trace};
 use parking_lot::Mutex;
 
@@ -16,8 +17,8 @@ use crate::chunk::{Chunk, Constant, OpCode};
 use crate::debug::Disassembler;
 use crate::types::function::ObjFunction;
 use crate::types::Value;
-use crate::vm::error::VmError;
 use crate::vm::{Chunks, Globals, InstructionPointer, StaticFunctionTable};
+use crate::vm::error::VmError;
 
 pub type ThreadResultHolder = Arc<Mutex<Option<Result<ThreadResult, VmError>>>>;
 
@@ -341,17 +342,38 @@ impl ThreadExecutor {
             .chunk_idx()
             .ok_or_else(|| VmError::FunctionNotLoaded(function.name().to_string()))?;
         function.mark_executed();
-        self.frame_stack.push(StackFrame {
-            function,
-            stack,
-            vars: Default::default(),
-            pc: (chunk_idx, 0),
-        });
-        if chunk_idx != self.frame_stack[self.frame_stack.len() - 2].pc.0 {
-            let mut binding = self.current_chunk.borrow_mut();
-            let _ = binding.take();
-        }
 
+        cfg_if! {
+            if #[cfg(feature="jit")] {
+                if let Some(jit) = function.jit() {
+                    if let Some(ret_value) = crate::jit::abi::call_jit(&*stack, &*function, jit) {
+                        self.push(ret_value);
+                    }
+                } else {
+                    self.frame_stack.push(StackFrame {
+                        function,
+                        stack,
+                        vars: Default::default(),
+                        pc: (chunk_idx, 0),
+                    });
+                    if chunk_idx != self.frame_stack[self.frame_stack.len() - 2].pc.0 {
+                        let mut binding = self.current_chunk.borrow_mut();
+                        let _ = binding.take();
+                    }
+                }
+            } else {
+                self.frame_stack.push(StackFrame {
+                        function,
+                        stack,
+                        vars: Default::default(),
+                        pc: (chunk_idx, 0),
+                    });
+                    if chunk_idx != self.frame_stack[self.frame_stack.len() - 2].pc.0 {
+                        let mut binding = self.current_chunk.borrow_mut();
+                        let _ = binding.take();
+                    }
+            }
+        }
 
         Ok(())
     }
