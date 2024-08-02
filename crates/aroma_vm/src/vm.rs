@@ -15,9 +15,7 @@ use error::VmError;
 
 use crate::chunk::Chunk;
 #[cfg(feature = "jit")]
-use crate::jit::JIT;
-#[cfg(feature = "jit")]
-use crate::jit::JitResult;
+use crate::jit::{JIT, JITConfig, JitResult};
 use crate::types::function::{ObjFunction, ObjNative};
 use crate::types::Value;
 use crate::vm::natives::NATIVES;
@@ -36,6 +34,14 @@ pub type Globals = Arc<RwLock<HashMap<String, Value>>>;
 pub type StaticFunctionTable = Arc<RwLock<HashMap<String, Arc<ObjFunction>>>>;
 pub type StaticNativeTable = Arc<RwLock<HashMap<String, Arc<ObjNative>>>>;
 
+/// Configuration used for creating the VM
+#[derive(Debug, Default)]
+pub struct AromaVmConfig {
+    #[cfg(feature = "jit")]
+    pub jit: JITConfig
+}
+
+
 /// A virtual machine
 #[derive(Debug)]
 pub struct AromaVm {
@@ -48,11 +54,18 @@ pub struct AromaVm {
     globals: Globals,
     #[cfg(feature = "jit")]
     jit: Arc<Mutex<JIT>>,
+    config: AromaVmConfig
 }
 
 impl AromaVm {
     /// Creates a new aroma vm
+    #[inline]
     pub fn new() -> Self {
+        Self::with_config(AromaVmConfig::default())
+    }
+
+    /// Creates a new aroma vm with a given config
+    pub fn with_config(aroma_vm_config: AromaVmConfig) -> Self {
         let mut this = Self {
             chunks: Arc::new(RwLock::new(Default::default())),
             next_thread: AtomicUsize::new(1),
@@ -63,6 +76,7 @@ impl AromaVm {
             globals: Arc::new(Default::default()),
             #[cfg(feature = "jit")]
             jit: Arc::new(Mutex::new(JIT::new())),
+            config: aroma_vm_config
         };
         for natives in NATIVES {
             this.add_native(natives).unwrap();
@@ -124,9 +138,11 @@ impl AromaVm {
     }
 
     #[cfg(feature = "jit")]
+    // TODO: change from this active checking mechanism to a pass feeder system where each thread executor is responsible with sending a threshold passed function to the compiler
     fn jit_thread(&mut self) -> JoinHandle<()> {
         let jit = Arc::downgrade(&self.jit);
         let functions = Arc::downgrade(&self.functions.clone());
+        let threshold = self.config.jit.threshold;
         thread::Builder::new()
             .name("JIT Compiler".to_string())
             .spawn(move || {
@@ -136,7 +152,7 @@ impl AromaVm {
                     let guard = functions.read();
                     if let Some(func) = guard
                         .values()
-                        .find(|i| i.executions() > 1000 && i.jit().is_none())
+                        .find(|i| i.executions() + i.loops() > threshold && i.jit().is_none())
                     {
                         let func = func.clone();
                         drop(guard);

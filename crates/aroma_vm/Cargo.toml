@@ -19,16 +19,6 @@ jit = [
     "dep:cranelift-native"
 ]
 
-[[example]]
-name = "fibonacci"
-required-features = ["macros"]
-[[example]]
-name = "factorial"
-required-features = ["macros"]
-[[example]]
-name = "fibonacci_jit_compare"
-required-features = ["macros", "jit"]
-
 [dependencies]
 bitfield = "0.16.1"
 bytes = "1.6.1"
@@ -50,3 +40,14 @@ test-log = "0.2.16"
 
 [build-dependencies]
 itertools = "0.13.0"
+
+[[example]]
+name = "fibonacci"
+required-features = ["macros"]
+[[example]]
+name = "factorial"
+required-features = ["macros"]
+[[example]]
+name = "fibonacci_jit_compare"
+required-features = ["macros", "jit"]
+

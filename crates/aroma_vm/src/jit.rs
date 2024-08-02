@@ -34,6 +34,21 @@ pub struct JIT {
     func_ids: HashMap<String, FuncId>,
 }
 
+/// Settings used for configuring JIT compilation
+#[derive(Debug)]
+pub struct JITConfig {
+    /// the threshold that must be met for JIT compilation to occur for a given
+    pub threshold: usize
+}
+
+impl Default for JITConfig {
+    fn default() -> Self {
+        Self {
+            threshold: 10_0000,
+        }
+    }
+}
+
 impl Debug for JIT {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("JIT").finish_non_exhaustive()

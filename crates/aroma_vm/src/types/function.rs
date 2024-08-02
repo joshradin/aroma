@@ -23,6 +23,8 @@ pub struct ObjFunction {
     jit: Arc<AtomicPtr<u8>>,
     /// tracks how many times this function has been called
     executions: Arc<AtomicUsize>,
+    /// tracks how many times this function has looped
+    loops: Arc<AtomicUsize>,
 }
 
 impl Debug for ObjFunction {
@@ -90,6 +92,14 @@ impl ObjFunction {
 
     pub fn executions(&self) -> usize {
         self.executions.load(atomic::Ordering::Relaxed)
+    }
+
+    pub fn mark_looped(&self) {
+        self.loops.fetch_add(1, atomic::Ordering::Relaxed);
+    }
+
+    pub fn loops(&self) -> usize {
+        self.loops.load(atomic::Ordering::Relaxed)
     }
 
     /// gets a pointer to the JIT compiled code, if present.
