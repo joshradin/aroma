@@ -144,6 +144,7 @@ impl PartialOrd for ObjFunction {
 pub type NativeFn = fn(&[Value]) -> Result<Option<Value>, VmError>;
 
 /// A native function.
+#[derive(Debug, Clone)]
 pub struct ObjNative {
     name: &'static str,
     arity: usize,

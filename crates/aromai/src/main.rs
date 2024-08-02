@@ -11,7 +11,7 @@ use aroma_vm::function;
 fn main() -> eyre::Result<ExitCode> {
     color_eyre::install()?;
     let app = App::parse();
-    init_logging(app.log.unwrap_or(LevelFilter::Debug))?;
+    init_logging(app.log.unwrap_or(LevelFilter::Off))?;
     trace!("starting aromi with args {app:?}");
     let mut vm = AromaVm::new();
     trace!("Created aroma vm: {:?}", vm);
@@ -21,16 +21,28 @@ fn main() -> eyre::Result<ExitCode> {
         params (),
         ret,
         variables (),
-        consts { function_ref 1 utf8 "fibonacci" long 45 },
-        bytecode { const(2_u8) const(0_u8) call(1_u8) ltoi ret }
+        consts {
+            function_ref 1
+            utf8 "fibonacci"
+            long 47
+            function_ref 4
+            utf8 "print"
+        },
+        bytecode {
+            const(2_u8)
+            const(0_u8)
+            call(1_u8)
+            const(3_u8)
+            call(1_u8)
+            ret
+        }
     );
 
     vm.load(main).expect("could not add main");
     vm.load(fibonacci).expect("could not add main");
 
-    vm.start("main")?;
-
-    Ok(ExitCode::SUCCESS)
+    let ret = vm.start("main")?;
+    Ok(ExitCode::from(ret as u8))
 }
 
 fn init_logging(level_filter: LevelFilter) -> eyre::Result<()> {
@@ -68,6 +80,7 @@ fn init_logging(level_filter: LevelFilter) -> eyre::Result<()> {
         .level(level_filter)
         .level_for("cranelift_codegen", LevelFilter::Off)
         .level_for("cranelift_jit", LevelFilter::Off)
+        .level_for("regalloc2", LevelFilter::Off)
         .chain(stdout())
         .apply()?;
     Ok(())

@@ -17,7 +17,7 @@ use crate::chunk::{Chunk, Constant, OpCode};
 use crate::debug::Disassembler;
 use crate::types::function::ObjFunction;
 use crate::types::Value;
-use crate::vm::{Chunks, Globals, InstructionPointer, StaticFunctionTable};
+use crate::vm::{Chunks, Globals, InstructionPointer, StaticFunctionTable, StaticNativeTable};
 use crate::vm::error::VmError;
 
 pub type ThreadResultHolder = Arc<Mutex<Option<Result<ThreadResult, VmError>>>>;
@@ -68,6 +68,7 @@ pub struct ThreadExecutor {
     vm_run_control: Arc<AtomicIsize>,
     thread_run_control: Arc<AtomicIsize>,
     static_functions: StaticFunctionTable,
+    native_functions: StaticNativeTable,
 }
 
 impl ThreadExecutor {
@@ -80,6 +81,7 @@ impl ThreadExecutor {
         vm_run_control: Arc<AtomicIsize>,
         result_mutex: ThreadResultHolder,
         static_functions: StaticFunctionTable,
+        native_functions: StaticNativeTable,
     ) -> AromaThreadHandle {
         let thread_controller = Arc::new(AtomicIsize::new(0));
         let handle = {
@@ -96,6 +98,7 @@ impl ThreadExecutor {
                     vm_run_control,
                     thread_run_control: thread_controller,
                     static_functions,
+                    native_functions,
                 };
 
                 this.frame_stack.push(StackFrame {
@@ -161,7 +164,7 @@ impl ThreadExecutor {
                     .disassemble_instruction(&chunk, offset, &mut buffer)
                     .expect("could not disassemble");
                 trace!("{}", std::str::from_utf8(&buffer).unwrap().trim());
-                trace!("frame stack: {:#?}", &self.frame_stack);
+                // trace!("frame stack: {:#?}", &self.frame_stack);
             }
 
             let op_code = OpCode::try_from(instruction)?;
@@ -314,11 +317,25 @@ impl ThreadExecutor {
     }
 
     fn call_value(&mut self, callee: Value, argc: usize) -> Result<(), VmError> {
-        if let Value::Function(f) = callee {
-            self.call(f, argc)?;
-        } else {
-            return Err(VmError::IllegalOperation("call".to_string(), callee));
+        match callee {
+            Value::Function(f) => {
+                self.call(f, argc)?;
+            }
+            Value::Native(native) => {
+                let mut stack = vec![];
+                for _ in 0..argc {
+                    stack.push(self.pop()?);
+                }
+                stack.reverse();
+                debug!("calling native function {:?}", native.name());
+                let ret = native.native()(&stack)?;
+                if let Some(ret) = ret {
+                    self.push(ret);
+                }
+            }
+            _ => return Err(VmError::IllegalOperation("call".to_string(), callee)),
         }
+
         Ok(())
     }
 
@@ -346,6 +363,9 @@ impl ThreadExecutor {
         cfg_if! {
             if #[cfg(feature="jit")] {
                 if let Some(jit) = function.jit() {
+                    #[cfg(feature = "debug_trace_execution")] {
+                        trace!("calling compiled {} at {:p}", function.name(), jit);
+                    }
                     if let Some(ret_value) = crate::jit::abi::call_jit(&*stack, &*function, jit) {
                         self.push(ret_value);
                     }
@@ -470,13 +490,13 @@ impl ThreadExecutor {
         match constant {
             Constant::FunctionId(id) => match get_constant(id) {
                 Constant::Utf8(utf8) => {
-                    let function = self
-                        .static_functions
-                        .read()
-                        .get(utf8)
-                        .cloned()
-                        .ok_or_else(|| VmError::FunctionNotDefined(utf8.to_string()))?;
-                    Ok(Value::Function(function))
+                    return if let Some(function) = self.static_functions.read().get(utf8).cloned() {
+                        Ok(Value::Function(function))
+                    } else if let Some(native) = self.native_functions.read().get(utf8).cloned() {
+                        Ok(Value::Native(native))
+                    } else {
+                        Err(VmError::FunctionNotDefined(utf8.to_string()))
+                    }
                 }
                 other => Err(VmError::UnexpectedConstant(other)),
             },

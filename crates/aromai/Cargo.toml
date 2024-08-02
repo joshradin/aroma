@@ -8,10 +8,11 @@ readme.workspace = true
 repository.workspace = true
 
 [features]
+default = ["jit"]
 jit = ["aroma_vm/jit"]
 
 [dependencies]
-aroma_vm = { version = "0.0.0", path = "../aroma_vm", features = ["macros"] }
+aroma_vm = { version = "0.0.0", path = "../aroma_vm", features = ["macros", "debug_all"] }
 clap = { version = "4.5.11", features = ["derive", "env"] }
 color-eyre = "0.6.3"
 eyre = "0.6.12"

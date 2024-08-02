@@ -7,6 +7,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicIsize, AtomicUsize, Ordering};
 use std::thread;
 use std::thread::JoinHandle;
+
 use log::{debug, trace, warn};
 use parking_lot::{Mutex, RwLock};
 
@@ -17,13 +18,15 @@ use crate::chunk::Chunk;
 use crate::jit::JIT;
 #[cfg(feature = "jit")]
 use crate::jit::JitResult;
-use crate::types::function::ObjFunction;
+use crate::types::function::{ObjFunction, ObjNative};
 use crate::types::Value;
+use crate::vm::natives::NATIVES;
 use crate::vm::thread_executor::{
     AromaThreadHandle, AromaThreadId, ThreadExecutor, ThreadResult, ThreadResultHolder,
 };
 
 pub mod error;
+pub mod natives;
 mod thread_executor;
 
 pub type Chunks = Arc<RwLock<Vec<Arc<Chunk>>>>;
@@ -31,6 +34,7 @@ pub type Chunks = Arc<RwLock<Vec<Arc<Chunk>>>>;
 pub type InstructionPointer = (usize, usize);
 pub type Globals = Arc<RwLock<HashMap<String, Value>>>;
 pub type StaticFunctionTable = Arc<RwLock<HashMap<String, Arc<ObjFunction>>>>;
+pub type StaticNativeTable = Arc<RwLock<HashMap<String, Arc<ObjNative>>>>;
 
 /// A virtual machine
 #[derive(Debug)]
@@ -40,6 +44,7 @@ pub struct AromaVm {
     thread_results: RwLock<HashMap<AromaThreadId, ThreadResultHolder>>,
     run_control: Arc<AtomicIsize>,
     functions: StaticFunctionTable,
+    natives: StaticNativeTable,
     globals: Globals,
     #[cfg(feature = "jit")]
     jit: Arc<Mutex<JIT>>,
@@ -48,16 +53,21 @@ pub struct AromaVm {
 impl AromaVm {
     /// Creates a new aroma vm
     pub fn new() -> Self {
-        Self {
+        let mut this = Self {
             chunks: Arc::new(RwLock::new(Default::default())),
             next_thread: AtomicUsize::new(1),
             thread_results: RwLock::new(HashMap::with_capacity(8)),
             run_control: Arc::new(Default::default()),
             functions: Arc::new(Default::default()),
+            natives: Arc::new(Default::default()),
             globals: Arc::new(Default::default()),
             #[cfg(feature = "jit")]
             jit: Arc::new(Mutex::new(JIT::new())),
+        };
+        for natives in NATIVES {
+            this.add_native(natives).unwrap();
         }
+        this
     }
 
     pub fn load(&mut self, mut function: ObjFunction) -> Result<(), VmError> {
@@ -70,6 +80,14 @@ impl AromaVm {
             .write()
             .insert(function.name().to_string(), Arc::new(function));
 
+        Ok(())
+    }
+
+    /// Adds a native function to this vm
+    pub fn add_native(&mut self, native_fn: &ObjNative) -> Result<(), VmError> {
+        self.natives
+            .write()
+            .insert(native_fn.name().to_string(), Arc::new(native_fn.clone()));
         Ok(())
     }
 
@@ -109,31 +127,34 @@ impl AromaVm {
     fn jit_thread(&mut self) -> JoinHandle<()> {
         let jit = Arc::downgrade(&self.jit);
         let functions = Arc::downgrade(&self.functions.clone());
-
-        thread::spawn(move || loop {
+        thread::Builder::new()
+            .name("JIT Compiler".to_string())
+            .spawn(move || {
             trace!("started JIT thread");
-            if let (Some(jit), Some(functions)) = (jit.upgrade(), functions.upgrade()) {
-                let guard = functions.read();
-                if let Some(func) = guard
-                    .values()
-                    .find(|i| i.executions() > 5 && i.jit().is_none())
-                {
-                    let func = func.clone();
-                    drop(guard);
-                    debug!("Starting JIT on {}", func.name());
-                    let mut jit = jit.lock();
-                    match jit.compile(&*func) {
-                        Ok(ptr) => {
-                            debug!("created JIT compilation for {:?}", ptr);
-                            func.set_jit(NonNull::new(ptr as *mut u8).unwrap())
-                        }
-                        Err(err) => {
-                            warn!("Failed to compile {} because {err}", func.name());
+            loop {
+                if let (Some(jit), Some(functions)) = (jit.upgrade(), functions.upgrade()) {
+                    let guard = functions.read();
+                    if let Some(func) = guard
+                        .values()
+                        .find(|i| i.executions() > 1000 && i.jit().is_none())
+                    {
+                        let func = func.clone();
+                        drop(guard);
+                        debug!(target: "aroma_vm::jit" ,"Starting JIT on {}", func.name());
+                        let mut jit = jit.lock();
+                        match jit.compile(&*func) {
+                            Ok(ptr) => {
+                                debug!(target: "aroma_vm::jit", "created JIT compilation for {:?}", ptr);
+                                func.set_jit(NonNull::new(ptr as *mut u8).unwrap())
+                            }
+                            Err(err) => {
+                                warn!("Failed to compile {} because {err}", func.name());
+                            }
                         }
                     }
                 }
             }
-        })
+        }).expect("could not start JIT thread")
     }
 
     #[inline]
@@ -161,6 +182,7 @@ impl AromaVm {
             self.run_control.clone(),
             result_mutex,
             self.functions.clone(),
+            self.natives.clone(),
         );
         handle
     }

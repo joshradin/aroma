@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use function::ObjFunction;
 pub use obj::Obj;
-
+use crate::types::function::ObjNative;
 use crate::vm::error::VmError;
 
 pub mod function;
@@ -42,6 +42,7 @@ pub enum Type {
     Double,
     Float,
     Function(FnSignature),
+    NativeFn
 }
 
 
@@ -58,6 +59,7 @@ pub enum Value {
     Double(f64),
     Float(f32),
     Function(Arc<ObjFunction>),
+    Native(Arc<ObjNative>),
 }
 
 impl Value {
@@ -86,6 +88,7 @@ impl Value {
                 input: Box::from(f.params_ty()),
                 output: f.return_ty().map(|b| Box::new(b.clone())),
             }),
+            Value::Native(_) => Type::NativeFn
         }
     }
 }
@@ -266,31 +269,34 @@ impl Display for Value {
                 write!(f, "<object>")
             }
             Value::Long(l) => {
-                write!(f, "l{l}")
+                write!(f, "{l}l")
             }
             Value::Int(l) => {
-                write!(f, "i{l}")
+                write!(f, "{l}i")
             }
             Value::Char(l) => {
-                write!(f, "c{l}")
+                write!(f, "{l}c")
             }
             Value::Boolean(l) => {
-                write!(f, "z{l}")
+                write!(f, "{l}z")
             }
             Value::Byte(l) => {
-                write!(f, "b{l}")
+                write!(f, "{l}b")
             }
             Value::String(l) => {
-                write!(f, "s{l}")
+                write!(f, "{l}")
             }
             Value::Double(d) => {
-                write!(f, "d{d}")
+                write!(f, "{d}d")
             }
             Value::Float(d) => {
-                write!(f, "f{d}")
+                write!(f, "f{d}f")
             }
             Value::Function(func) => {
                 write!(f, "func<{}>", func.name())
+            }
+            Value::Native(native) => {
+                write!(f, "native<{}>", native.name())
             }
         }
     }
