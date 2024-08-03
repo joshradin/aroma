@@ -119,6 +119,9 @@ impl Disassembler {
                 OpCode::Jump | OpCode::JumpIfFalse => {
                     self.jump_instruction(opcode.as_ref(), chunk, offset, &mut w)
                 }
+                OpCode::Loop => {
+                    self.loop_instruction(opcode.as_ref(), chunk, offset, &mut w)
+                }
                 _opcode => {
                     unimplemented!("Disassembly for {_opcode:?}")
                 }
@@ -173,13 +176,29 @@ impl Disassembler {
         offset: usize,
         mut writer: W,
     ) -> io::Result<usize> {
-        let jmp_distance = u16::from_be_bytes(chunk.code()[offset + 1..][..2].try_into().unwrap());
+        let jmp_distance = u16::from_be_bytes(chunk.code()[offset + 1..][..2].try_into().unwrap()) as usize;
         writeln!(
             writer,
-            "{name:<16} {jmp_distance:<6} // {}",
-            offset + 3 + jmp_distance as usize
+            "{name:<16} {jmp_distance:<6} // {:06x}",
+            offset + 3 + jmp_distance
         )?;
-        Ok(offset + 2)
+        Ok(offset + 3)
+    }
+
+    fn loop_instruction<W: Write>(
+        &self,
+        name: &str,
+        chunk: &Chunk,
+        offset: usize,
+        mut writer: W,
+    ) -> io::Result<usize> {
+        let jmp_distance = i16::from_be_bytes(chunk.code()[offset + 1..][..2].try_into().unwrap()) as isize;
+        writeln!(
+            writer,
+            "{name:<16} {jmp_distance:<6} // {:06x}",
+            offset as isize + 3 + jmp_distance
+        )?;
+        Ok(offset + 3)
     }
 
     fn format_constant<W: Write>(&self, chunk: &Chunk, idx: u8, mut w: &mut W) -> io::Result<()> {

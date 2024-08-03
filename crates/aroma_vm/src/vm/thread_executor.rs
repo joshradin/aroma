@@ -10,6 +10,7 @@ use std::thread;
 use std::thread::JoinHandle;
 
 use cfg_if::cfg_if;
+use itertools::Itertools;
 use log::{debug, trace};
 use parking_lot::Mutex;
 
@@ -17,7 +18,7 @@ use crate::chunk::{Chunk, Constant, OpCode};
 use crate::debug::Disassembler;
 use crate::types::function::ObjFunction;
 use crate::types::Value;
-use crate::vm::{Chunks, Globals, InstructionPointer, StaticFunctionTable, StaticNativeTable};
+use crate::vm::{Chunks, Globals, InsPtr, StaticFunctionTable, StaticNativeTable};
 use crate::vm::error::VmError;
 
 pub type ThreadResultHolder = Arc<Mutex<Option<Result<ThreadResult, VmError>>>>;
@@ -51,7 +52,7 @@ struct StackFrame {
     function: Arc<ObjFunction>,
     stack: Vec<Value>,
     vars: BTreeMap<u8, Value>,
-    pc: InstructionPointer,
+    pc: InsPtr,
 }
 
 /// Thread executor
@@ -77,7 +78,7 @@ impl ThreadExecutor {
         id: AromaThreadId,
         chunks: Chunks,
         globals: Globals,
-        ip: InstructionPointer,
+        ip: InsPtr,
         vm_run_control: Arc<AtomicIsize>,
         result_mutex: ThreadResultHolder,
         static_functions: StaticFunctionTable,
@@ -143,6 +144,16 @@ impl ThreadExecutor {
                         .iter()
                         .fold(String::new(), |accum, next| format!("{accum}[{next}]"))
                 );
+                trace!(
+                    "vars: {}",
+                    frame
+                        .vars
+                        .iter()
+                        .map(|(idx, val)| format!(
+                            "var_{idx}={val}"
+                        ))
+                        .join(", ")
+                );
             }
 
             let instruction = self.read_byte()?;
@@ -165,6 +176,7 @@ impl ThreadExecutor {
                     .expect("could not disassemble");
                 trace!("{}", std::str::from_utf8(&buffer).unwrap().trim());
                 // trace!("frame stack: {:#?}", &self.frame_stack);
+                trace!("");
             }
 
             let op_code = OpCode::try_from(instruction)?;
@@ -284,12 +296,19 @@ impl ThreadExecutor {
                     let check: bool = *self.peek()?.as_bool().ok_or(VmError::BooleanExpected)?;
 
                     if !check {
-                        self.add_offset(offset as i16 as isize);
+                        self.add_offset(usize::from(offset) as isize);
                     }
                 }
                 OpCode::Jump => {
                     let offset = self.read_short()?;
-                    self.add_offset(offset as i16 as isize);
+                    self.add_offset(usize::from(offset) as isize);
+                }
+                OpCode::Loop => {
+                    let offset = self.read_short()? as i16;
+                    if offset > 0 {
+                        panic!("loop can never go forward")
+                    }
+                    self.add_offset(isize::from(offset));
                 }
                 OpCode::Call => {
                     let argc = self.read_byte()?;

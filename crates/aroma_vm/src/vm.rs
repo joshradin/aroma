@@ -29,7 +29,7 @@ mod thread_executor;
 
 pub type Chunks = Arc<RwLock<Vec<Arc<Chunk>>>>;
 
-pub type InstructionPointer = (usize, usize);
+pub type InsPtr = (usize, usize);
 pub type Globals = Arc<RwLock<HashMap<String, Value>>>;
 pub type StaticFunctionTable = Arc<RwLock<HashMap<String, Arc<ObjFunction>>>>;
 pub type StaticNativeTable = Arc<RwLock<HashMap<String, Arc<ObjNative>>>>;
@@ -84,8 +84,13 @@ impl AromaVm {
         this
     }
 
+    /// Loads a function into the VM.
+    ///
+    /// # Info
+    /// Functions that have not been loaded into the VM can not be run. This is because
+    /// loading functions adds it to the global address space used by the VM.
     pub fn load(&mut self, mut function: ObjFunction) -> Result<(), VmError> {
-        let function_chunks = function.chunks().clone();
+        let function_chunks = Vec::from(function.chunks());
         let mut all_chunks = self.chunks.write();
         let start_idx = all_chunks.len();
         function.set_chunk_idx(start_idx);

@@ -8,7 +8,7 @@ use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{DataDescription, FuncId, Linkage, Module, ModuleError};
 
 use crate::chunk::{Constant, OpCode, UnknownOpcode};
-use crate::jit::ir::{Op, to_ir};
+use crate::jit::ir::{JitIrOp, to_ir};
 use crate::types::{FnSignature, Type as AromaType};
 use crate::types::function::ObjFunction;
 use crate::types::Value as AromaValue;
@@ -44,7 +44,7 @@ pub struct JITConfig {
 impl Default for JITConfig {
     fn default() -> Self {
         Self {
-            threshold: 10_0000,
+            threshold: 10_000,
         }
     }
 }
@@ -188,43 +188,45 @@ impl<'a> BytecodeTranslator<'a> {
     fn translate_bytecode(&mut self, f: &ObjFunction) -> JitResult<()> {
         let ir = to_ir(f)?;
 
-        for op in ir {
-            self.translate_statement(op)?;
-        }
+        // for op in ir {
+        //     self.translate_statement(op)?;
+        // }
 
         Ok(())
     }
 
-    fn translate_statement(&mut self, op: Op) -> JitResult<()> {
-        match op {
-            Op::Assign(var, op) => {
-                let new_value = self.translate_expr(*op)?;
-                let variable = self.variables.get(&var).unwrap();
-                self.builder.def_var(*variable, new_value);
-            }
-            Op::Return(op) => {
-                let value = self.translate_expr(*op)?;
-                self.builder.ins().return_(&[value]);
-            }
-            Op::If {
-                cond,
-                then,
-                otherwise,
-            } => {
-                self.translate_if_else(*cond, then, otherwise)?;
-            }
-            op => {
-                unimplemented!("JIT compilation for {op:?}")
-            }
-        }
-        Ok(())
+    fn translate_statement(&mut self, op: JitIrOp) -> JitResult<()> {
+        // match op {
+        //     JitIrOp::Assign(var, op) => {
+        //         let new_value = self.translate_expr(*op)?;
+        //         let variable = self.variables.get(&var).unwrap();
+        //         self.builder.def_var(*variable, new_value);
+        //     }
+        //     JitIrOp::Return(op) => {
+        //         let value = self.translate_expr(*op)?;
+        //         self.builder.ins().return_(&[value]);
+        //     }
+        //     JitIrOp::If {
+        //         cond,
+        //         then,
+        //         otherwise,
+        //     } => {
+        //         // self.translate_if_else(*cond, then, otherwise)?;
+        //         todo!()
+        //     }
+        //     op => {
+        //         unimplemented!("JIT compilation for {op:?}")
+        //     }
+        // }
+        // Ok(())
+        todo!()
     }
 
     fn translate_if_else(
         &mut self,
-        condition: Op,
-        then_body: Vec<Op>,
-        else_body: Vec<Op>,
+        condition: JitIrOp,
+        then_body: Vec<JitIrOp>,
+        else_body: Vec<JitIrOp>,
     ) -> JitResult<()> {
         let condition_value = self.translate_expr(condition)?;
 
@@ -249,17 +251,17 @@ impl<'a> BytecodeTranslator<'a> {
         Ok(())
     }
 
-    fn translate_expr(&mut self, op: Op) -> JitResult<Value> {
+    fn translate_expr(&mut self, op: JitIrOp) -> JitResult<Value> {
         match op {
-            Op::Param(idx) => {
+            JitIrOp::Param(idx) => {
                 let variable = self.variables.get(&idx).unwrap();
                 Ok(self.builder.use_var(*variable))
             }
-            Op::GetLocal(idx) => {
+            JitIrOp::GetLocal(idx) => {
                 let variable = self.variables.get(&self.local_var_to_idx[&idx]).unwrap();
                 Ok(self.builder.use_var(*variable))
             }
-            Op::Constant(v) => match v {
+            JitIrOp::Constant(v) => match v {
                 AromaValue::Long(l) => Ok(self.builder.ins().iconst(I64, l)),
                 AromaValue::Int(i) => Ok(self.builder.ins().iconst(I32, i as i64)),
                 AromaValue::Char(c) => {
@@ -279,7 +281,7 @@ impl<'a> BytecodeTranslator<'a> {
                     todo!("object representation")
                 }
             },
-            Op::BinOp(opcode, a, b) => match opcode {
+            JitIrOp::BinOp(opcode, a, b) => match opcode {
                 OpCode::Lt => self.translate_icmp(IntCC::SignedLessThan, *a, *b),
                 OpCode::Gt => self.translate_icmp(IntCC::SignedGreaterThan, *a, *b),
                 OpCode::Gte => self.translate_icmp(IntCC::SignedGreaterThanOrEqual, *a, *b),
@@ -303,8 +305,8 @@ impl<'a> BytecodeTranslator<'a> {
                 }
                 _ => unreachable!("invalid binop"),
             },
-            Op::Call(callee, args) => self.translate_call(*callee, args),
-            Op::Function(function) => {
+            JitIrOp::Call(callee, args) => self.translate_call(*callee, args),
+            JitIrOp::Function(function) => {
                 let func = if let Some(id) = self.func_ids.get(&function) {
                     self.module.declare_func_in_func(*id, self.builder.func)
                 } else {
@@ -318,19 +320,19 @@ impl<'a> BytecodeTranslator<'a> {
         }
     }
 
-    fn translate_icmp(&mut self, op: IntCC, l: Op, r: Op) -> JitResult<Value> {
+    fn translate_icmp(&mut self, op: IntCC, l: JitIrOp, r: JitIrOp) -> JitResult<Value> {
         let l = self.translate_expr(l)?;
         let r = self.translate_expr(r)?;
         Ok(self.builder.ins().icmp(op, l, r))
     }
 
-    fn translate_call(&mut self, callee: Op, args: Vec<Op>) -> JitResult<Value> {
+    fn translate_call(&mut self, callee: JitIrOp, args: Vec<JitIrOp>) -> JitResult<Value> {
         let mut arg_values = vec![];
         for arg in args {
             arg_values.push(self.translate_expr(arg)?);
         }
 
-        if let Op::Function(func_name) = callee {
+        if let JitIrOp::Function(func_name) = callee {
             let func_id = self
                 .func_ids
                 .get(&func_name)
@@ -354,9 +356,9 @@ impl<'a> BytecodeTranslator<'a> {
         }
     }
 
-    fn get_signature(&mut self, op: &Op) -> JitResult<FnSignature> {
+    fn get_signature(&mut self, op: &JitIrOp) -> JitResult<FnSignature> {
         match op {
-            Op::Function(f) => {
+            JitIrOp::Function(f) => {
                 let f = self
                     .func_refs
                     .get(f)

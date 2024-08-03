@@ -5,8 +5,9 @@ use std::ops::{Deref, Index, IndexMut};
 
 use derive_more::TryInto;
 use strum::AsRefStr;
-use crate::types::Value;
-use crate::vm::error::VmError;
+
+mod visitor;
+pub use visitor::ChunkVisitor;
 
 /// An opcode
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone, Copy, AsRefStr)]
@@ -46,6 +47,9 @@ pub enum OpCode {
     JumpIfFalse = 100,
     /// Unconditional jump
     Jump,
+
+    /// Jump that goes backwards.
+    Loop,
 
     /// call a function
     Call = 128,
@@ -94,6 +98,7 @@ impl TryFrom<u8> for OpCode {
 
             100 => Ok(JumpIfFalse),
             101 => Ok(Jump),
+            102 => Ok(Loop),
 
             128 => Ok(Call),
 
@@ -114,8 +119,6 @@ pub enum Constant {
     FunctionId(u8),
     Utf8(&'static str),
 }
-
-
 
 impl Display for Constant {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -140,7 +143,6 @@ impl Display for Constant {
 }
 
 /// A chunk of data
-#[derive()]
 pub struct Chunk {
     count: usize,
     capacity: usize,

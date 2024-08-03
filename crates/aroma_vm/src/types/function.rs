@@ -38,6 +38,7 @@ impl Debug for ObjFunction {
 }
 
 impl ObjFunction {
+    /// Creates a new [ObjFunction] with a given name, parameters, return type, and variables.
     pub fn new(
         name: impl AsRef<str>,
         params: &[Type],
@@ -55,50 +56,57 @@ impl ObjFunction {
             #[cfg(feature = "jit")]
             jit: Arc::new(Default::default()),
             executions: Arc::new(Default::default()),
+            loops: Arc::new(Default::default()),
         }
     }
 
+    /// The number of parameters for this function
     pub fn arity(&self) -> usize {
         self.params_ty.len()
     }
 
-    pub fn chunks(&self) -> &Vec<Arc<Chunk>> {
+    /// Gets access to the chunks that make up this function
+    pub fn chunks(&self) -> &[Arc<Chunk>] {
         &self.chunks
     }
 
+    /// The name of the function
     pub fn name(&self) -> &str {
         &self.name
     }
 
-    pub fn chunk_idx(&self) -> Option<usize> {
+
+    pub(crate) fn chunk_idx(&self) -> Option<usize> {
         self.chunk_idx
     }
 
-    pub fn set_chunk_idx(&mut self, chunk_idx: usize) {
+    pub(crate) fn set_chunk_idx(&mut self, chunk_idx: usize) {
         let _ = self.chunk_idx.insert(chunk_idx);
     }
 
+    /// The parameter types
     pub fn params_ty(&self) -> &[Type] {
         &*self.params_ty
     }
 
+    /// the return types
     pub fn return_ty(&self) -> Option<&Type> {
         self.return_ty.as_ref()
     }
 
-    pub fn mark_executed(&self) {
+    pub(crate) fn mark_executed(&self) {
         self.executions.fetch_add(1, atomic::Ordering::Relaxed);
     }
 
-    pub fn executions(&self) -> usize {
+    pub(crate) fn executions(&self) -> usize {
         self.executions.load(atomic::Ordering::Relaxed)
     }
 
-    pub fn mark_looped(&self) {
+    pub(crate) fn mark_looped(&self) {
         self.loops.fetch_add(1, atomic::Ordering::Relaxed);
     }
 
-    pub fn loops(&self) -> usize {
+    pub(crate) fn loops(&self) -> usize {
         self.loops.load(atomic::Ordering::Relaxed)
     }
 

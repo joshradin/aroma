@@ -24,7 +24,7 @@ fn run_vm(expected: i64) -> Duration {
         params (),
         ret,
         variables (),
-        consts { function_ref 1 utf8 "fibonacci" long TEST_N as i64 },
+        consts { function_ref 1 utf8 "fibonacci" long TEST_N },
         bytecode { const(2_u8) const(0_u8) call(1_u8) ltoi ret }
     );
     let mut vm = AromaVm::new();

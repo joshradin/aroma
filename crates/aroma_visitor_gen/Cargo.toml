@@ -1,0 +1,12 @@
+[package]
+name = "aroma_visitor_gen"
+description = "used for easily creating visitor patterns"
+authors.workspace = true
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+readme.workspace = true
+repository.workspace = true
+
+[dependencies]
+paste = "1.0.15"

@@ -1,47 +1,23 @@
+use std::time::Instant;
+
+use log::LevelFilter;
+
+use aroma_vm::examples::factorial;
 use aroma_vm::function;
 use aroma_vm::vm::AromaVm;
-use std::time::Instant;
-use aroma_vm::types::Type;
 
 fn main() {
-    let factorial = function!(
-            name "factorial",
-            params (Type::Int),
-            ret Type::Int,
-            variables (),
-            consts {
-                int 0
-                int 1
-                utf8 "factorial"
-                function_ref 2
-            }
-            bytecode {
-                lset(0_u8)
-                lget(0_u8)
-                const(0_u8)
-                eq
-                jz(4_u16)
-                pop
-                const(1_u8)
-                ret
-                pop
-                lget(0_u8)
-                const(1_u8)
-                sub
-                const(3_u8)
-                call(1_u8)
-                lget(0_u8)
-                mul
-                ret
-            }
-        );
+    env_logger::builder()
+        .filter_level(LevelFilter::Trace)
+        .init();
+    let factorial = factorial();
     let main = function!(
         name "main",
         params (),
         ret,
         variables (),
-        consts { function_ref 1 utf8 "factorial" int 10 },
-        bytecode { const(2_u8) const(0_u8) call(1_u8) ret }
+        consts { function_ref 1 utf8 "factorial" long 10 function_ref 4 utf8 "print" },
+        bytecode { const(2_u8) const(0_u8) call(1_u8) const(3_u8) call(1_u8) ret }
     );
     let mut vm = AromaVm::new();
     vm.load(main).expect("could not add main");

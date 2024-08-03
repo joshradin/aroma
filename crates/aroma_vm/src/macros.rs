@@ -78,6 +78,9 @@ macro_rules! _instruction_to_bytecode {
     (jz) => {
         $crate::chunk::OpCode::JumpIfFalse as u8
     };
+    (loop) => {
+        $crate::chunk::OpCode::Loop as u8
+    };
 
     (pop) => {
         $crate::chunk::OpCode::Pop as u8
@@ -90,18 +93,27 @@ macro_rules! _instruction_to_bytecode {
 
 #[doc(hidden)]
 #[cfg_attr(feature = "macros", macro_export)]
+macro_rules! require_type {
+    ($ty:ty, $val:expr) => {{
+        let r: $ty = $val;
+        r
+    }};
+}
+
+#[doc(hidden)]
+#[cfg_attr(feature = "macros", macro_export)]
 macro_rules! _literal_to_constant {
     (utf8 $literal:literal) => {
-        $crate::chunk::Constant::Utf8($literal)
+        $crate::chunk::Constant::Utf8($crate::require_type!(&'static str, $literal))
     };
     (int $literal:expr) => {
-        $crate::chunk::Constant::Int($literal)
+        $crate::chunk::Constant::Int($crate::require_type!(i32, $literal))
     };
     (long $literal:expr) => {
-        $crate::chunk::Constant::Long($literal)
+        $crate::chunk::Constant::Long($crate::require_type!(i64, $literal))
     };
     (function_ref $literal:literal) => {
-        $crate::chunk::Constant::FunctionId($literal)
+        $crate::chunk::Constant::FunctionId($crate::require_type!(u8, $literal))
     };
 }
 
@@ -113,25 +125,68 @@ macro_rules! bytecode {
         } $(,)?)?
         bytecode {
             $(
-            $operator:ident $(($($operand:expr),* $(,)?))?
+            $($label:lifetime : )? $operator:ident $(($($operand:tt),* $(,)?))?
             )*
         }
     ) => {
         {
             use $crate::{chunk::Chunk, types::Value};
+            use std::collections::HashMap;
+            let mut byte_idx = 0_i16;
             let mut chunk = Chunk::new();
+            let mut label_to_idx: HashMap<&'static str, i16> = HashMap::new();
             $(
                 $(chunk.add_constant($crate::_literal_to_constant!($kind $constant));)*
             )?
+            // creates the map
             $(
-                chunk.write($crate::_instruction_to_bytecode!($operator), line!() as usize);
+                $(
+                    label_to_idx.insert(stringify!($label), byte_idx);
+                )?
+                byte_idx += 1;
                 $(
                     $(
-                        chunk.write_all(&$operand.to_be_bytes(), line!() as usize);
+                    {
+                        let bytes = $crate::bytecode!(@ $operand);
+                        byte_idx += bytes.len() as i16;
+                    }
                     )*
                 )?
             )*
+            byte_idx = 0;
+            $(
+                {
+                    chunk.write($crate::_instruction_to_bytecode!($operator), line!() as usize);
+                    byte_idx += 1;
+                    $(
+                        $(
+                            {
+                            let bytes = $crate::bytecode!(@ $operand, label_to_idx, byte_idx);
+                            chunk.write_all(&bytes, line!() as usize);
+                            byte_idx += bytes.len() as i16;
+                            }
+                        )*
+                    )?
+                }
+            )*
             chunk
+        }
+    };
+    (@ $operand:literal, $map:expr, $current_idx:expr) => {
+        $operand.to_be_bytes()
+    };
+    (@ $label:lifetime, $map:expr, $current_idx:expr) => {
+        {
+            let target = $current_idx + 2;
+            (*$map.get(stringify!($label)).unwrap() - target).to_be_bytes()
+        }
+    };
+    (@ $operand:literal) => {
+        $operand.to_be_bytes()
+    };
+    (@ $label:lifetime) => {
+        {
+            0_i16.to_be_bytes()
         }
     };
 }
@@ -223,7 +278,7 @@ macro_rules! native {
 }
 
 #[cfg(not(feature = "macros"))]
-pub(crate) use {_instruction_to_bytecode, _literal_to_constant, bytecode, function, native};
+pub(crate) use {_instruction_to_bytecode, _literal_to_constant, bytecode, function, native, require_type};
 #[cfg(test)]
 mod tests {
     use crate::debug::Disassembler;

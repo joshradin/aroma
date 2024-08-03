@@ -29,6 +29,7 @@ thiserror = "1.0.63"
 log = { version = "0.4.22", features = ["max_level_trace", "release_max_level_off"] }
 derive_more = "0.99.18"
 cfg-if = "1.0.0"
+itertools = "0.13.0"
 
 cranelift = { version = "0.110.1", optional = true }
 cranelift-module = { version = "0.110.1", optional = true }
@@ -37,6 +38,7 @@ cranelift-native = { version = "0.110.1", optional = true }
 
 [dev-dependencies]
 test-log = "0.2.16"
+env_logger = "0.11.5"
 
 [build-dependencies]
 itertools = "0.13.0"
