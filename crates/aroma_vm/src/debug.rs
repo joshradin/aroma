@@ -78,51 +78,6 @@ impl Disassembler {
     }
 
 
-    fn local_var_instruction<W: Write>(
-        &self,
-        opcode: &OpCode,
-        chunk: &Chunk,
-        offset: usize,
-        mut writer: W,
-    ) -> io::Result<usize> {
-        let var_idx = chunk.code()[offset + 1];
-        writeln!(writer, "{:<16} {var_idx:<5}", opcode.as_ref())?;
-        Ok(offset + 2)
-    }
-
-    fn jump_instruction<W: Write>(
-        &self,
-        name: &str,
-        chunk: &Chunk,
-        offset: usize,
-        mut writer: W,
-    ) -> io::Result<usize> {
-        let jmp_distance =
-            u16::from_be_bytes(chunk.code()[offset + 1..][..2].try_into().unwrap()) as usize;
-        writeln!(
-            writer,
-            "{name:<16} {jmp_distance:<6} // {:06x}",
-            offset + 3 + jmp_distance
-        )?;
-        Ok(offset + 3)
-    }
-
-    fn loop_instruction<W: Write>(
-        &self,
-        name: &str,
-        chunk: &Chunk,
-        offset: usize,
-        mut writer: W,
-    ) -> io::Result<usize> {
-        let jmp_distance =
-            i16::from_be_bytes(chunk.code()[offset + 1..][..2].try_into().unwrap()) as isize;
-        writeln!(
-            writer,
-            "{name:<16} {jmp_distance:<6} // {:06x}",
-            offset as isize + 3 + jmp_distance
-        )?;
-        Ok(offset + 3)
-    }
 }
 
 fn format_constant<W: Write>(
@@ -259,6 +214,15 @@ impl<W: Write> ChunkVisitor for DisassemblerVisitor<'_, W> {
         ChunkVisitorFunctions::visit_local_var_instruction(self, offset, opcode, var_idx)?;
         let var_idx = self.chunk.code()[offset + 1];
         writeln!(self.w, "{:<16} {var_idx:<5}", opcode.as_ref())?;
+        Ok(())
+    }
+
+    fn visit_closure_instruction(&mut self, offset: usize, opcode: &OpCode, idx: u8, constant: &Constant) -> Result<(), Self::Err> {
+        ChunkVisitorFunctions::visit_closure_instruction(self, offset, opcode, idx, constant)?;
+        let constant_idx = self.chunk.code()[offset + 1];
+        write!(self.w, "{:<16} #{constant_idx:<5} // ", opcode.as_ref())?;
+        format_constant(&self.chunk, constant_idx, constant, &mut self.w)?;
+        writeln!(self.w)?;
         Ok(())
     }
 }

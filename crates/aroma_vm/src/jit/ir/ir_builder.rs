@@ -8,7 +8,8 @@ use crate::chunk::OpCode;
 use crate::jit::ir::CompileIrError;
 use crate::jit::ir::ir_compiler::CompileIrResult;
 use crate::jit::ir::ir_op::{IrOp, IrValue, IrValueFactory, IrVariable};
-use crate::types::{FnSignature, Type, Value};
+use crate::types::{Type, Value};
+use crate::types::function::FnSignature;
 use crate::vm::StaticFunctionTable;
 
 /// A block is a specialized version of chunks where there's only one entry point and exit point

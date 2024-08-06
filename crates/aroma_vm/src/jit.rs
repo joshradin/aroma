@@ -15,8 +15,8 @@ use crate::chunk::{Constant, OpCode, UnknownOpcode};
 use crate::jit::ir::{
     Block as IrBlockId, CompileIrError, IrBlock, IrCompiler, IrFunction, IrOp, IrValue,
 };
-use crate::types::{FnSignature, Type as AromaType, Value as AromaValue};
-use crate::types::function::ObjFunction;
+use crate::types::{Type as AromaType, Value as AromaValue};
+use crate::types::function::{FnSignature, ObjFunction};
 use crate::vm::StaticFunctionTable;
 
 pub mod abi;

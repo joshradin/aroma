@@ -2,43 +2,13 @@ use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Add, BitAnd, BitOr, Div, Mul, Neg, Sub};
 use std::sync::Arc;
 use itertools::Itertools;
-use function::ObjFunction;
-pub use obj::Obj;
-
+use function::{FnSignature, ObjFunction};
 use crate::types::function::ObjNative;
 use crate::vm::error::VmError;
 
 pub mod function;
+pub mod closures;
 mod obj;
-
-/// A signature for a function
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct FnSignature {
-    input: Box<[Type]>,
-    output: Option<Box<Type>>,
-}
-
-impl FnSignature {
-    pub fn parameters(&self) -> &[Type] {
-        &self.input
-    }
-
-    pub fn ret(&self) -> Option<&Type> {
-        self.output.as_ref().map(|s| &**s)
-    }
-}
-
-impl Display for FnSignature {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "fn(")?;
-        write!(f, "{}", self.parameters().iter().map(|s| format!("{s}")).join(", "))?;
-        write!(f, ")")?;
-        if let Some(ret) = self.ret() {
-            write!(f, " -> {ret}")?;
-        }
-        Ok(())
-    }
-}
 
 /// Every value has a type
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

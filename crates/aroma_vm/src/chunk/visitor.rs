@@ -33,6 +33,11 @@ visitor! {
             v.visit_opcode(offset, opcode)?;
             Ok(())
         }
+
+        visit fn closure_instruction (v, offset: usize, opcode: &OpCode, idx: u8, constant: &Constant) -> Result<()> {
+            v.visit_opcode(offset, opcode)?;
+            Ok(())
+        }
     }
 }
 
@@ -85,6 +90,13 @@ impl<'a, T: ChunkVisitor> ChunkVisitorDriver<'a, T> {
                 let constant = self.chunk.get_constant(constant_idx).unwrap();
                 self.visitor
                     .visit_constant_instruction(offset, &instruction, constant_idx, constant)?;
+                Ok(offset + 2)
+            }
+            OpCode::Closure => {
+                let constant_idx = self.chunk.code()[offset + 1];
+                let constant = self.chunk.get_constant(constant_idx).unwrap();
+                self.visitor
+                    .visit_closure_instruction(offset, &instruction, constant_idx, constant)?;
                 Ok(offset + 2)
             }
             OpCode::GetLocalVar | OpCode::SetLocalVar => {

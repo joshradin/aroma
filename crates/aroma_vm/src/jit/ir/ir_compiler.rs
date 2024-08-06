@@ -349,6 +349,7 @@ impl IrCompiler {
                         value_stack.push(output);
                     }
                 }
+                _ => {}
             }
         }
 

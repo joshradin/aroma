@@ -6,12 +6,10 @@ use std::ops::{Deref, Index, IndexMut};
 use derive_more::TryInto;
 use strum::AsRefStr;
 
-pub use visitor::*;
 pub use iterator::*;
+pub use visitor::*;
 
 use crate::chunk::visitor::ChunkVisitorDriver;
-use crate::types::Value;
-use crate::vm::error::VmError;
 
 mod visitor;
 mod iterator;
@@ -61,6 +59,9 @@ pub enum OpCode {
 
     /// call a function
     Call = 128,
+
+    /// Create a closure
+    Closure = 196
 }
 
 impl OpCode {
@@ -71,6 +72,7 @@ impl OpCode {
             OpCode::GetGlobalVar | OpCode::SetGlobalVar => 2,
             OpCode::Constant => 2,
             OpCode::Call => 2,
+            OpCode::Closure => 2,
             OpCode::Jump | OpCode::JumpIfFalse => 3,
             OpCode::Loop => 3,
             _ => 1,
@@ -124,6 +126,7 @@ impl TryFrom<u8> for OpCode {
             102 => Ok(Loop),
 
             128 => Ok(Call),
+            196 => Ok(Closure),
 
             unknown => Err(UnknownOpcode(unknown)),
         }

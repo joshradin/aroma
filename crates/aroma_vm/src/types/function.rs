@@ -1,13 +1,13 @@
 //! Represents functions
 
 use std::cmp::Ordering;
-use std::fmt::{Debug, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::ptr::{NonNull, null_mut};
 use std::sync::{Arc, atomic};
 use std::sync::atomic::{AtomicPtr, AtomicUsize};
-
+use itertools::Itertools;
 use crate::chunk::Chunk;
-use crate::types::{FnSignature, Type, Value};
+use crate::types::{Type, Value};
 use crate::vm::error::VmError;
 
 /// A function, an immutable piece of code.
@@ -209,5 +209,34 @@ impl PartialOrd for ObjNative {
         } else {
             None
         }
+    }
+}
+
+/// A signature for a function
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct FnSignature {
+    pub input: Box<[Type]>,
+    pub output: Option<Box<Type>>,
+}
+
+impl FnSignature {
+    pub fn parameters(&self) -> &[Type] {
+        &self.input
+    }
+
+    pub fn ret(&self) -> Option<&Type> {
+        self.output.as_ref().map(|s| &**s)
+    }
+}
+
+impl Display for FnSignature {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "fn(")?;
+        write!(f, "{}", self.parameters().iter().map(|s| format!("{s}")).join(", "))?;
+        write!(f, ")")?;
+        if let Some(ret) = self.ret() {
+            write!(f, " -> {ret}")?;
+        }
+        Ok(())
     }
 }

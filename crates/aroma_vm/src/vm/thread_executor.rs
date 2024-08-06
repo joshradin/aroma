@@ -316,6 +316,7 @@ impl ThreadExecutor {
                     };
                     self.push(Value::Long(long as i64))
                 }
+                OpCode::Closure => {}
             }
         }
 
