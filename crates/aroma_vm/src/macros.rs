@@ -178,7 +178,7 @@ macro_rules! bytecode {
     (@ $label:lifetime, $map:expr, $current_idx:expr) => {
         {
             let target = $current_idx + 2;
-            (*$map.get(stringify!($label)).unwrap() - target).to_be_bytes()
+            (*$map.get(stringify!($label)).unwrap() - target).abs().to_be_bytes()
         }
     };
     (@ $operand:literal) => {

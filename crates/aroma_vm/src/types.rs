@@ -1,9 +1,10 @@
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Add, BitAnd, BitOr, Div, Mul, Neg, Sub};
 use std::sync::Arc;
-
+use itertools::Itertools;
 use function::ObjFunction;
 pub use obj::Obj;
+
 use crate::types::function::ObjNative;
 use crate::vm::error::VmError;
 
@@ -27,12 +28,22 @@ impl FnSignature {
     }
 }
 
+impl Display for FnSignature {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "fn(")?;
+        write!(f, "{}", self.parameters().iter().map(|s| format!("{s}")).join(", "))?;
+        write!(f, ")")?;
+        if let Some(ret) = self.ret() {
+            write!(f, " -> {ret}")?;
+        }
+        Ok(())
+    }
+}
+
 /// Every value has a type
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Type {
-    Object {
-        signature: String,
-    },
+    Object { signature: String },
     Long,
     Int,
     Char,
@@ -42,9 +53,62 @@ pub enum Type {
     Double,
     Float,
     Function(FnSignature),
-    NativeFn
+    NativeFn,
+    Never,
 }
 
+impl Type {
+    pub fn as_fn_signature(&self) -> Option<&FnSignature> {
+        if let Type::Function(f) = self {
+            Some(f)
+        } else {
+            None
+        }
+    }
+}
+
+impl Display for Type {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Type::Object { signature } => {
+                write!(f, "obj<{signature}>")
+            }
+            Type::Long => {
+                write!(f, "i64")
+            }
+            Type::Int => {
+                write!(f, "i32")
+            }
+            Type::Char => {
+                write!(f, "char")
+            }
+            Type::Boolean => {
+                write!(f, "boolean")
+            }
+            Type::Byte => {
+                write!(f, "i8")
+            }
+            Type::String => {
+                write!(f, "str")
+            }
+            Type::Double => {
+                write!(f, "f64")
+            }
+            Type::Float => {
+                write!(f, "f32")
+            }
+            Type::Function(func) => {
+                write!(f, "{func}")
+            }
+            Type::NativeFn => {
+                write!(f, "<native>")
+            }
+            Type::Never => {
+                write!(f, "never")
+            }
+        }
+    }
+}
 
 /// A value that can be stored in a stack frame
 #[derive(Debug, Clone, PartialEq, PartialOrd, derive_more::TryInto)]
@@ -88,7 +152,7 @@ impl Value {
                 input: Box::from(f.params_ty()),
                 output: f.return_ty().map(|b| Box::new(b.clone())),
             }),
-            Value::Native(_) => Type::NativeFn
+            Value::Native(_) => Type::NativeFn,
         }
     }
 }
@@ -199,9 +263,9 @@ impl Mul for Value {
 
     fn mul(self, rhs: Self) -> Self::Output {
         match (&self, &rhs) {
-            (Value::Long(l), Value::Long(r)) => Ok(Value::Long(l * r)),
-            (Value::Int(l), Value::Int(r)) => Ok(Value::Int(l * r)),
-            (Value::Byte(l), Value::Byte(r)) => Ok(Value::Byte(l * r)),
+            (Value::Long(l), Value::Long(r)) => Ok(Value::Long(l.saturating_mul(*r))),
+            (Value::Int(l), Value::Int(r)) => Ok(Value::Int(l.saturating_mul(*r))),
+            (Value::Byte(l), Value::Byte(r)) => Ok(Value::Byte(l.saturating_mul(*r))),
             (Value::Float(l), Value::Float(r)) => Ok(Value::Float(l * r)),
             (Value::Double(l), Value::Double(r)) => Ok(Value::Double(l * r)),
             _ => Err(VmError::IllegalBinaryOperation(
@@ -218,9 +282,9 @@ impl Div for Value {
 
     fn div(self, rhs: Self) -> Self::Output {
         match (&self, &rhs) {
-            (Value::Long(l), Value::Long(r)) => Ok(Value::Long(l / r)),
-            (Value::Int(l), Value::Int(r)) => Ok(Value::Int(l / r)),
-            (Value::Byte(l), Value::Byte(r)) => Ok(Value::Byte(l / r)),
+            (Value::Long(l), Value::Long(r)) => Ok(Value::Long(l.saturating_div(*r))),
+            (Value::Int(l), Value::Int(r)) => Ok(Value::Int(l.saturating_div(*r))),
+            (Value::Byte(l), Value::Byte(r)) => Ok(Value::Byte(l.saturating_div(*r))),
             (Value::Float(l), Value::Float(r)) => Ok(Value::Float(l / r)),
             (Value::Double(l), Value::Double(r)) => Ok(Value::Double(l / r)),
             _ => Err(VmError::IllegalBinaryOperation(

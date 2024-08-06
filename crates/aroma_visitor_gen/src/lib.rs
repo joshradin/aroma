@@ -1,52 +1,53 @@
-/// Creates a mut visitor
+#[doc(hidden)]
+pub mod __exports {
+    pub use paste;
+}
+
+
+/// Creates a visitor
 #[macro_export]
-macro_rules! visit_mut {
+macro_rules! visitor {
     (
-        $trait_vis:vis trait $id:ident {
-            $($vis:vis visit ($visitor_id:ident, $visited_id:ident: &mut $visited:ty) -> Result<()> $block:block)+
+        $(#[$attr:meta])*
+        $vis:vis trait $id:ident {
+            $(visit fn $suffix:ident ($visitor_id:ident, $($visited_id:ident: $visited:ty),+) -> Result<()> $block:block)*
         }
-        ) => {
-        $(
-        paste::paste! {
-            $vis fn [<visit_ $visited:snake  _mut>]<V : VisitorMut + ?Sized>($visitor_id: &mut V, $visited_id: &mut $visited) -> std::result::Result<(), V::Err> {
-                $block
+    ) => {
+        $crate::__exports::paste::paste! {
+            $vis struct [<$id:camel Functions>];
+
+            impl [<$id:camel Functions>] {
+                $(
+
+                    $vis fn [<visit_ $suffix:snake>]<V : $id + ?Sized>($visitor_id: &mut V, $($visited_id: $visited),*) -> std::result::Result<(), V::Err> {
+                        $block
+                    }
+
+                )*
             }
         }
-        )*
 
-        $trait_vis trait $id {
+
+        $(#[$attr])*
+        $vis trait $id {
             type Err;
 
             $(
-            paste::paste! {
-                fn [<visit_ $visited:snake  _mut>](&mut self, $visited_id: &mut $visited) -> std::result::Result<(), Self::Err> {
-                    [<visit_ $visited:snake  _mut>](self, $visited_id)
+            $crate::__exports::paste::paste! {
+                fn [<visit_ $suffix:snake>](&mut self, $($visited_id: $visited),*) -> std::result::Result<(), Self::Err> {
+                    [<$id:camel Functions>]::[<visit_ $suffix:snake>](self, $($visited_id),*)
                 }
             }
             )*
         }
-    };
-}
 
-/// Creates a visitor
-#[macro_export]
-macro_rules! visit {
-    ($trait_vis:vis trait $id:ident { $($vis:vis visit ($visitor_id:ident, $visited_id:ident: &mut $visited:ty) -> Result<()> $block:block)+ }) => {
-        $(
-        paste::paste! {
-            $vis fn [<visit_ $visited:snake  _mut>]<V : VisitorMut + ?Sized>($visitor_id: &mut V, $visited_id: &mut $visited) -> std::result::Result<(), V::Err> {
-                $block
-            }
-        }
-        )*
-
-        $trait_vis trait $id {
-            type Err;
+        impl<V : $id> $id for &mut V {
+            type Err = V::Err;
 
             $(
-            paste::paste! {
-                fn [<visit_ $visited:snake  _mut>](&mut self, $visited_id: &mut $visited) -> std::result::Result<(), Self::Err> {
-                    [<visit_ $visited:snake  _mut>](self, $visited_id)
+            $crate::__exports::paste::paste! {
+                fn [<visit_ $suffix:snake>](&mut self, $($visited_id: $visited),*) -> std::result::Result<(), Self::Err> {
+                    (*self).[<visit_ $suffix:snake>]($($visited_id),*)
                 }
             }
             )*

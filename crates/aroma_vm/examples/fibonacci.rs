@@ -10,7 +10,7 @@ fn main() {
         params (),
         ret,
         variables (),
-        consts { function_ref 1 utf8 "fibonacci" long 6 },
+        consts { function_ref 1 utf8 "fibonacci" long 47 },
         bytecode { const(2_u8) const(0_u8) call(1_u8) ltoi ret }
     );
     let mut vm = AromaVm::new();

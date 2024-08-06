@@ -1,20 +1,22 @@
 use std::mem::transmute;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use aroma_vm::{examples, function};
 use aroma_vm::jit::JIT;
 use aroma_vm::types::function::ObjFunction;
-use aroma_vm::vm::AromaVm;
+use aroma_vm::vm::{AromaVm, StaticFunctionTable};
 
 const TEST_N: i64 = 47;
 
 fn main() {
     let expected = quick_fib(TEST_N);
     println!("expected value of fib({}) = {}", TEST_N, expected);
-    let vm_duration = run_vm(expected);
-    println!("vm duration = {:.3?}", vm_duration.as_secs_f64());
+
     let jit_duration = run_jit(expected);
     println!("jit duration = {:.3?}", jit_duration.as_secs_f64());
+    let vm_duration = run_vm(expected);
+    println!("vm duration = {:.3?}", vm_duration.as_secs_f64());
 }
 
 fn run_vm(expected: i64) -> Duration {
@@ -37,8 +39,10 @@ fn run_vm(expected: i64) -> Duration {
 }
 
 fn run_jit(expected: i64) -> Duration {
-    let fibonacci = examples::fibonacci();
-    let ptr = JIT::new().compile(&fibonacci).expect("could not compile");
+    let fibonacci = Arc::new(examples::fibonacci());
+    let static_table = StaticFunctionTable::default();
+    static_table.write().insert(fibonacci.name().to_string(), fibonacci.clone());
+    let ptr = JIT::new(&static_table).compile(&fibonacci).expect("could not compile");
     let start = Instant::now();
     let result = unsafe { transmute::<_, fn(i64) -> i64>(ptr)(TEST_N)};
     assert_eq!(result, expected);

@@ -157,29 +157,15 @@ impl ThreadExecutor {
             }
 
             let instruction = self.read_byte()?;
-
+            let op_code = OpCode::try_from(instruction)?;
             #[cfg(feature = "debug_trace_execution")]
             {
-                let mut buffer = Vec::new();
-                let (chunk, offset) = if self.current_frame().pc.1 > 0 {
-                    (
-                        self.current_frame_chunk().clone(),
-                        self.current_frame().pc.1 - 1,
-                    )
-                } else {
-                    let chunk = self.chunks.read()[self.current_frame().pc.0 - 1].clone();
-                    let c = chunk.len();
-                    (chunk, c - 1)
-                };
-                Disassembler
-                    .disassemble_instruction(&chunk, offset, &mut buffer)
-                    .expect("could not disassemble");
-                trace!("{}", std::str::from_utf8(&buffer).unwrap().trim());
+                trace!("{}", op_code.as_ref());
                 // trace!("frame stack: {:#?}", &self.frame_stack);
                 trace!("");
             }
 
-            let op_code = OpCode::try_from(instruction)?;
+
             match op_code {
                 OpCode::Constant => {
                     let constant = self.read_constant()?;
@@ -304,11 +290,12 @@ impl ThreadExecutor {
                     self.add_offset(usize::from(offset) as isize);
                 }
                 OpCode::Loop => {
-                    let offset = self.read_short()? as i16;
+                    let offset = self.read_short()?;
+                    let offset = -i32::from(offset);
                     if offset > 0 {
                         panic!("loop can never go forward")
                     }
-                    self.add_offset(isize::from(offset));
+                    self.add_offset(offset as isize);
                 }
                 OpCode::Call => {
                     let argc = self.read_byte()?;

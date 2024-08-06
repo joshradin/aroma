@@ -6,12 +6,20 @@ use std::ops::{Deref, Index, IndexMut};
 use derive_more::TryInto;
 use strum::AsRefStr;
 
+pub use visitor::*;
+pub use iterator::*;
+
+use crate::chunk::visitor::ChunkVisitorDriver;
+use crate::types::Value;
+use crate::vm::error::VmError;
+
 mod visitor;
-pub use visitor::ChunkVisitor;
+mod iterator;
+
 
 /// An opcode
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone, Copy, AsRefStr)]
-#[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
+#[strum(serialize_all = "snake_case")]
 #[repr(u8)]
 pub enum OpCode {
     Constant,
@@ -53,6 +61,21 @@ pub enum OpCode {
 
     /// call a function
     Call = 128,
+}
+
+impl OpCode {
+    /// bytes required for the op-code and operands
+    pub fn bytes(&self) -> usize {
+        match self {
+            OpCode::GetLocalVar | OpCode::SetLocalVar => 2,
+            OpCode::GetGlobalVar | OpCode::SetGlobalVar => 2,
+            OpCode::Constant => 2,
+            OpCode::Call => 2,
+            OpCode::Jump | OpCode::JumpIfFalse => 3,
+            OpCode::Loop => 3,
+            _ => 1,
+        }
+    }
 }
 
 impl Display for OpCode {
@@ -150,6 +173,7 @@ pub struct Chunk {
     lines: Vec<usize>,
     constants: Vec<Constant>,
 }
+
 
 macro_rules! grow_capacity {
     ($c:expr) => {
@@ -294,6 +318,29 @@ impl Chunk {
         };
         self.code = Some(new_chunk);
     }
+
+    pub fn visit<V: ChunkVisitor>(&self, visitor: V) -> Result<(), V::Err> {
+        let driver = ChunkVisitorDriver::new(self, visitor);
+        driver.visit()
+    }
+}
+
+/// Gets the index of the last opcode in this slice of bytecode
+pub fn last_opcode_index(bytecode: &[u8]) -> Option<usize> {
+    if bytecode.len() == 0 {
+        return None;
+    }
+    let mut index = 0;
+    loop {
+        let instruction = OpCode::try_from(bytecode[index]).ok()?;
+        let bytes = instruction.bytes();
+        if index + bytes >= bytecode.len() {
+            break;
+        }
+        index += bytes;
+    }
+
+    Some(index)
 }
 
 #[cfg(test)]

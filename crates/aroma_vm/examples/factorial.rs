@@ -16,7 +16,7 @@ fn main() {
         params (),
         ret,
         variables (),
-        consts { function_ref 1 utf8 "factorial" long 10 function_ref 4 utf8 "print" },
+        consts { function_ref 1 utf8 "factorial" long 30 function_ref 4 utf8 "print" },
         bytecode { const(2_u8) const(0_u8) call(1_u8) const(3_u8) call(1_u8) ret }
     );
     let mut vm = AromaVm::new();

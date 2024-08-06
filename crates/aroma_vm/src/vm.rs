@@ -38,9 +38,8 @@ pub type StaticNativeTable = Arc<RwLock<HashMap<String, Arc<ObjNative>>>>;
 #[derive(Debug, Default)]
 pub struct AromaVmConfig {
     #[cfg(feature = "jit")]
-    pub jit: JITConfig
+    pub jit: JITConfig,
 }
-
 
 /// A virtual machine
 #[derive(Debug)]
@@ -54,7 +53,7 @@ pub struct AromaVm {
     globals: Globals,
     #[cfg(feature = "jit")]
     jit: Arc<Mutex<JIT>>,
-    config: AromaVmConfig
+    config: AromaVmConfig,
 }
 
 impl AromaVm {
@@ -66,17 +65,23 @@ impl AromaVm {
 
     /// Creates a new aroma vm with a given config
     pub fn with_config(aroma_vm_config: AromaVmConfig) -> Self {
+        let functions: StaticFunctionTable = Arc::new(Default::default());
+        let natives: StaticNativeTable = Arc::new(Default::default());
+
+        #[cfg(feature = "jit")]
+        let jit = JIT::new(&functions);
+
         let mut this = Self {
             chunks: Arc::new(RwLock::new(Default::default())),
             next_thread: AtomicUsize::new(1),
             thread_results: RwLock::new(HashMap::with_capacity(8)),
             run_control: Arc::new(Default::default()),
-            functions: Arc::new(Default::default()),
-            natives: Arc::new(Default::default()),
+            functions,
+            natives,
             globals: Arc::new(Default::default()),
             #[cfg(feature = "jit")]
-            jit: Arc::new(Mutex::new(JIT::new())),
-            config: aroma_vm_config
+            jit: Arc::new(Mutex::new(jit)),
+            config: aroma_vm_config,
         };
         for natives in NATIVES {
             this.add_native(natives).unwrap();
@@ -150,7 +155,8 @@ impl AromaVm {
         let threshold = self.config.jit.threshold;
         thread::Builder::new()
             .name("JIT Compiler".to_string())
-            .spawn(move || {
+            .spawn(
+                move || {
             trace!("started JIT thread");
             loop {
                 if let (Some(jit), Some(functions)) = (jit.upgrade(), functions.upgrade()) {
