@@ -6,7 +6,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use derive_more::From;
 
-use crate::chunk::OpCode;
+use aroma_bytecode::chunk::OpCode;
 use crate::jit::ir::ir_builder::Block;
 use crate::types::{Type, Value};
 

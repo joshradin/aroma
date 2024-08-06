@@ -6,7 +6,7 @@ use std::ptr::{NonNull, null_mut};
 use std::sync::{Arc, atomic};
 use std::sync::atomic::{AtomicPtr, AtomicUsize};
 use itertools::Itertools;
-use crate::chunk::Chunk;
+use aroma_bytecode::chunk::Chunk;
 use crate::types::{Type, Value};
 use crate::vm::error::VmError;
 

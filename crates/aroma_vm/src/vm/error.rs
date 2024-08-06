@@ -1,4 +1,4 @@
-use crate::chunk::{Constant, UnknownOpcode};
+use aroma_bytecode::chunk::{Constant, UnknownOpcode};
 use crate::types::Value;
 use std::convert::Infallible;
 

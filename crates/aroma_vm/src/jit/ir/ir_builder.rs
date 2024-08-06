@@ -4,7 +4,7 @@ use std::fmt::{Debug, Formatter};
 use indexmap::IndexMap;
 use itertools::Itertools;
 use log::trace;
-use crate::chunk::OpCode;
+use aroma_bytecode::chunk::OpCode;
 use crate::jit::ir::CompileIrError;
 use crate::jit::ir::ir_compiler::CompileIrResult;
 use crate::jit::ir::ir_op::{IrOp, IrValue, IrValueFactory, IrVariable};

@@ -13,7 +13,7 @@ use parking_lot::{Mutex, RwLock};
 
 use error::VmError;
 
-use crate::chunk::Chunk;
+use aroma_bytecode::chunk::Chunk;
 #[cfg(feature = "jit")]
 use crate::jit::{JIT, JITConfig, JitResult};
 use crate::types::function::{ObjFunction, ObjNative};

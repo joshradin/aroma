@@ -10,7 +10,7 @@ use petgraph::data::Build;
 use petgraph::graph::NodeIndex;
 use rangemap::RangeMap;
 
-use crate::chunk::{
+use aroma_bytecode::chunk::{
     Chunk, ChunkVisitor, Constant, ContinuousOffsetVisitor, IntoOpcodeIterator, OpCode,
 };
 use crate::debug::Disassembler;
@@ -397,6 +397,7 @@ pub type CompileIrResult<T> = Result<T, CompileIrError>;
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
     use test_log::test;
 
     use crate::debug::Disassembler;
@@ -405,11 +406,13 @@ mod tests {
     use crate::types::function::ObjFunction;
     use crate::vm::StaticFunctionTable;
 
-    fn can_compile(func: &ObjFunction) {
+    fn can_compile(func: ObjFunction) {
+        let func = Arc::new(func);
         let static_functions = StaticFunctionTable::default();
+        static_functions.write().insert(func.name().to_owned(), func.clone());
         let mut compiler = IrCompiler::new(&static_functions);
-        Disassembler.disassemble_function(func).unwrap();
-        let compiled = compiler.compile(func);
+        Disassembler.disassemble_function(&func).unwrap();
+        let compiled = compiler.compile(&func);
 
         assert!(
             matches!(compiled, Ok(_)),
@@ -420,10 +423,10 @@ mod tests {
 
     #[test]
     fn test_compile_recursive() {
-        can_compile(&fibonacci());
+        can_compile(fibonacci());
     }
     #[test]
     fn test_compile_looping() {
-        can_compile(&factorial());
+        can_compile(factorial());
     }
 }

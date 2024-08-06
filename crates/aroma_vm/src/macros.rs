@@ -4,90 +4,90 @@
 #[cfg_attr(feature = "macros", macro_export)]
 macro_rules! _instruction_to_bytecode {
     (ret) => {
-        $crate::chunk::OpCode::Return as u8
+        $crate::__export::chunk::OpCode::Return as u8
     };
     (const) => {
-        $crate::chunk::OpCode::Constant as u8
+        $crate::__export::chunk::OpCode::Constant as u8
     };
 
     (neg) => {
-        $crate::chunk::OpCode::Negate as u8
+        $crate::__export::chunk::OpCode::Negate as u8
     };
     (add) => {
-        $crate::chunk::OpCode::Add as u8
+        $crate::__export::chunk::OpCode::Add as u8
     };
     (sub) => {
-        $crate::chunk::OpCode::Subtract as u8
+        $crate::__export::chunk::OpCode::Subtract as u8
     };
     (div) => {
-        $crate::chunk::OpCode::Divide as u8sd
+        $crate::__export::chunk::OpCode::Divide as u8sd
     };
     (mul) => {
-        $crate::chunk::OpCode::Mult as u8
+        $crate::__export::chunk::OpCode::Mult as u8
     };
 
     (eq) => {
-        $crate::chunk::OpCode::Eq as u8
+        $crate::__export::chunk::OpCode::Eq as u8
     };
     (neq) => {
-        $crate::chunk::OpCode::Neq as u8
+        $crate::__export::chunk::OpCode::Neq as u8
     };
     (lt) => {
-        $crate::chunk::OpCode::Lt as u8
+        $crate::__export::chunk::OpCode::Lt as u8
     };
     (lte) => {
-        $crate::chunk::OpCode::Lte as u8
+        $crate::__export::chunk::OpCode::Lte as u8
     };
     (gte) => {
-        $crate::chunk::OpCode::Gte as u8
+        $crate::__export::chunk::OpCode::Gte as u8
     };
     (gt) => {
-        $crate::chunk::OpCode::Gt as u8
+        $crate::__export::chunk::OpCode::Gt as u8
     };
 
     (and) => {
-        $crate::chunk::OpCode::And as u8
+        $crate::__export::chunk::OpCode::And as u8
     };
     (Or) => {
-        $crate::chunk::OpCode::Or as u8
+        $crate::__export::chunk::OpCode::Or as u8
     };
 
     (ltoi) => {
-        $crate::chunk::OpCode::LtoI as u8
+        $crate::__export::chunk::OpCode::LtoI as u8
     };
     (itol) => {
-        $crate::chunk::OpCode::IToL as u8
+        $crate::__export::chunk::OpCode::IToL as u8
     };
 
     (lset) => {
-        $crate::chunk::OpCode::SetLocalVar as u8
+        $crate::__export::chunk::OpCode::SetLocalVar as u8
     };
     (lget) => {
-        $crate::chunk::OpCode::GetLocalVar as u8
+        $crate::__export::chunk::OpCode::GetLocalVar as u8
     };
     (gset) => {
-        $crate::chunk::OpCode::SetGlobalVar as u8
+        $crate::__export::chunk::OpCode::SetGlobalVar as u8
     };
     (gget) => {
-        $crate::chunk::OpCode::GetGlobalVar as u8
+        $crate::__export::chunk::OpCode::GetGlobalVar as u8
     };
 
     (jmp) => {
-        $crate::chunk::OpCode::Jump as u8
+        $crate::__export::chunk::OpCode::Jump as u8
     };
     (jz) => {
-        $crate::chunk::OpCode::JumpIfFalse as u8
+        $crate::__export::chunk::OpCode::JumpIfFalse as u8
     };
     (loop) => {
-        $crate::chunk::OpCode::Loop as u8
+        $crate::__export::chunk::OpCode::Loop as u8
     };
 
     (pop) => {
-        $crate::chunk::OpCode::Pop as u8
+        $crate::__export::chunk::OpCode::Pop as u8
     };
 
     (call) => {
-        $crate::chunk::OpCode::Call as u8
+        $crate::__export::chunk::OpCode::Call as u8
     };
 }
 
@@ -104,16 +104,16 @@ macro_rules! require_type {
 #[cfg_attr(feature = "macros", macro_export)]
 macro_rules! _literal_to_constant {
     (utf8 $literal:literal) => {
-        $crate::chunk::Constant::Utf8($crate::require_type!(&'static str, $literal))
+        $crate::__export::chunk::Constant::Utf8($crate::require_type!(&'static str, $literal))
     };
     (int $literal:expr) => {
-        $crate::chunk::Constant::Int($crate::require_type!(i32, $literal))
+        $crate::__export::chunk::Constant::Int($crate::require_type!(i32, $literal))
     };
     (long $literal:expr) => {
-        $crate::chunk::Constant::Long($crate::require_type!(i64, $literal))
+        $crate::__export::chunk::Constant::Long($crate::require_type!(i64, $literal))
     };
     (function_ref $literal:literal) => {
-        $crate::chunk::Constant::FunctionId($crate::require_type!(u8, $literal))
+        $crate::__export::chunk::Constant::FunctionId($crate::require_type!(u8, $literal))
     };
 }
 
@@ -130,7 +130,7 @@ macro_rules! bytecode {
         }
     ) => {
         {
-            use $crate::{chunk::Chunk, types::Value};
+            use $crate::{__export::chunk::*, types::Value};
             use std::collections::HashMap;
             let mut byte_idx = 0_i16;
             let mut chunk = Chunk::new();
@@ -233,7 +233,7 @@ macro_rules! native {
 
         crate::types::function::ObjNative::new(
             stringify!($name),
-            #[allow(unsed)] {
+            #[allow(unused)] {
                 let mut sum = 0;
                 $(
                     let $param: $param_ty;
@@ -279,6 +279,8 @@ macro_rules! native {
 
 #[cfg(not(feature = "macros"))]
 pub(crate) use {_instruction_to_bytecode, _literal_to_constant, bytecode, function, native, require_type};
+use aroma_bytecode::chunk::Chunk;
+
 #[cfg(test)]
 mod tests {
     use crate::debug::Disassembler;

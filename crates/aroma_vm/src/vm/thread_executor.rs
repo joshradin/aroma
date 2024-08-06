@@ -14,7 +14,7 @@ use itertools::Itertools;
 use log::{debug, trace};
 use parking_lot::Mutex;
 
-use crate::chunk::{Chunk, Constant, OpCode};
+use aroma_bytecode::chunk::{Chunk, Constant, OpCode};
 use crate::debug::Disassembler;
 use crate::types::function::ObjFunction;
 use crate::types::Value;

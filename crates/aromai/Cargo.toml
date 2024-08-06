@@ -18,7 +18,6 @@ color-eyre = "0.6.3"
 eyre = "0.6.12"
 fern = "0.6.2"
 log = "0.4.22"
-humantime = "2.1.0"
 owo-colors = { version = "4.0.0", features = ["supports-colors"] }
 chrono = { version = "0.4.38", default-features = false, features = ["alloc", "std", "clock"] }
 sysinfo = "0.31.2"

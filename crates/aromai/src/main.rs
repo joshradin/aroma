@@ -1,12 +1,14 @@
-use aroma_vm::vm::AromaVm;
-use chrono::{DateTime, Utc};
+use std::io::stdout;
+use std::process::ExitCode;
+
+use chrono::{Utc};
 use clap::Parser;
-use log::{trace, Level, LevelFilter};
+use log::{Level, LevelFilter, trace};
 use owo_colors::OwoColorize;
 use owo_colors::Stream::Stdout;
-use std::io::{stderr, stdout};
-use std::process::ExitCode;
+
 use aroma_vm::function;
+use aroma_vm::vm::AromaVm;
 
 fn main() -> eyre::Result<ExitCode> {
     color_eyre::install()?;

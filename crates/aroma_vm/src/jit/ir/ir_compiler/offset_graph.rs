@@ -8,7 +8,7 @@ use petgraph::adj::NodeIndices;
 use petgraph::prelude::*;
 use rangemap::{RangeMap, RangeSet};
 
-use crate::chunk::{IntoOpcodeIterator, last_opcode_index, OpCode};
+use aroma_bytecode::chunk::{IntoOpcodeIterator, last_opcode_index, OpCode};
 
 
 /// A graph of

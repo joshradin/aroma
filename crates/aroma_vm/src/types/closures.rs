@@ -15,4 +15,8 @@ impl ObjClosure {
             function: func.clone(),
         }
     }
+
+    pub fn function(&self) -> &ObjFunction {
+        &self.function
+    }
 }

@@ -3,6 +3,7 @@
 use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry;
 use std::fmt::{Debug, Formatter};
+
 use cranelift::codegen::ir::stackslot::StackSize;
 use cranelift::prelude::*;
 use cranelift::prelude::types::{F32, F64, I32, I64, I8, R64};
@@ -11,7 +12,8 @@ use cranelift_module::{DataDescription, FuncId, Linkage, Module, ModuleError};
 use log::trace;
 use parking_lot::Mutex;
 
-use crate::chunk::{Constant, OpCode, UnknownOpcode};
+use aroma_bytecode::chunk::{Constant, OpCode, UnknownOpcode};
+
 use crate::jit::ir::{
     Block as IrBlockId, CompileIrError, IrBlock, IrCompiler, IrFunction, IrOp, IrValue,
 };
@@ -60,8 +62,6 @@ impl Debug for JIT {
     }
 }
 
-
-
 impl JIT {
     /// Creates a new JIT
     pub fn new(function_defs: &StaticFunctionTable) -> Self {
@@ -82,7 +82,7 @@ impl JIT {
             module,
             func_refs: Default::default(),
             func_ids: Default::default(),
-            ir_compiler: Mutex::new(IrCompiler::new(function_defs))
+            ir_compiler: Mutex::new(IrCompiler::new(function_defs)),
         }
     }
 
@@ -396,24 +396,27 @@ impl<'a> IrTranslator<'a> {
                 }
             }
             IrOp::Call(callee, values) => {
-                let callee_signature = callee.get_type().as_fn_signature().expect("must have function signature");
+                let callee_signature = callee
+                    .get_type()
+                    .as_fn_signature()
+                    .expect("must have function signature");
                 let callee = *self.ir_value_to_cranelift_value.get(callee).unwrap();
-                let values = values.iter()
-                    .map(|s| {
-                        *self.ir_value_to_cranelift_value.get(s).unwrap()
-                    }).collect::<Vec<_>>();
+                let values = values
+                    .iter()
+                    .map(|s| *self.ir_value_to_cranelift_value.get(s).unwrap())
+                    .collect::<Vec<_>>();
 
                 let signature = self.as_signature(callee_signature)?;
                 let sig_ref = self.builder.import_signature(signature);
 
-                trace!("creating call_indirect with {}, {}, {:?}", sig_ref, callee, values);
+                trace!(
+                    "creating call_indirect with {}, {}, {:?}",
+                    sig_ref,
+                    callee,
+                    values
+                );
 
-                let return_value = self.builder.ins()
-                    .call_indirect(
-                        sig_ref,
-                        callee,
-                        &values
-                    );
+                let return_value = self.builder.ins().call_indirect(sig_ref, callee, &values);
                 if callee_signature.ret().is_some() {
                     let v = self.builder.inst_results(return_value)[0];
                     self.ir_value_to_cranelift_value.insert(val.clone(), v);
@@ -562,6 +565,7 @@ pub type JitResult<T> = std::result::Result<T, JitError>;
 mod tests {
     use std::mem;
     use std::sync::Arc;
+
     use test_log::test;
 
     use crate::examples::{factorial, fibonacci};
@@ -573,7 +577,9 @@ mod tests {
     #[test]
     fn test_jit_factorial() {
         let factorial = factorial();
-        let jit = JIT::new(&StaticFunctionTable::default()).compile(&factorial).expect("could not compile");
+        let jit = JIT::new(&StaticFunctionTable::default())
+            .compile(&factorial)
+            .expect("could not compile");
     }
 
     #[test]
@@ -594,7 +600,9 @@ mod tests {
             }
         );
 
-        let jit = JIT::new(&StaticFunctionTable::default()).compile(&sum).expect("could not compile");
+        let jit = JIT::new(&StaticFunctionTable::default())
+            .compile(&sum)
+            .expect("could not compile");
     }
 
     #[test]
@@ -602,8 +610,12 @@ mod tests {
         let fibonacci = Arc::new(fibonacci());
 
         let functions = StaticFunctionTable::default();
-        functions.write().insert("fibonacci".to_string(), fibonacci.clone());
-        let jit = JIT::new(&functions).compile(&fibonacci).expect("could not compile");
+        functions
+            .write()
+            .insert("fibonacci".to_string(), fibonacci.clone());
+        let jit = JIT::new(&functions)
+            .compile(&fibonacci)
+            .expect("could not compile");
     }
 
     fn sum(i: i32) -> i32 {
@@ -616,7 +628,7 @@ mod tests {
 
     #[test]
     fn test_jit_multiple() {
-        let sum2_func = function!(
+        let sum2_func = Arc::new(function!(
             name "sum2",
             params (Type::Int),
             ret Type::Int,
@@ -630,8 +642,8 @@ mod tests {
                 add
                 ret
             }
-        );
-        let sum_func = function!(
+        ));
+        let sum_func = Arc::new(function!(
             name "sum",
             params (Type::Int),
             ret Type::Int,
@@ -651,9 +663,12 @@ mod tests {
                 add
                 ret
             }
-        );
+        ));
 
-        let mut jit = JIT::new(&StaticFunctionTable::default());
+        let function_table = StaticFunctionTable::default();
+        function_table.write().insert("sum2".to_string(), sum2_func.clone());
+        function_table.write().insert("sum".to_string(), sum_func.clone());
+        let mut jit = JIT::new(&function_table);
         let _ = jit.compile(&sum2_func).expect("could not compile");
         let r = jit.compile(&sum_func).expect("could not compile");
 

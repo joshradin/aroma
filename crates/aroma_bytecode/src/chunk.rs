@@ -9,7 +9,6 @@ use strum::AsRefStr;
 pub use iterator::*;
 pub use visitor::*;
 
-use crate::chunk::visitor::ChunkVisitorDriver;
 
 mod visitor;
 mod iterator;
@@ -348,7 +347,7 @@ pub fn last_opcode_index(bytecode: &[u8]) -> Option<usize> {
 
 #[cfg(test)]
 mod tests {
-    use crate::chunk::Chunk;
+    use super::*;
 
     #[test]
     fn empty_array_is_zero_sized() {
