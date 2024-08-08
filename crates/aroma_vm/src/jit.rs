@@ -12,7 +12,9 @@ use cranelift_module::{DataDescription, FuncId, Linkage, Module, ModuleError};
 use log::trace;
 use parking_lot::Mutex;
 
-use aroma_bytecode::chunk::{Constant, OpCode, UnknownOpcode};
+use aroma_bytecode::chunk::OpCode;
+use aroma_bytecode::chunk::Constant;
+use aroma_bytecode::chunk::UnknownOpcode;
 
 use crate::jit::ir::{
     Block as IrBlockId, CompileIrError, IrBlock, IrCompiler, IrFunction, IrOp, IrValue,

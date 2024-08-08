@@ -1,6 +1,7 @@
-use aroma_bytecode::chunk::{Constant, UnknownOpcode};
+use aroma_bytecode::chunk::Constant;
 use crate::types::Value;
 use std::convert::Infallible;
+use aroma_bytecode::chunk::UnknownOpcode;
 
 #[derive(Debug, thiserror::Error, Clone)]
 pub enum VmError {

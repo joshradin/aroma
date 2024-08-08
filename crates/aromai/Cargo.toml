@@ -13,11 +13,11 @@ jit = ["aroma_vm/jit"]
 
 [dependencies]
 aroma_vm = { version = "0.0.0", path = "../aroma_vm", features = ["macros", "debug_all"] }
-clap = { version = "4.5.11", features = ["derive", "env"] }
-color-eyre = "0.6.3"
-eyre = "0.6.12"
-fern = "0.6.2"
-log = "0.4.22"
-owo-colors = { version = "4.0.0", features = ["supports-colors"] }
-chrono = { version = "0.4.38", default-features = false, features = ["alloc", "std", "clock"] }
-sysinfo = "0.31.2"
+clap = { workspace = true, features = ["derive", "env"] }
+color-eyre = { workspace = true }
+eyre = { workspace = true }
+fern = { workspace = true }
+log = { workspace = true }
+owo-colors = { workspace = true, features = ["supports-colors"] }
+chrono = { workspace = true, features = ["alloc", "std", "clock"] }
+sysinfo = { workspace = true }

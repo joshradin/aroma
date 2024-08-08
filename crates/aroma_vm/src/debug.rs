@@ -3,7 +3,8 @@
 use std::io;
 use std::io::{BufWriter, stdout, Write};
 
-use aroma_bytecode::chunk::{Chunk, ChunkVisitor, ChunkVisitorFunctions, Constant, OpCode};
+use aroma_bytecode::chunk::{Chunk, ChunkVisitor, ChunkVisitorFunctions, OpCode};
+use aroma_bytecode::chunk::Constant;
 use crate::types::function::ObjFunction;
 
 /// Responsible for disassembling bytes
@@ -231,7 +232,8 @@ impl<W: Write> ChunkVisitor for DisassemblerVisitor<'_, W> {
 
 #[cfg(test)]
 mod tests {
-    use aroma_bytecode::chunk::{Chunk, Constant};
+    use aroma_bytecode::chunk::Chunk;
+    use aroma_bytecode::chunk::Constant;
     use crate::debug::Disassembler;
     use crate::examples::{factorial, fibonacci};
 

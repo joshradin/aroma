@@ -11,8 +11,9 @@ use petgraph::graph::NodeIndex;
 use rangemap::RangeMap;
 
 use aroma_bytecode::chunk::{
-    Chunk, ChunkVisitor, Constant, ContinuousOffsetVisitor, IntoOpcodeIterator, OpCode,
+    Chunk, ChunkVisitor, ContinuousOffsetVisitor, IntoOpcodeIterator, OpCode,
 };
+use aroma_bytecode::chunk::Constant;
 use crate::debug::Disassembler;
 use crate::jit::ir::ir_builder::{Block, IrBuilder, IrFunction};
 use crate::jit::ir::ir_compiler::offset_graph::{get_offset_graph, OffsetGraph, OffsetRange};

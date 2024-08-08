@@ -161,14 +161,20 @@ dependencies = [
 name = "aromac"
 version = "0.0.0"
 dependencies = [
+ "aroma_bytecode",
+ "aroma_visitor_gen",
+ "cfg-if",
  "chrono",
  "clap",
+ "clap_complete",
  "color-eyre",
  "eyre",
  "fern",
  "log",
  "nom",
  "owo-colors 4.0.0",
+ "regex",
+ "thiserror",
 ]
 
 [[package]]
@@ -281,6 +287,15 @@ dependencies = [
  "anstyle",
  "clap_lex",
  "strsim",
+]
+
+[[package]]
+name = "clap_complete"
+version = "4.5.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a8670053e87c316345e384ca1f3eba3006fc6355ed8b8a1140d104e109e3df34"
+dependencies = [
+ "clap",
 ]
 
 [[package]]

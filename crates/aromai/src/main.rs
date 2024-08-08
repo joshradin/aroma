@@ -12,7 +12,7 @@ use aroma_vm::vm::AromaVm;
 
 fn main() -> eyre::Result<ExitCode> {
     color_eyre::install()?;
-    let app = App::parse();
+    let app = Args::parse();
     init_logging(app.log.unwrap_or(LevelFilter::Off))?;
     trace!("starting aromi with args {app:?}");
     let mut vm = AromaVm::new();
@@ -89,7 +89,7 @@ fn init_logging(level_filter: LevelFilter) -> eyre::Result<()> {
 }
 
 #[derive(Debug, Parser)]
-struct App {
+struct Args {
     #[clap(long = "log-level", env = "RUST_LOG")]
     log: Option<LevelFilter>,
 }

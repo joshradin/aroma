@@ -8,11 +8,17 @@ readme.workspace = true
 repository.workspace = true
 
 [dependencies]
-nom = "7.1.3"
-clap = { version = "4.5.11", features = ["derive", "env"] }
-color-eyre = "0.6.3"
-eyre = "0.6.12"
-chrono = { version = "0.4.38", default-features = false, features = ["alloc", "std", "clock"] }
-fern = "0.6.2"
-log = "0.4.22"
-owo-colors = { version = "4.0.0", features = ["supports-colors"] }
+nom = { workspace = true }
+clap = { workspace = true, features = ["derive", "env"] }
+color-eyre = { workspace = true }
+eyre = { workspace = true }
+chrono = { workspace = true, features = ["alloc", "std", "clock"] }
+fern = { workspace = true }
+log = { workspace = true }
+owo-colors = { workspace = true, features = ["supports-colors"] }
+aroma_bytecode = { version = "0.0.0", path = "../aroma_bytecode" }
+aroma_visitor_gen = { version = "0.0.0", path = "../aroma_visitor_gen" }
+clap_complete = { workspace = true }
+cfg-if = { workspace = true }
+thiserror = { workspace = true }
+regex = { workspace = true }

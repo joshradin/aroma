@@ -1,4 +1,4 @@
-use crate::chunk::OpCode;
+use crate::chunk::opcode::OpCode;
 
 #[derive(Debug)]
 pub struct OpcodeIterator<'a> {

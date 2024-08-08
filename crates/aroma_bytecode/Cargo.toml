@@ -9,6 +9,6 @@ repository.workspace = true
 
 [dependencies]
 aroma_visitor_gen = { version = "0.0.0", path = "../aroma_visitor_gen" }
-strum = "~0.26.3"
-thiserror = "1.0.63"
-derive_more = "~0.99.18"
+strum = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }
+derive_more = { workspace = true }

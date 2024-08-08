@@ -1,7 +1,9 @@
 use std::cell::Cell;
 use aroma_visitor_gen::visitor;
 
-use crate::chunk::{Chunk, Constant, OpCode};
+use crate::chunk::Chunk;
+use crate::chunk::constant::Constant;
+use crate::chunk::opcode::OpCode;
 
 visitor! {
     pub trait ChunkVisitor {
