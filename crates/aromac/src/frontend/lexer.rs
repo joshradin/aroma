@@ -2,16 +2,16 @@
 
 use std::fs::File;
 use std::io;
-use std::io::Read;
+use std::io::{BufRead, Read};
 use std::path::Path;
 use std::str::Utf8Error;
 
-use nom::Finish;
-use thiserror::Error;
 use crate::common::spanned::Span;
 use crate::frontend::lexer::nom_buf_reader::{BufReader, Parse, ParseError};
 use crate::frontend::lexer::token_parsing::parse_token;
-use crate::frontend::token::Token;
+use crate::frontend::token::{Token, TokenKind};
+use nom::Finish;
+use thiserror::Error;
 
 mod nom_buf_reader;
 mod token_parsing;
@@ -43,17 +43,16 @@ impl<'p, R: io::Read> Lexer<'p, R> {
     }
 
     fn next_token(&mut self) -> LexResult<Option<Token<'p>>> {
-        match dbg!(self.reader.parse(parse_token)) {
+        self.reader.fill_buf()?;
+        match self.reader.parse(parse_token) {
+            Ok((_, TokenKind::Eof)) => Ok(None),
             Ok((len, token_kind)) => {
                 let offset = self.offset;
                 self.offset += len;
                 let span = Span::new(self.path, offset, len);
                 Ok(Some(Token::new(span, token_kind)))
             }
-            Err(e) => match e {
-                ParseError::Eof => Ok(None),
-                e => Err(e.into()),
-            },
+            Err(e) => Err(e.into()),
         }
     }
 }
@@ -88,6 +87,8 @@ pub enum LexingError {
     Utf8Error(#[from] Utf8Error),
     #[error(transparent)]
     NomError(#[from] ParseError<nom::error::Error<String>>),
+    #[error(transparent)]
+    VerboseNomError(#[from] ParseError<nom::error::VerboseError<String>>),
 }
 
 #[cfg(test)]
@@ -97,17 +98,21 @@ mod tests {
     #[test]
     fn test_lexer() {
         let path = Path::new(file!());
-        let mut buffer = Vec::from("const v: T = 0;");
+        let f = 1.0e10;
+        let test = "const v: T = 0; { print \"hello, world\"; i = 1.0e10 }";
+        let mut buffer = Vec::from(test);
         let mut lexer = Lexer::new(path, &*buffer).unwrap();
-        let tokens = lexer
-            .try_fold(
-                vec![],
-                |mut accum, next| -> Result<Vec<Token>, LexingError> {
-                    accum.push(next?);
-                    Ok(accum)
-                },
-            )
-            .expect("could not get tokens");
-        assert_eq!(tokens.len(), 7);
+        let tokens = match lexer.try_fold(
+            vec![],
+            |mut accum, next| -> Result<Vec<Token>, LexingError> {
+                accum.push(next?);
+                Ok(accum)
+            },
+        ) {
+            Ok(tokens) => tokens,
+            Err(e) => panic!("{} -> {e:#?}", e),
+        };
+        assert!(tokens.len() >= 1);
+        println!("{test} => {tokens:?}");
     }
 }

@@ -5,7 +5,7 @@ use clap::ArgAction;
 use clap::value_parser;
 use log::LevelFilter;
 
-use crate::os::PATH_DELIMITER;
+use aromac::os::PATH_DELIMITER;
 
 /// The args struct
 #[derive(Debug, clap::Parser)]

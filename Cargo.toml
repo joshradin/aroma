@@ -41,6 +41,7 @@ derive_more = "~0.99.18"
 strum = "~0.26.3"
 clap_complete = "4.5.12"
 regex = "1.10.6"
+num_cpus = "1.16.0"
 
 [profile.release]
 debug = true

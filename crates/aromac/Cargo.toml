@@ -22,3 +22,10 @@ clap_complete = { workspace = true }
 cfg-if = { workspace = true }
 thiserror = { workspace = true }
 regex = { workspace = true }
+num_cpus = { workspace = true }
+itertools.workspace = true
+parking_lot.workspace = true
+
+
+[dev-dependencies]
+test-log = { workspace = true }

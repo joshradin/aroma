@@ -1,40 +1,16 @@
-#![doc = include_str!("../README.md")]
-
 use std::io::{stderr, stdout};
 
 use cfg_if::cfg_if;
 use clap::Parser;
 use fern::Dispatch;
-use log::{debug, error, Level, LevelFilter, trace, warn};
+use log::{debug, error, trace, warn, Level, LevelFilter};
 use owo_colors::OwoColorize;
 use owo_colors::Stream::Stdout;
 
 use crate::args::Args;
 
 mod args;
-mod frontend;
-mod common;
 
-cfg_if! {
-    if #[cfg(windows)] {
-        #[path = "native/windows.rs"]
-        #[doc(hidden)]
-        mod windows;
-        use windows as os;
-    } else if #[cfg(target_os = "linux")] {
-        #[path = "native/linux.rs"]
-        #[doc(hidden)]
-        mod linux;
-        use linux as os;
-    } else if #[cfg(target_os = "macos")] {
-        #[path = "native/macos.rs"]
-        #[doc(hidden)]
-        mod macos;
-        use macos as os;
-    } else {
-        compile_error!("unsupported OS for compiling")
-    }
-}
 
 fn main() -> eyre::Result<()> {
     color_eyre::install()?;

@@ -1,9 +1,10 @@
 //! A lexical token from a source file, along with streams for said token
 
+use std::fmt::{Debug, Formatter};
 use crate::common::spanned::{Span, Spanned};
 
 /// A lexical token from a source file
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Token<'p> {
     span: Span<'p>,
     kind: TokenKind,
@@ -21,6 +22,12 @@ impl<'p> Token<'p> {
     }
 }
 
+impl Debug for Token<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        self.kind.fmt(f)
+    }
+}
+
 impl<'p> Spanned<'p> for Token<'p> {
     fn span(&self) -> Span<'p> {
         self.span.clone()
@@ -28,9 +35,9 @@ impl<'p> Spanned<'p> for Token<'p> {
 }
 
 /// The kind for this token
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
-    SemiColon,
+
 
     If,
     Else,
@@ -56,16 +63,47 @@ pub enum TokenKind {
 
     /// new line
     Nl,
-    Colon,
+    SemiColon,
+
 
 
     /// =
     Assign,
     /// ==
     Eq,
+    /// :
+    Colon,
 
     /// EOF, will only appear at the end of a token
-    Eof
+    Eof,
+    LCurly,
+    RCurly,
+    Plus,
+    Minus,
+    Div,
+    Star,
+    LBracket,
+    RBracket,
+    LParen,
+    RParen,
+    PlusAssign,
+    MinusAssign,
+    DivAssign,
+    MultAssign,
+    Rem,
+    RemAssign,
+    Neq,
+    Bang,
+    Public,
+    Private,
+    In,
+    Protected,
+    Namespace,
+    Dot,
+    Arrow,
+    Native,
+    Static,
+    Hash,
 }
 
 /// A stream of tokens

@@ -1,37 +1,56 @@
 use std::str::FromStr;
 
+use crate::frontend::token::TokenKind;
 use eyre::eyre;
 use nom::branch::alt;
-use nom::bytes::streaming::{is_not, tag, take_until, take_while_m_n};
-use nom::character::complete::hex_digit1;
+use nom::bytes::complete::{is_not, take_until, take_while_m_n};
+use nom::bytes::streaming::tag;
+use nom::character::complete::space1;
 use nom::character::streaming::{
-    alpha1, alphanumeric0, char, digit1, multispace1, newline, space1,
+    alpha1, alphanumeric0, char, digit1, hex_digit1, multispace1, newline,
 };
-use nom::combinator::{consumed, cut, eof, map, map_opt, map_res, not, recognize, value, verify};
+use nom::combinator::{
+    consumed, cut, eof, map, map_opt, map_res, not, peek, recognize, value, verify,
+};
+use nom::error::{context, VerboseError};
 use nom::multi::{fold_many0, many0, many1};
+use nom::number::complete::recognize_float;
 use nom::sequence::{delimited, preceded, terminated, tuple};
 use nom::{IResult, Parser};
 
-use crate::frontend::token::TokenKind;
+type Result<'a, O, E = &'a [u8]> = IResult<&'a [u8], O, VerboseError<E>>;
 
-type Result<'a, O, E = &'a [u8]> = IResult<&'a [u8], O, nom::error::Error<E>>;
+pub fn parse_token(mut src: &[u8]) -> Result<(usize, TokenKind), String> {
+    loop {
+        let Ok((rest, _parsed)) = parse_insignificant(src) else {
+            break;
+        };
+        src = rest;
+    }
 
-pub fn parse_token(src: &[u8]) -> Result<(usize, TokenKind), String> {
-    map(
-        consumed(delimited(
-            parse_insignificant,
-            _parse_token,
-            parse_insignificant,
-        )),
-        |(consumed, token)| (consumed.len(), token),
-    )(src)
-    .map_err(|e| e.map_input(|e| String::from_utf8_lossy(e).as_ref().to_owned()))
+    let mut main_parser = context(
+        "token",
+        map(consumed(_parse_token), |(consumed, token)| {
+            (consumed.len(), token)
+        }),
+    );
+    (main_parser)(src).map_err(|e| {
+        e.map(|e| {
+            let VerboseError { errors } = e;
+            let errors = errors
+                .into_iter()
+                .map(|(bytes, kind)| (String::from_utf8_lossy(bytes).as_ref().to_owned(), kind))
+                .collect();
+            VerboseError { errors }
+        })
+    })
 }
 
 fn _parse_token(src: &[u8]) -> Result<TokenKind> {
     alt((
         parse_eof,
         parse_word,
+        parse_literal,
         parse_punctuation,
         parse_operator,
         parse_newline,
@@ -39,66 +58,117 @@ fn _parse_token(src: &[u8]) -> Result<TokenKind> {
 }
 
 fn parse_eof(src: &[u8]) -> Result<TokenKind> {
-    value(TokenKind::Eof, eof)(src)
+    context("eof", value(TokenKind::Eof, eof))(src)
 }
 
 fn parse_operator(src: &[u8]) -> Result<TokenKind> {
-    alt((
-        value(TokenKind::Eq, tag("==")),
-        value(TokenKind::Assign, char('=')),
-    ))(src)
+    context(
+        "operator",
+        alt((
+            value(TokenKind::Eq, tag("==")),
+            value(TokenKind::Neq, tag("!=")),
+            value(TokenKind::Bang, char('!')),
+            value(TokenKind::Assign, char('=')),
+            value(TokenKind::Colon, char(':')),
+            value(TokenKind::PlusAssign, tag("+=")),
+            value(TokenKind::Plus, char('+')),
+            value(TokenKind::Arrow, tag("->")),
+            value(TokenKind::MinusAssign, tag("-=")),
+            value(TokenKind::Minus, char('-')),
+            value(TokenKind::DivAssign, tag("/=")),
+            alt((
+                value(TokenKind::Div, char('/')),
+                value(TokenKind::RemAssign, tag("%=")),
+                value(TokenKind::Rem, char('%')),
+                value(TokenKind::MultAssign, tag("*=")),
+                value(TokenKind::Star, char('*')),
+                value(TokenKind::LBracket, char('[')),
+                value(TokenKind::RBracket, char(']')),
+                value(TokenKind::LParen, char('(')),
+                value(TokenKind::RParen, char(')')),
+                value(TokenKind::Dot, char('.')),
+                value(TokenKind::Hash, char('#')),
+            )),
+        )),
+    )(src)
 }
 
 fn parse_word(src: &[u8]) -> Result<TokenKind, &[u8]> {
-    alt((
-        parse_keyword,
-        parse_identifier,
-        parse_newline,
-        parse_operator,
-        parse_literal,
-    ))(src)
+    context(
+        "word",
+        preceded(peek(alpha1), cut(alt((parse_keyword, parse_identifier)))),
+    )(src)
 }
 
 fn parse_keyword(src: &[u8]) -> Result<TokenKind> {
-    alt((
-        value(TokenKind::If, tag("if")),
-        value(TokenKind::Else, tag("else")),
-        value(TokenKind::While, tag("while")),
-        value(TokenKind::For, tag("for")),
-        value(TokenKind::Const, tag("const")),
-        value(TokenKind::Let, tag("let")),
-    ))(src)
+    context(
+        "keyword",
+        alt((
+            value(TokenKind::If, tag("if")),
+            value(TokenKind::Else, tag("else")),
+            value(TokenKind::While, tag("while")),
+            value(TokenKind::For, tag("for")),
+            value(TokenKind::Const, tag("const")),
+            value(TokenKind::Let, tag("let")),
+            value(TokenKind::Class, tag("class")),
+            value(TokenKind::Interface, tag("interface")),
+            value(TokenKind::Abstract, tag("abstract")),
+            value(TokenKind::Fn, tag("fn")),
+            alt((
+                value(TokenKind::Public, tag("public")),
+                value(TokenKind::Private, tag("private")),
+                value(TokenKind::Protected, tag("protected")),
+                value(TokenKind::In, tag("in")),
+                value(TokenKind::Namespace, tag("namespace")),
+                value(TokenKind::Native, tag("native")),
+                value(TokenKind::Static, tag("static")),
+            )),
+        )),
+    )(src)
 }
 
 fn parse_identifier(src: &[u8]) -> Result<TokenKind> {
     let id_parser = recognize(tuple((alpha1, alphanumeric0)));
-
-    map(id_parser, |id: &[u8]| {
-        TokenKind::Identifier(
-            String::from_utf8(Vec::from(id)).expect("only [0-0a-zA-Z] should be here"),
-        )
-    })(src)
+    context(
+        "identifier",
+        map(id_parser, |id: &[u8]| {
+            TokenKind::Identifier(
+                String::from_utf8(Vec::from(id)).expect("only [0-0a-zA-Z] should be here"),
+            )
+        }),
+    )(src)
 }
 
-fn parse_newline(src: &[u8]) -> Result<TokenKind, &[u8]> {
-    value(TokenKind::Nl, newline)(src)
+fn parse_newline(src: &[u8]) -> Result<TokenKind> {
+    // doesn't use newline because we don't want incomplete on missing newline
+    context("newline", value(TokenKind::Nl, char('\n')))(src)
 }
 
-fn parse_punctuation(src: &[u8]) -> Result<TokenKind, &[u8]> {
-    alt((
-        value(TokenKind::Colon, tag(":")),
-        value(TokenKind::SemiColon, tag(";")),
-    ))(src)
+fn parse_punctuation(src: &[u8]) -> Result<TokenKind> {
+    context(
+        "punctuation",
+        alt((
+            value(TokenKind::SemiColon, char(';')),
+            value(TokenKind::LCurly, char('{')),
+            value(TokenKind::RCurly, char('}')),
+        )),
+    )(src)
 }
 
-fn parse_literal(src: &[u8]) -> Result<TokenKind, &[u8]> {
-    alt((
-        map(parse_hexadecimal_value, |hex| TokenKind::Integer(hex)),
-        map(parse_integer_value, |hex| TokenKind::Integer(hex)),
-    ))(src)
+fn parse_literal(src: &[u8]) -> Result<TokenKind> {
+    context(
+        "literal",
+        alt((
+            map(parse_boolean, |b| TokenKind::Boolean(b)),
+            map(parse_floating_point_value, |float| TokenKind::Float(float)),
+            map(parse_hexadecimal_value, |hex| TokenKind::Integer(hex)),
+            map(parse_integer_value, |hex| TokenKind::Integer(hex)),
+            map(parse_string_value, |string| TokenKind::String(string)),
+        )),
+    )(src)
 }
 
-fn parse_hexadecimal_value(input: &[u8]) -> IResult<&[u8], i64> {
+fn parse_hexadecimal_value(input: &[u8]) -> Result<i64> {
     map_res(
         preceded(
             alt((tag("0x"), tag("0X"))),
@@ -112,7 +182,7 @@ fn parse_hexadecimal_value(input: &[u8]) -> IResult<&[u8], i64> {
     )(input)
 }
 
-fn parse_integer_value(input: &[u8]) -> IResult<&[u8], i64> {
+fn parse_integer_value(input: &[u8]) -> Result<i64> {
     map_res(
         recognize(many1(terminated(digit1, many0(char('_'))))),
         |out: &[u8]| {
@@ -121,6 +191,18 @@ fn parse_integer_value(input: &[u8]) -> IResult<&[u8], i64> {
                 .and_then(|s| i64::from_str(s).map_err(|e| eyre!(e)))
         },
     )(input)
+}
+
+fn parse_floating_point_value(input: &[u8]) -> Result<f64> {
+    map_res(recognize_float, |out: &[u8]| {
+        std::str::from_utf8(out)
+            .map_err(|s| eyre!(s))
+            .and_then(|s| f64::from_str(s).map_err(|e| eyre!(e)))
+    })(input)
+}
+
+fn parse_boolean(input: &[u8]) -> Result<bool> {
+    alt((value(true, tag("true")), value(false, tag("false"))))(input)
 }
 
 #[derive(Debug, Clone)]
@@ -132,7 +214,7 @@ enum StringFragment<'a> {
 
 fn parse_literal_str(input: &[u8]) -> Result<&str> {
     let not_quoted = map_res(is_not("\"\\"), |s: &[u8]| std::str::from_utf8(s));
-    verify(not_quoted, |s: &str| s.is_empty())(input)
+    verify(not_quoted, |s: &str| !s.is_empty())(input)
 }
 
 fn parse_unicode(input: &[u8]) -> Result<std::primitive::char> {
@@ -219,19 +301,12 @@ fn parse_string_value(input: &[u8]) -> Result<String> {
 }
 
 fn parse_insignificant(src: &[u8]) -> Result<&[u8], &[u8]> {
-    recognize(many0(alt((
-        space1,
-        recognize(delimited(tag("/*"), take_until("*/"), tag("*/"))),
-        recognize(tuple((tag("//"), many0(not(newline))))),
-    ))))(src)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_token() {
-        let (rest, token) = dbg!(_parse_token(b" /* */   if  \n")).expect("could not parse");
-    }
+    context(
+        "insignificant",
+        recognize(alt((
+            context("whitespace", space1),
+            recognize(delimited(tag("/*"), take_until("*/"), tag("*/"))),
+            recognize(tuple((tag("//"), many0(not(newline))))),
+        ))),
+    )(src)
 }
