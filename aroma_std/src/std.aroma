@@ -1,1 +1,13 @@
 native function print();
+
+public class String {
+    private Array<Byte> utf8;
+
+    public toString(self) -> String {
+        return self;
+    }
+
+
+}
+
+s = String();

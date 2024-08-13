@@ -125,6 +125,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "aroma_types"
+version = "0.0.0"
+dependencies = [
+ "derive_more",
+ "itertools",
+ "parking_lot",
+ "paste",
+ "petgraph",
+ "thiserror",
+]
+
+[[package]]
 name = "aroma_visitor_gen"
 version = "0.0.0"
 dependencies = [
@@ -136,6 +148,7 @@ name = "aroma_vm"
 version = "0.0.0"
 dependencies = [
  "aroma_bytecode",
+ "aroma_types",
  "bitfield",
  "bytes",
  "cfg-if",

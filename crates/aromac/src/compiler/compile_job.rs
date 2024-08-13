@@ -1,10 +1,10 @@
-use std::collections::HashSet;
-use std::num::NonZero;
-use std::sync::{Arc, RwLock};
 use crate::common::identifier::Id;
+use std::collections::HashSet;
+use std::num::NonZeroUsize;
+use std::sync::{Arc, RwLock};
 
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Copy, Clone)]
-pub struct CompileJobId(NonZero<>);
+pub struct CompileJobId(NonZeroUsize);
 
 #[derive(Debug)]
 pub struct CompileJob {

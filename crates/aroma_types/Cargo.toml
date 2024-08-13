@@ -1,0 +1,17 @@
+[package]
+name = "aroma_types"
+description = "provides the type system"
+authors.workspace = true
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+readme.workspace = true
+repository.workspace = true
+
+[dependencies]
+petgraph.workspace = true
+thiserror.workspace = true
+itertools.workspace = true
+paste.workspace = true
+derive_more.workspace = true
+parking_lot.workspace = true

@@ -44,6 +44,7 @@ cranelift-native = { workspace = true, optional = true }
 rangemap = { workspace = true, optional = true }
 petgraph = { workspace = true, optional = true }
 indexmap = { workspace = true, optional = true }
+aroma_types = { version = "0.0.0", path = "../aroma_types" }
 
 
 [dev-dependencies]
