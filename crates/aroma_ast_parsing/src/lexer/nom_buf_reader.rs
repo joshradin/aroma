@@ -1,5 +1,6 @@
 //! A buf reader implemented for use with nom
 
+use std::fmt::{Debug, Formatter};
 use std::io;
 use std::io::{BufRead, Error, ErrorKind, IoSliceMut, Read, Seek, SeekFrom};
 
@@ -29,7 +30,6 @@ fn default_read_exact<R: Read + ?Sized>(this: &mut R, mut buf: &mut [u8]) -> io:
     }
 }
 /// A buf reader implemented for use with nom. Adds a buffer to any reader.
-#[derive(Debug)]
 pub struct BufReader<R> {
     inner: R,
     buf: Vec<u8>,
@@ -212,6 +212,17 @@ impl<R: Seek> Seek for BufReader<R> {
                 "overflow when subtracting remaining buffer size from inner stream position",
             )
         })
+    }
+}
+
+impl<R : Debug> Debug for BufReader<R> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BufReader")
+            .field("inner", &self.inner)
+            .field("pos", &self.pos)
+            .field("cap", &self.cap)
+            .field("buffer_usage", &(self.pos.checked_div(self.cap)))
+            .finish()
     }
 }
 

@@ -8,7 +8,6 @@ readme.workspace = true
 repository.workspace = true
 
 [dependencies]
-nom = { workspace = true }
 clap = { workspace = true, features = ["derive", "env"] }
 color-eyre = { workspace = true }
 eyre = { workspace = true }
@@ -25,6 +24,8 @@ regex = { workspace = true }
 num_cpus = { workspace = true }
 itertools.workspace = true
 parking_lot.workspace = true
+aroma_ast_parsing = { version = "0.0.0", path = "../aroma_ast_parsing" }
+aroma_ast = { version = "0.0.0", path = "../aroma_ast" }
 
 
 [dev-dependencies]

@@ -6,12 +6,12 @@ pub mod class;
 pub mod hierarchy;
 pub mod generic;
 pub mod method;
+pub mod constructor;
 
 #[cfg(test)]
 mod tests {
-    use crate::class::ClassRef;
-    use crate::hierarchy::ClassHierarchy;
     use crate::hierarchy::intrinsics::OBJECT_CLASS;
+    use crate::hierarchy::ClassHierarchy;
 
     #[test]
     fn test_create_class() {

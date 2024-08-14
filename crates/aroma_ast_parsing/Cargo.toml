@@ -1,0 +1,16 @@
+[package]
+name = "aroma_ast_parsing"
+authors.workspace = true
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+readme.workspace = true
+repository.workspace = true
+
+[dependencies]
+aroma_ast = { version = "0.0.0", path = "../aroma_ast" }
+nom.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile = "3.12.0"

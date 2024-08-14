@@ -1,11 +1,10 @@
 //! Responsible with compiling aroma files into aroma object files
 
+use crate::compiler::compile_job::CompileJobHandle;
 use std::collections::{HashMap, HashSet};
 use std::io;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
-use crate::compiler::compile_job::{CompileJob, CompileJobHandle};
-use crate::frontend::token::TokenStream;
 
 mod compile_job;
 

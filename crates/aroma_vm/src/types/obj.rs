@@ -36,10 +36,10 @@ impl ObjectLayout {
             }
         };
 
-        // all concrete class vtable pointers are at 0
-        base.field_offsets.insert((class_inst.clone(), None), 0);
-
         let mut offset = base.size;
+        base.field_offsets.insert((class_inst.clone(), None), offset);
+        offset += size_of::<usize>();
+
         for field in class.fields() {
             let field_size = match field.kind().class_ref().as_ref() {
                 I32_CLASS_NAME => size_of::<i32>(),

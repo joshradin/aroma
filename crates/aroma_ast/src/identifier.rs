@@ -1,4 +1,4 @@
-use crate::frontend::token::{ToTokens, Token, TokenKind, TokenStream};
+use crate::token::{ToTokens, Token, TokenKind, TokenStream};
 use itertools::Itertools;
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
@@ -20,6 +20,37 @@ impl<'p> Id<'p> {
             })
             .map(|vec| Id(vec))
     }
+
+    /// An iterator over the components of an Id
+    pub fn iter(&self) -> impl Iterator<Item = &str> {
+        self.0.iter().map(|s| &s.0).map(|tok| {
+            if let TokenKind::Identifier(id) = &tok.kind() {
+                id.as_ref()
+            } else {
+                unreachable!()
+            }
+        })
+    }
+
+    /// Gets the most specific member of this id
+    pub fn most_specific(&self) -> &str {
+        let tok = self.0.last().unwrap();
+        if let TokenKind::Identifier(id) = &tok.0.kind() {
+            id.as_ref()
+        } else {
+            unreachable!()
+        }
+    }
+
+    /// Gets the least specific member of this id
+    pub fn least_specific(&self) -> &str {
+        let tok = self.0.first().unwrap();
+        if let TokenKind::Identifier(id) = &tok.0.kind() {
+            id.as_ref()
+        } else {
+            unreachable!()
+        }
+    }
 }
 
 impl Display for Id<'_> {
@@ -30,7 +61,12 @@ impl Display for Id<'_> {
 
 impl<'p> ToTokens<'p> for Id<'p> {
     fn to_tokens(&self) -> TokenStream<'p, 'p> {
-        TokenStream::from_iter(self.0.iter().map(|internal| internal.0.clone()).collect::<Vec<_>>())
+        TokenStream::from_iter(
+            self.0
+                .iter()
+                .map(|internal| internal.0.clone())
+                .collect::<Vec<_>>(),
+        )
     }
 }
 

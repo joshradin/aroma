@@ -1,5 +1,7 @@
 //! A trait that can provide the [Span] of the complete context of an ir node
 
+use std::cell::{Cell, LazyCell};
+use std::io;
 use std::panic::Location;
 use std::path::Path;
 
@@ -8,7 +10,7 @@ use std::path::Path;
 /// This is automatically implemented for all types that implemented [ToTokens] and
 /// [Span] itself.
 pub trait Spanned<'p> {
-    fn span(&self) -> Span<'p> ;
+    fn span(&self) -> Span<'p>;
 }
 
 /// The span, representing
@@ -17,6 +19,7 @@ pub struct Span<'p> {
     path: &'p Path,
     offset: usize,
     len: usize,
+    // line_and_col: Cell<(usize, usize)>
 }
 
 impl<'p> Span<'p> {
@@ -66,6 +69,24 @@ impl<'p> Span<'p> {
         }
     }
 
+    /// Tries to get the line and column of a span
+    pub fn get_line_col(&self) -> io::Result<(usize, usize)> {
+        let mut line = 1usize;
+        let mut col = 0usize;
+        let mut offset = 0usize;
+        let string = std::fs::read_to_string(self.file())?;
+        for char in string.chars().take(self.offset) {
+            if char == '\n' {
+                col = 0;
+                line += 1;
+            } else {
+                col += 1;
+            }
+            offset += char.len_utf8();
+        }
+        Ok((line, col))
+    }
+
     /// Gets the file this pan is from
     #[inline]
     pub const fn file(&self) -> &'p Path {
@@ -90,17 +111,15 @@ impl<'p> Span<'p> {
 }
 
 impl<'p> Spanned<'p> for Span<'p> {
-    fn span(&self) -> Span<'p>
-    {
+    fn span(&self) -> Span<'p> {
         *self
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::spanned::{Span, Spanned};
     use std::path::{Path, PathBuf};
-
-    use crate::common::spanned::{Span, Spanned};
 
     #[test]
     fn test_span_lifetime() {

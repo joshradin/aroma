@@ -1,7 +1,6 @@
 use std::str::FromStr;
 
-use crate::frontend::token::TokenKind;
-use eyre::eyre;
+use aroma_ast::token::TokenKind;
 use nom::branch::alt;
 use nom::bytes::complete::{is_not, take_until, take_while_m_n};
 use nom::bytes::streaming::tag;
@@ -12,7 +11,7 @@ use nom::character::streaming::{
 use nom::combinator::{
     consumed, cut, eof, map, map_opt, map_res, not, peek, recognize, value, verify,
 };
-use nom::error::{context, VerboseError};
+use nom::error::{context, ErrorKind, FromExternalError, VerboseError};
 use nom::multi::{fold_many0, many0, many1};
 use nom::number::complete::recognize_float;
 use nom::sequence::{delimited, preceded, terminated, tuple};
@@ -176,8 +175,11 @@ fn parse_hexadecimal_value(input: &[u8]) -> Result<i64> {
         ),
         |out: &[u8]| {
             std::str::from_utf8(out)
-                .map_err(|s| eyre!(s))
-                .and_then(|s| i64::from_str_radix(s, 16).map_err(|e| eyre!(e)))
+                .map_err(|e| VerboseError::from_external_error(input, ErrorKind::Verify, e))
+                .and_then(|s| {
+                    i64::from_str_radix(s, 16)
+                        .map_err(|e| VerboseError::from_external_error(input, ErrorKind::Verify, e))
+                })
         },
     )(input)
 }
@@ -187,8 +189,11 @@ fn parse_integer_value(input: &[u8]) -> Result<i64> {
         recognize(many1(terminated(digit1, many0(char('_'))))),
         |out: &[u8]| {
             std::str::from_utf8(out)
-                .map_err(|s| eyre!(s))
-                .and_then(|s| i64::from_str(s).map_err(|e| eyre!(e)))
+                .map_err(|s| VerboseError::from_external_error(input, ErrorKind::Verify, s))
+                .and_then(|s| {
+                    i64::from_str(s)
+                        .map_err(|e| VerboseError::from_external_error(input, ErrorKind::Verify, e))
+                })
         },
     )(input)
 }
@@ -196,8 +201,11 @@ fn parse_integer_value(input: &[u8]) -> Result<i64> {
 fn parse_floating_point_value(input: &[u8]) -> Result<f64> {
     map_res(recognize_float, |out: &[u8]| {
         std::str::from_utf8(out)
-            .map_err(|s| eyre!(s))
-            .and_then(|s| f64::from_str(s).map_err(|e| eyre!(e)))
+            .map_err(|s| VerboseError::from_external_error(input, ErrorKind::Verify, s))
+            .and_then(|s| {
+                f64::from_str(s)
+                    .map_err(|e| VerboseError::from_external_error(input, ErrorKind::Verify, s))
+            })
     })(input)
 }
 

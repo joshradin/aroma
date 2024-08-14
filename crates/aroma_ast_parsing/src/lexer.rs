@@ -6,17 +6,17 @@ use std::io::{BufRead, Read};
 use std::path::Path;
 use std::str::Utf8Error;
 
-use crate::common::spanned::Span;
-use crate::frontend::lexer::nom_buf_reader::{BufReader, Parse, ParseError};
-use crate::frontend::lexer::token_parsing::parse_token;
-use crate::frontend::token::{Token, TokenKind};
+use crate::lexer::nom_buf_reader::{BufReader, Parse, ParseError};
+use crate::lexer::token_parsing::parse_token;
+use aroma_ast::spanned::Span;
+use aroma_ast::token::{Token, TokenKind};
 use nom::Finish;
 use thiserror::Error;
 
 mod nom_buf_reader;
 mod token_parsing;
 
-/// Responsible with converting a [io::Read] obj into a token stream
+/// Responsible with converting a [Read] obj into a token stream
 #[derive(Debug)]
 pub struct Lexer<'p, R> {
     path: &'p Path,

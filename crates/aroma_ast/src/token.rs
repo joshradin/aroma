@@ -1,7 +1,7 @@
 //! A lexical token from a source file, along with streams for said token
 
+use crate::spanned::{Span, Spanned};
 use std::fmt::{Debug, Formatter};
-use crate::common::spanned::{Span, Spanned};
 
 /// A lexical token from a source file
 #[derive(Clone)]
@@ -24,7 +24,14 @@ impl<'p> Token<'p> {
 
 impl Debug for Token<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        self.kind.fmt(f)
+        if f.alternate() {
+            f.debug_struct("Token")
+                .field("kind", &self.kind)
+                .field("span", &self.span)
+                .finish()
+        } else {
+            self.kind.fmt(f)
+        }
     }
 }
 
@@ -37,8 +44,6 @@ impl<'p> Spanned<'p> for Token<'p> {
 /// The kind for this token
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
-
-
     If,
     Else,
     While,

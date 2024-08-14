@@ -1,4 +1,4 @@
-use crate::common::identifier::Id;
+use aroma_ast::identifier::Id;
 use std::collections::HashSet;
 use std::num::NonZeroUsize;
 use std::sync::{Arc, RwLock};

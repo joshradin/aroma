@@ -83,10 +83,11 @@ fn class() -> Class {
         [Method::new(
             0,
             Vis::Public,
-            "getName".to_string(),
-            vec![],
+            "getName",
+            [],
             ClassInst::new(STRING_CLASS_NAME.to_string().into()),
-            vec![],
+            [],
+            []
         )],
     );
 

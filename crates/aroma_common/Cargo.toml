@@ -1,0 +1,10 @@
+[package]
+name = "aroma_common"
+authors.workspace = true
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+readme.workspace = true
+repository.workspace = true
+
+[dependencies]

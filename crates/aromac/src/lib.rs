@@ -7,8 +7,6 @@ pub mod common;
 mod compiler;
 pub use compiler::*;
 
-
-
 cfg_if! {
     if #[cfg(windows)] {
         #[path = "native/windows.rs"]

@@ -72,11 +72,14 @@ impl ClassHierarchy {
             }
         }
         for method in class.methods() {
-            if !self.contains(method.return_type().as_ref()) {
-                return Err(Error::ClassNotDefined(
-                    method.return_type().as_ref().clone(),
-                ));
+            if let Some(return_type) = method.return_type() {
+                if !self.contains(return_type.as_ref()) {
+                    return Err(Error::ClassNotDefined(
+                        return_type.as_ref().clone(),
+                    ));
+                }
             }
+
         }
 
         Ok(self.unchecked_insert(class))
