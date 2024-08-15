@@ -26,7 +26,7 @@ use crate::vm::StaticFunctionTable;
 pub mod abi;
 pub mod ir;
 
-/// JIT compiler, converting [ObjFunction](crate::types::function::ObjFunction) function objects into
+/// JIT compiler, converting [ObjFunction] function objects into
 /// compiled machine code.
 pub struct JIT {
     /// The function builder context, which is reused across multiple [FunctionBuilder] instances

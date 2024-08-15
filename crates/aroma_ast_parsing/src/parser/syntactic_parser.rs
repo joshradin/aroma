@@ -32,7 +32,8 @@ enum State<'p> {
 /// # use std::path::Path;
 /// # use aroma_ast_parsing::lexer::Lexer;
 /// # use aroma_ast_parsing::parser::SyntacticParser;
-/// let mut lexer = Lexer::new(Path::new("test_path"), &mut vec![]).unwrap();
+/// let mut buffer = vec![0_u8; 0];
+/// let mut lexer = Lexer::new(Path::new("test_path"), &*buffer).unwrap();
 /// let parser = SyntacticParser::from(lexer);
 /// ```
 #[derive(Debug)]

@@ -5,7 +5,7 @@ use itertools::Itertools;
 use nom::branch::alt;
 use nom::bytes::complete::is_not;
 use nom::character::complete::char;
-use nom::combinator::{all_consuming, map, map_res, value};
+use nom::combinator::{all_consuming, cut, map, map_res, value};
 use nom::error::{context, VerboseError};
 use nom::multi::separated_list0;
 use nom::sequence::{delimited, preceded, tuple};
@@ -90,19 +90,19 @@ fn parse_type_signature(input: &str) -> IResult<&str, TypeSignature, VerboseErro
             value(TypeSignature::Float, char('F')),
             value(TypeSignature::Double, char('D')),
             map(
-                map_res(delimited(char('L'), is_not(";"), char(';')), |path| {
+                map_res(delimited(char('L'), cut(is_not(";")), char(';')), |path| {
                     ClassInst::from_str(path)
                 }),
                 |t| TypeSignature::Invariant(t),
             ),
             map(
-                map_res(delimited(char('^'), is_not(";"), char(';')), |path| {
+                map_res(delimited(char('^'), cut(is_not(";")), char(';')), |path| {
                     ClassInst::from_str(path)
                 }),
                 |t| TypeSignature::Contravariant(t),
             ),
             map(
-                map_res(delimited(char('_'), is_not(";"), char(';')), |path| {
+                map_res(delimited(char('_'), cut(is_not(";")), char(';')), |path| {
                     ClassInst::from_str(path)
                 }),
                 |t| TypeSignature::Covariant(t),
@@ -116,7 +116,7 @@ fn parse_type_signature(input: &str) -> IResult<&str, TypeSignature, VerboseErro
                         "args",
                         delimited(
                             char('('),
-                            separated_list0(char(','), parse_type_signature),
+                            cut(separated_list0(char(','), parse_type_signature)),
                             char(')')
                         )
                     ),

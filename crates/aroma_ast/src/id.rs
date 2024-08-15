@@ -22,6 +22,30 @@ impl<'p> Id<'p> {
             .map(|vec| Id(vec))
     }
 
+    /// Tries to create an [Id] from an iterator of tokens.
+    ///
+    /// Returns `Some(Id)` if all tokens given are identifiers
+    #[track_caller]
+    pub fn new_call_site<I: IntoIterator<Item : AsRef<str>>>(tokens: I) -> Option<Self> {
+        let r = tokens
+            .into_iter()
+            .fold(vec![], |mut accum, next| {
+                let internal = IdInternal::new(
+                    Token::new(
+                        Span::call_site(),
+                        TokenKind::Identifier(next.as_ref().to_string())
+                    )
+                ).unwrap();
+                accum.push(internal);
+                accum
+            });
+        if r.is_empty() {
+            None
+        } else {
+            Some(Id(r))
+        }
+    }
+
     /// An iterator over the components of an Id
     pub fn iter(&self) -> impl Iterator<Item = &str> {
         self.0.iter().map(|s| &s.0).map(|tok| {
@@ -73,6 +97,14 @@ impl<'p> Id<'p> {
         }
         inner.extend(other.0.clone());
         Self(inner)
+    }
+
+    /// Joins two ids together, changing the span of it's all of this id to be before the other span
+    #[inline]
+    pub fn join<S : AsRef<str> + ?Sized>(&self, other: &S) -> Self {
+        self.concat(
+            &Id::new_call_site([other]).unwrap()
+        )
     }
 }
 impl Debug for Id<'_> {
