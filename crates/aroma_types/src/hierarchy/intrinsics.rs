@@ -87,7 +87,7 @@ fn class() -> Class {
             [],
             ClassInst::new(STRING_CLASS_NAME.to_string().into()),
             [],
-            []
+            [],
         )],
     );
 

@@ -1,8 +1,6 @@
 //! parsers used for creating the AST
 
-mod syntactic_parser;
 mod semantic_transform;
+mod syntactic_parser;
 
-pub use syntactic_parser::{SyntacticParser, syntax_tree::*};
-
-
+pub use syntactic_parser::{syntax_tree::*, Error, ErrorKind, SyntacticParser};

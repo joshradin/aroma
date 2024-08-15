@@ -1,13 +1,13 @@
+use crate::types::function::ObjNative;
+use crate::vm::error::VmError;
+use function::{FnSignature, ObjFunction};
+use itertools::Itertools;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Add, BitAnd, BitOr, Div, Mul, Neg, Sub};
 use std::sync::Arc;
-use itertools::Itertools;
-use function::{FnSignature, ObjFunction};
-use crate::types::function::ObjNative;
-use crate::vm::error::VmError;
 
-pub mod function;
 pub mod closures;
+pub mod function;
 mod obj;
 
 /// Every value has a type

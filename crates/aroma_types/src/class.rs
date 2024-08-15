@@ -2,9 +2,17 @@ use crate::field::Field;
 use crate::generic::{GenericDeclaration, GenericParameterBound, GenericParameterBounds};
 use crate::method::Method;
 use crate::vis::{Vis, Visibility};
+use aroma_common::nom_helpers::identifier_parser;
 use itertools::Itertools;
+use nom::character::complete::char;
+use nom::combinator::{all_consuming, map, opt, recognize};
+use nom::multi::{separated_list0, separated_list1};
+use nom::sequence::{delimited, tuple};
+use nom::{Finish, IResult, Parser};
 use petgraph::visit::Walker;
+use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
+use std::str::FromStr;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum ClassKind {
@@ -41,7 +49,7 @@ impl Class {
     where
         G: IntoIterator<Item = GenericDeclaration>,
         S: Into<Option<ClassInst>>,
-        M: IntoIterator<Item =ClassInst>,
+        M: IntoIterator<Item = ClassInst>,
         F: IntoIterator<Item = Field>,
         Me: IntoIterator<Item = Method>,
     {
@@ -58,10 +66,7 @@ impl Class {
     }
 
     /// Creates a new class
-    pub fn with_self_reference<Fn>(
-        name: impl AsRef<str>,
-        cb: Fn,
-    ) -> Self
+    pub fn with_self_reference<Fn>(name: impl AsRef<str>, cb: Fn) -> Self
     where
         Fn: FnOnce(ClassRef) -> Self,
     {
@@ -73,7 +78,6 @@ impl Class {
     pub fn get_ref(&self) -> ClassRef {
         ClassRef(self.name.clone())
     }
-
 
     pub fn vis(&self) -> Vis {
         self.vis
@@ -156,7 +160,7 @@ pub trait AsClassRef {
     fn as_class_ref(&self) -> ClassRef;
 }
 
-impl<I : Into<ClassRef> + Clone> AsClassRef for I {
+impl<I: Into<ClassRef> + Clone> AsClassRef for I {
     fn as_class_ref(&self) -> ClassRef {
         self.clone().into()
     }
@@ -204,6 +208,46 @@ impl ClassInst {
     }
 }
 
+fn class_inst_parser(v: &str) -> IResult<&str, ClassInst> {
+    let fqi = recognize(separated_list1(char('.'), identifier_parser()));
+    map(
+        tuple((
+            fqi,
+            opt(delimited(
+                char('<'),
+                separated_list0(char(','), class_inst_parser),
+                char('>'),
+            )),
+        )),
+        |(fqi, generics)| {
+            let fqi = ClassRef::from(fqi);
+            match generics {
+                Some(generics) => ClassInst::with_generics(
+                    fqi,
+                    generics.into_iter().map(GenericParameterBound::Invariant),
+                ),
+                None => ClassInst::new(fqi),
+            }
+        },
+    )(v)
+}
+
+impl FromStr for ClassInst {
+    type Err = ParseClassInstError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        all_consuming(class_inst_parser)(s)
+            .finish()
+            .map_err(|nom::error::Error::<_> { code, input }| {
+                ParseClassInstError(Box::new(nom::error::Error::<_> {
+                    code,
+                    input: input.to_string(),
+                }))
+            })
+            .map(|(_, ret)| ret)
+    }
+}
+
 impl AsRef<ClassRef> for ClassInst {
     fn as_ref(&self) -> &ClassRef {
         &self.0
@@ -223,5 +267,62 @@ impl Debug for ClassInst {
 impl Display for ClassInst {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{self:?}")
+    }
+}
+
+impl From<ClassRef> for ClassInst {
+    fn from(value: ClassRef) -> Self {
+        ClassInst::new(value)
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("An error occurred while parsing a class inst: {0}")]
+pub struct ParseClassInstError(Box<dyn Error>);
+
+#[cfg(test)]
+mod tests {
+    use crate::class::{ClassInst, ClassRef};
+    use crate::generic::GenericParameterBound;
+
+    #[test]
+    fn test_parse_basic_class_inst() {
+        let t = "aroma.system.Object";
+        let class_inst: ClassInst = t.parse().expect("could not parse");
+        assert_eq!(
+            class_inst,
+            ClassInst::new(ClassRef::from("aroma.system.Object"))
+        )
+    }
+
+    #[test]
+    fn test_parse_basic_class_inst_with_generics1() {
+        let t = "aroma.system.Class<aroma.system.Object>";
+        let class_inst: ClassInst = t.parse().expect("could not parse");
+        assert_eq!(
+            class_inst,
+            ClassInst::with_generics(
+                ClassRef::from("aroma.system.Class"),
+                [GenericParameterBound::Invariant(
+                    ClassRef::from("aroma.system.Object").into()
+                )]
+            )
+        )
+    }
+
+    #[test]
+    fn test_parse_basic_class_inst_with_generics2() {
+        let t = "aroma.system.Tuple2<aroma.system.Object,aroma.system.Object>";
+        let class_inst: ClassInst = t.parse().expect("could not parse");
+        assert_eq!(
+            class_inst,
+            ClassInst::with_generics(
+                ClassRef::from("aroma.system.Tuple2"),
+                [
+                    GenericParameterBound::Invariant(ClassRef::from("aroma.system.Object").into()),
+                    GenericParameterBound::Invariant(ClassRef::from("aroma.system.Object").into())
+                ]
+            )
+        )
     }
 }

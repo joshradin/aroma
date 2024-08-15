@@ -57,15 +57,15 @@ impl GenericParameterBound {
         }
     }
 
-    pub fn is_invariant(&self) ->bool {
+    pub fn is_invariant(&self) -> bool {
         matches!(self, Self::Invariant(_))
     }
 
-    pub fn is_covariant(&self) ->bool {
+    pub fn is_covariant(&self) -> bool {
         matches!(self, Self::Covariant(_))
     }
 
-    pub fn is_contravariant(&self) ->bool {
+    pub fn is_contravariant(&self) -> bool {
         matches!(self, Self::Contravariant(_))
     }
 }

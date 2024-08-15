@@ -8,7 +8,7 @@ use thiserror::Error;
 pub struct Object {
     signature: ClassInst,
     layout: NonNull<ObjectLayout>,
-    data: Box<[u8]>
+    data: Box<[u8]>,
 }
 
 #[derive(Debug)]
@@ -37,7 +37,8 @@ impl ObjectLayout {
         };
 
         let mut offset = base.size;
-        base.field_offsets.insert((class_inst.clone(), None), offset);
+        base.field_offsets
+            .insert((class_inst.clone(), None), offset);
         offset += size_of::<usize>();
 
         for field in class.fields() {
@@ -75,9 +76,7 @@ impl ObjectLayout {
 
     ///
     pub fn vtable_offset(&self, class_inst: &ClassInst) -> Option<usize> {
-        self.field_offsets
-            .get(&(class_inst.clone(), None))
-            .copied()
+        self.field_offsets.get(&(class_inst.clone(), None)).copied()
     }
 }
 
@@ -90,8 +89,8 @@ pub enum ObjectLayoutError {
 #[cfg(test)]
 mod tests {
     use crate::types::obj::ObjectLayout;
-    use aroma_types::hierarchy::ClassHierarchy;
     use aroma_types::hierarchy::intrinsics::CLASS_CLASS;
+    use aroma_types::hierarchy::ClassHierarchy;
 
     #[test]
     fn create_base_object_layout() {

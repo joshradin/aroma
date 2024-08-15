@@ -2,10 +2,10 @@ use std::mem::transmute;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use aroma_vm::{examples, function};
 use aroma_vm::jit::JIT;
 use aroma_vm::types::function::ObjFunction;
 use aroma_vm::vm::{AromaVm, StaticFunctionTable};
+use aroma_vm::{examples, function};
 
 const TEST_N: i64 = 47;
 
@@ -41,10 +41,14 @@ fn run_vm(expected: i64) -> Duration {
 fn run_jit(expected: i64) -> Duration {
     let fibonacci = Arc::new(examples::fibonacci());
     let static_table = StaticFunctionTable::default();
-    static_table.write().insert(fibonacci.name().to_string(), fibonacci.clone());
-    let ptr = JIT::new(&static_table).compile(&fibonacci).expect("could not compile");
+    static_table
+        .write()
+        .insert(fibonacci.name().to_string(), fibonacci.clone());
+    let ptr = JIT::new(&static_table)
+        .compile(&fibonacci)
+        .expect("could not compile");
     let start = Instant::now();
-    let result = unsafe { transmute::<_, fn(i64) -> i64>(ptr)(TEST_N)};
+    let result = unsafe { transmute::<_, fn(i64) -> i64>(ptr)(TEST_N) };
     assert_eq!(result, expected);
     start.elapsed()
 }

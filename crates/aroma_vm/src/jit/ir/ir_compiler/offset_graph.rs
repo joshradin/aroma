@@ -8,8 +8,7 @@ use petgraph::adj::NodeIndices;
 use petgraph::prelude::*;
 use rangemap::{RangeMap, RangeSet};
 
-use aroma_bytecode::chunk::{IntoOpcodeIterator, last_opcode_index, OpCode};
-
+use aroma_bytecode::chunk::{last_opcode_index, IntoOpcodeIterator, OpCode};
 
 /// A graph of
 #[derive(Debug, Default)]
@@ -18,11 +17,11 @@ pub struct OffsetGraph {
 }
 
 impl OffsetGraph {
-    pub fn node_indices(&self) -> impl Iterator<Item=NodeIndex> {
+    pub fn node_indices(&self) -> impl Iterator<Item = NodeIndex> {
         self.g.node_indices()
     }
 
-    pub fn neighbors(&self, node: NodeIndex) -> impl Iterator<Item=NodeIndex> + '_ {
+    pub fn neighbors(&self, node: NodeIndex) -> impl Iterator<Item = NodeIndex> + '_ {
         self.g.neighbors(node)
     }
 }
@@ -81,22 +80,34 @@ pub fn get_offset_graph(bytecode: &[u8]) -> OffsetGraph {
                 OpCode::JumpIfFalse => {
                     let jump_size = u16::from_be_bytes(bytes.try_into().unwrap());
                     let next_start = end_offset + jump_size as usize;
-                    jump_from_to.entry(start_offset + offset).or_default().insert(next_start);
-                    jump_from_to.entry(start_offset + offset).or_default().insert(end_offset);
+                    jump_from_to
+                        .entry(start_offset + offset)
+                        .or_default()
+                        .insert(next_start);
+                    jump_from_to
+                        .entry(start_offset + offset)
+                        .or_default()
+                        .insert(end_offset);
                     stack.push(next_start);
                     stack.push(end_offset);
                 }
                 OpCode::Jump => {
                     let jump_size = u16::from_be_bytes(bytes.try_into().unwrap());
                     let next_start = end_offset + jump_size as usize;
-                    jump_from_to.entry(start_offset + offset).or_default().insert(next_start);
+                    jump_from_to
+                        .entry(start_offset + offset)
+                        .or_default()
+                        .insert(next_start);
                     stack.push(next_start);
                 }
                 OpCode::Loop => {
                     let jump_size =
                         (-i32::from(u16::from_be_bytes(bytes.try_into().unwrap()))) as isize;
                     let next_start = end_offset.saturating_add_signed(jump_size);
-                    jump_from_to.entry(start_offset + offset).or_default().insert(next_start);
+                    jump_from_to
+                        .entry(start_offset + offset)
+                        .or_default()
+                        .insert(next_start);
                     stack.push(next_start);
                 }
                 _ => {}

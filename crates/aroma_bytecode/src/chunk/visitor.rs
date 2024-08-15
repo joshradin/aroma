@@ -1,9 +1,9 @@
-use std::cell::Cell;
 use aroma_visitor_gen::visitor;
+use std::cell::Cell;
 
-use crate::chunk::Chunk;
 use crate::chunk::constant::Constant;
 use crate::chunk::opcode::OpCode;
+use crate::chunk::Chunk;
 
 visitor! {
     pub trait ChunkVisitor {
@@ -90,15 +90,23 @@ impl<'a, T: ChunkVisitor> ChunkVisitorDriver<'a, T> {
             OpCode::Constant | OpCode::Call => {
                 let constant_idx = self.chunk.code()[offset + 1];
                 let constant = self.chunk.get_constant(constant_idx).unwrap();
-                self.visitor
-                    .visit_constant_instruction(offset, &instruction, constant_idx, constant)?;
+                self.visitor.visit_constant_instruction(
+                    offset,
+                    &instruction,
+                    constant_idx,
+                    constant,
+                )?;
                 Ok(offset + 2)
             }
             OpCode::Closure => {
                 let constant_idx = self.chunk.code()[offset + 1];
                 let constant = self.chunk.get_constant(constant_idx).unwrap();
-                self.visitor
-                    .visit_closure_instruction(offset, &instruction, constant_idx, constant)?;
+                self.visitor.visit_closure_instruction(
+                    offset,
+                    &instruction,
+                    constant_idx,
+                    constant,
+                )?;
                 Ok(offset + 2)
             }
             OpCode::GetLocalVar | OpCode::SetLocalVar => {
@@ -150,7 +158,7 @@ impl ChunkVisitor for DefaultChunkDriver {
 }
 
 /// A visitor that maintains a continuous offset that re-used for every chunk visited
-pub struct ContinuousOffsetVisitor<V : ChunkVisitor> {
+pub struct ContinuousOffsetVisitor<V: ChunkVisitor> {
     offset: Cell<usize>,
     visitor: V,
 }
@@ -164,41 +172,77 @@ impl<V: ChunkVisitor> ContinuousOffsetVisitor<V> {
     }
 }
 
-impl<V : ChunkVisitor> ChunkVisitor for ContinuousOffsetVisitor<V> {
+impl<V: ChunkVisitor> ChunkVisitor for ContinuousOffsetVisitor<V> {
     type Err = V::Err;
 
-    fn visit_simple_instruction(&mut self, _offset: usize, opcode: &OpCode) -> Result<(), Self::Err> {
-        self.visitor.visit_simple_instruction(self.offset.get(), opcode)?;
+    fn visit_simple_instruction(
+        &mut self,
+        _offset: usize,
+        opcode: &OpCode,
+    ) -> Result<(), Self::Err> {
+        self.visitor
+            .visit_simple_instruction(self.offset.get(), opcode)?;
         self.offset.set(self.offset.get() + 1);
         Ok(())
     }
 
-    fn visit_jump_instruction(&mut self, _offset: usize, opcode: &OpCode, jmp_offset: u16) -> Result<(), Self::Err> {
-        self.visitor.visit_jump_instruction(self.offset.get(), opcode, jmp_offset)?;
+    fn visit_jump_instruction(
+        &mut self,
+        _offset: usize,
+        opcode: &OpCode,
+        jmp_offset: u16,
+    ) -> Result<(), Self::Err> {
+        self.visitor
+            .visit_jump_instruction(self.offset.get(), opcode, jmp_offset)?;
         self.offset.set(self.offset.get() + 3);
         Ok(())
     }
 
-    fn visit_loop_instruction(&mut self, _offset: usize, opcode: &OpCode, jmp_offset: i32) -> Result<(), Self::Err> {
-        self.visitor.visit_loop_instruction(self.offset.get(), opcode, jmp_offset)?;
+    fn visit_loop_instruction(
+        &mut self,
+        _offset: usize,
+        opcode: &OpCode,
+        jmp_offset: i32,
+    ) -> Result<(), Self::Err> {
+        self.visitor
+            .visit_loop_instruction(self.offset.get(), opcode, jmp_offset)?;
         self.offset.set(self.offset.get() + 3);
         Ok(())
     }
 
-    fn visit_constant_instruction(&mut self, _offset: usize, opcode: &OpCode, idx: u8, constant: &Constant) -> Result<(), Self::Err> {
-        self.visitor.visit_constant_instruction(self.offset.get(), opcode, idx, constant)?;
+    fn visit_constant_instruction(
+        &mut self,
+        _offset: usize,
+        opcode: &OpCode,
+        idx: u8,
+        constant: &Constant,
+    ) -> Result<(), Self::Err> {
+        self.visitor
+            .visit_constant_instruction(self.offset.get(), opcode, idx, constant)?;
         self.offset.set(self.offset.get() + 2);
         Ok(())
     }
 
-    fn visit_global_instruction(&mut self, _offset: usize, opcode: &OpCode, global: &str) -> Result<(), Self::Err> {
-        self.visitor.visit_global_instruction(self.offset.get(), opcode, global)?;
+    fn visit_global_instruction(
+        &mut self,
+        _offset: usize,
+        opcode: &OpCode,
+        global: &str,
+    ) -> Result<(), Self::Err> {
+        self.visitor
+            .visit_global_instruction(self.offset.get(), opcode, global)?;
         self.offset.set(self.offset.get() + 2);
         Ok(())
     }
 
-    fn visit_local_var_instruction(&mut self, _offset: usize, opcode: &OpCode, var_idx: u8) -> Result<(), Self::Err> {
-        self.visitor.visit_local_var_instruction(self.offset.get(), opcode, var_idx)?;
+    fn visit_local_var_instruction(
+        &mut self,
+        _offset: usize,
+        opcode: &OpCode,
+        var_idx: u8,
+    ) -> Result<(), Self::Err> {
+        self.visitor
+            .visit_local_var_instruction(self.offset.get(), opcode, var_idx)?;
         self.offset.set(self.offset.get() + 2);
         Ok(())
     }

@@ -57,7 +57,7 @@ pub enum OpCode {
     Call = 128,
 
     /// Create a closure
-    Closure = 196
+    Closure = 196,
 }
 
 impl OpCode {

@@ -215,7 +215,7 @@ impl<R: Seek> Seek for BufReader<R> {
     }
 }
 
-impl<R : Debug> Debug for BufReader<R> {
+impl<R: Debug> Debug for BufReader<R> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("BufReader")
             .field("inner", &self.inner)
@@ -229,34 +229,33 @@ impl<R : Debug> Debug for BufReader<R> {
 pub trait Parse<O, E, P> {
     fn parse(&mut self, p: P) -> Result<O, ParseError<E>>
     where
-            for<'a> P: Parser<&'a [u8], O, E>;
+        for<'a> P: Parser<&'a [u8], O, E>;
 }
 
 impl<R: Read, O, E, P> Parse<O, E, P> for BufReader<R> {
     fn parse(&mut self, mut p: P) -> Result<O, ParseError<E>>
     where
-            for<'a> P: Parser<&'a [u8], O, E>,
+        for<'a> P: Parser<&'a [u8], O, E>,
     {
         let mut eof = false;
         let mut error = None;
         loop {
             let result = p.parse(self.buffer());
             let opt = match result {
-                Err(Err::Error(e)) => {
-                    return Err(ParseError::Error(e))
-                }
-                Err(Err::Failure(e)) => {
-                    return Err(ParseError::Failure(e))
-                }
+                Err(Err::Error(e)) => return Err(ParseError::Error(e)),
+                Err(Err::Failure(e)) => return Err(ParseError::Failure(e)),
                 Err(Err::Incomplete(Needed::Size(e))) => {
                     if e.get() <= self.buffer().len() {
-                        return Err(ParseError::UnexpectedStartOfToken(String::from_utf8_lossy(self.buffer()).chars().next().unwrap()));
+                        return Err(ParseError::UnexpectedStartOfToken(
+                            String::from_utf8_lossy(self.buffer())
+                                .chars()
+                                .next()
+                                .unwrap(),
+                        ));
                     }
                     None
                 }
-                Err(Err::Incomplete(Needed::Unknown)) => {
-                    None
-                }
+                Err(Err::Incomplete(Needed::Unknown)) => None,
                 Ok((i, o)) => {
                     let offset = self.buffer().offset(i);
                     Some((offset, o))
@@ -305,4 +304,3 @@ pub enum ParseError<E> {
     #[error("Unexpected input {0}")]
     UnexpectedStartOfToken(char),
 }
-

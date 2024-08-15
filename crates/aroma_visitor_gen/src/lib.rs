@@ -3,7 +3,6 @@ pub mod __exports {
     pub use paste;
 }
 
-
 /// Creates a visitor
 #[macro_export]
 macro_rules! visitor {

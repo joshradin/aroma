@@ -3,8 +3,8 @@
 use std::collections::HashMap;
 use std::num::NonZero;
 use std::ptr::NonNull;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicIsize, AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 
@@ -13,15 +13,15 @@ use parking_lot::{Mutex, RwLock};
 
 use error::VmError;
 
-use aroma_bytecode::chunk::Chunk;
 #[cfg(feature = "jit")]
-use crate::jit::{JIT, JITConfig, JitResult};
+use crate::jit::{JITConfig, JitResult, JIT};
 use crate::types::function::{ObjFunction, ObjNative};
 use crate::types::Value;
 use crate::vm::natives::NATIVES;
 use crate::vm::thread_executor::{
     AromaThreadHandle, AromaThreadId, ThreadExecutor, ThreadResult, ThreadResultHolder,
 };
+use aroma_bytecode::chunk::Chunk;
 
 pub mod error;
 pub mod natives;

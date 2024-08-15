@@ -11,7 +11,6 @@ use crate::args::Args;
 
 mod args;
 
-
 fn main() -> eyre::Result<()> {
     color_eyre::install()?;
     let args = Args::parse();

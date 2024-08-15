@@ -2,9 +2,9 @@
 
 use cfg_if::cfg_if;
 
-pub mod frontend;
 pub mod common;
 mod compiler;
+pub mod frontend;
 pub use compiler::*;
 
 cfg_if! {
@@ -24,6 +24,6 @@ cfg_if! {
         pub mod macos;
         pub use macos as os;
     } else {
-        compile_error!("unsupported OS for compiling")
+        compile_error! { "unsupported OS for compiling" }
     }
 }

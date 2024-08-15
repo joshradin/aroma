@@ -1,26 +1,26 @@
 //! Used for creating just in time compiled sources for the avm
 
-use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Formatter};
 
 use cranelift::codegen::ir::stackslot::StackSize;
-use cranelift::prelude::*;
 use cranelift::prelude::types::{F32, F64, I32, I64, I8, R64};
+use cranelift::prelude::*;
 use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{DataDescription, FuncId, Linkage, Module, ModuleError};
 use log::trace;
 use parking_lot::Mutex;
 
-use aroma_bytecode::chunk::OpCode;
 use aroma_bytecode::chunk::Constant;
+use aroma_bytecode::chunk::OpCode;
 use aroma_bytecode::chunk::UnknownOpcode;
 
 use crate::jit::ir::{
     Block as IrBlockId, CompileIrError, IrBlock, IrCompiler, IrFunction, IrOp, IrValue,
 };
-use crate::types::{Type as AromaType, Value as AromaValue};
 use crate::types::function::{FnSignature, ObjFunction};
+use crate::types::{Type as AromaType, Value as AromaValue};
 use crate::vm::StaticFunctionTable;
 
 pub mod abi;
@@ -668,8 +668,12 @@ mod tests {
         ));
 
         let function_table = StaticFunctionTable::default();
-        function_table.write().insert("sum2".to_string(), sum2_func.clone());
-        function_table.write().insert("sum".to_string(), sum_func.clone());
+        function_table
+            .write()
+            .insert("sum2".to_string(), sum2_func.clone());
+        function_table
+            .write()
+            .insert("sum".to_string(), sum_func.clone());
         let mut jit = JIT::new(&function_table);
         let _ = jit.compile(&sum2_func).expect("could not compile");
         let r = jit.compile(&sum_func).expect("could not compile");

@@ -4,8 +4,8 @@ use std::io::BufWriter;
 use std::num::NonZero;
 use std::ops::Neg;
 use std::rc::Rc;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicIsize, Ordering};
+use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 
@@ -14,13 +14,13 @@ use itertools::Itertools;
 use log::{debug, trace};
 use parking_lot::Mutex;
 
-use aroma_bytecode::chunk::{Chunk, OpCode};
-use aroma_bytecode::chunk::Constant;
 use crate::debug::Disassembler;
 use crate::types::function::ObjFunction;
 use crate::types::Value;
-use crate::vm::{Chunks, Globals, InsPtr, StaticFunctionTable, StaticNativeTable};
 use crate::vm::error::VmError;
+use crate::vm::{Chunks, Globals, InsPtr, StaticFunctionTable, StaticNativeTable};
+use aroma_bytecode::chunk::Constant;
+use aroma_bytecode::chunk::{Chunk, OpCode};
 
 pub type ThreadResultHolder = Arc<Mutex<Option<Result<ThreadResult, VmError>>>>;
 
@@ -150,9 +150,7 @@ impl ThreadExecutor {
                     frame
                         .vars
                         .iter()
-                        .map(|(idx, val)| format!(
-                            "var_{idx}={val}"
-                        ))
+                        .map(|(idx, val)| format!("var_{idx}={val}"))
                         .join(", ")
                 );
             }
@@ -165,7 +163,6 @@ impl ThreadExecutor {
                 // trace!("frame stack: {:#?}", &self.frame_stack);
                 trace!("");
             }
-
 
             match op_code {
                 OpCode::Constant => {

@@ -126,6 +126,8 @@ name = "aroma_ast_parsing"
 version = "0.0.0"
 dependencies = [
  "aroma_ast",
+ "aroma_common",
+ "aroma_types",
  "nom",
  "tempfile",
  "thiserror",
@@ -144,13 +146,18 @@ dependencies = [
 [[package]]
 name = "aroma_common"
 version = "0.0.0"
+dependencies = [
+ "nom",
+]
 
 [[package]]
 name = "aroma_types"
 version = "0.0.0"
 dependencies = [
+ "aroma_common",
  "derive_more",
  "itertools",
+ "nom",
  "parking_lot",
  "paste",
  "petgraph",

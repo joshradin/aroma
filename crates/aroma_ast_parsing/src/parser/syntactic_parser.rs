@@ -1,17 +1,16 @@
 use crate::lexer::Lexer;
+use aroma_ast::id::Id;
 use aroma_ast::token::{Token, TokenKind};
-use error::{Error, ErrorKind};
 use std::fmt::{Display, Pointer};
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
-use aroma_ast::identifier::Id;
 
 pub mod error;
 pub mod syntax_tree;
 
-use crate::parser::{Constant, ConstantKind, PrimaryExpression, ParseSyntaxTree, SyntaxTree,};
-use error::*;
+use crate::parser::{Constant, ConstantKind, Parse};
+pub use error::*;
 
 #[derive(Debug, Default)]
 enum State<'p> {
@@ -126,12 +125,11 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
     }
 
     /// Wrapper function for parsing an item
-    pub fn parse<T>(&mut self) -> std::result::Result<T, <Self as ParseSyntaxTree<'p, T>>::Err>
+    pub fn parse<T>(&mut self) -> std::result::Result<T, T::Err>
     where
-        Self: ParseSyntaxTree<'p, T>,
-        T: SyntaxTree<'p>,
+        T: Parse<'p>,
     {
-        self.parse_tree()
+        T::parse(self)
     }
 }
 
@@ -144,44 +142,23 @@ impl<'p> SyntacticParser<'p, File> {
     }
 }
 
-
-impl<'p, R: Read> ParseSyntaxTree<'p, Constant<'p>> for SyntacticParser<'p, R> {
+impl<'p> Parse<'p> for Id<'p> {
     type Err = Error<'p>;
 
-    fn parse_tree(&mut self) -> std::result::Result<Constant<'p>, Self::Err> {
-        if let Some(tok) = self.consume_if(|token| matches!(token.kind(), TokenKind::Float(_)))? {
+    fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> std::result::Result<Self, Self::Err> {
+        if let Some(tok) =
+            parser.consume_if(|token| matches!(token.kind(), TokenKind::Identifier(_)))?
+        {
             match tok.kind() {
-                TokenKind::Float(f) => Ok(Constant {
-                    kind: ConstantKind::Float(*f),
-                    tok,
-                }),
+                TokenKind::Identifier(_) => Ok(Id::new([tok]).unwrap()),
                 _ => unreachable!(),
             }
         } else {
-            Err(self.error(ErrorKind::expected_token(["constant".to_string()]), None))
+            let kind = ErrorKind::expected_token(["constant".to_string()], parser.consume()?);
+            Err(parser.error(kind, None))
         }
     }
 }
-
-
-impl<'p, R: Read> ParseSyntaxTree<'p, Id<'p>> for SyntacticParser<'p, R> {
-    type Err = Error<'p>;
-
-    fn parse_tree(&mut self) -> std::result::Result<Id<'p>, Self::Err> {
-        if let Some(tok) = self.consume_if(|token| matches!(token.kind(), TokenKind::Identifier(_)))? {
-            match tok.kind() {
-                TokenKind::Identifier(_) => {
-                    Ok(Id::new([tok]).unwrap())
-                }
-                _ => unreachable!(),
-            }
-        } else {
-            Err(self.error(ErrorKind::expected_token(["constant".to_string()]), None))
-        }
-    }
-}
-
-
 impl<'p, R: Read> From<Lexer<'p, R>> for SyntacticParser<'p, R> {
     fn from(value: Lexer<'p, R>) -> Self {
         Self::new(value)
@@ -191,7 +168,7 @@ impl<'p, R: Read> From<Lexer<'p, R>> for SyntacticParser<'p, R> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser::ConstantKind;
+    use crate::parser::{ConstantKind, Expr};
     use aroma_ast::spanned::{Span, Spanned};
     use aroma_ast::token::{ToTokens, TokenKind};
     use std::io::Write as _;
@@ -248,7 +225,18 @@ mod tests {
         test_parser("3.0", |parser, _| {
             let constant = parser.parse::<Constant>().unwrap();
             assert!(matches!(constant.kind, ConstantKind::Float(3.0)));
-            println!("{constant:#?} -> {:#?}", constant.to_tokens().collect::<Vec<_>>());
+            println!(
+                "{constant:?} -> {:#?}",
+                constant.to_tokens().collect::<Vec<_>>()
+            );
+        });
+        test_parser("3", |parser, _| {
+            let constant = parser.parse::<Constant>().unwrap();
+            assert!(matches!(constant.kind, ConstantKind::Integer(3)));
+            println!(
+                "{constant:?} -> {:#?}",
+                constant.to_tokens().collect::<Vec<_>>()
+            );
         })
     }
     #[test]
@@ -259,4 +247,21 @@ mod tests {
         })
     }
 
+    #[test]
+    fn test_parse_expressions() {
+        test_parser("helloWorld + 3*2/5 - 1", |parser, _| {
+            let expr = parser.parse::<Expr>().unwrap();
+            println!("{expr:#?}");
+            println!("{:?}", expr.to_tokens().collect::<Vec<_>>())
+        })
+    }
+
+    #[test]
+    fn test_parse_method_calls() {
+        test_parser("foo(bar(), bar(1+2))", |parser, _| {
+            let expr = parser.parse::<Expr>().unwrap();
+            println!("{expr:#?}");
+            println!("{:?}", expr.to_tokens().collect::<Vec<_>>())
+        })
+    }
 }

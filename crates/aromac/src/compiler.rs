@@ -15,7 +15,7 @@ mod compile_job;
 pub struct AromaC {
     max_jobs: usize,
     output_directory: PathBuf,
-    compile_jobs: HashMap<PathBuf, CompileJobHandle>
+    compile_jobs: HashMap<PathBuf, CompileJobHandle>,
 }
 
 impl AromaC {
@@ -45,7 +45,6 @@ impl AromaC {
 pub enum AromaCError {
     #[error(transparent)]
     Io(#[from] io::Error),
-
 }
 
 /// Builder for creating a [AromaC] instance.
@@ -110,5 +109,5 @@ pub enum BuildAromaCError {
     #[error("{0:?} is not a directory")]
     OutputDirectoryIsNotADirectory(PathBuf),
     #[error("Compilation can't occur if no jobs are allowed")]
-    ZeroJobs
+    ZeroJobs,
 }

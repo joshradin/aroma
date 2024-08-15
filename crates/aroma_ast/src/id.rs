@@ -1,9 +1,10 @@
+use crate::spanned::{Span, Spanned};
 use crate::token::{ToTokens, Token, TokenKind, TokenStream};
 use itertools::Itertools;
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Id<'p>(Vec<IdInternal<'p>>);
 
 impl<'p> Id<'p> {
@@ -51,11 +52,41 @@ impl<'p> Id<'p> {
             unreachable!()
         }
     }
-}
 
+    /// Joins two ids together, changing the span of it's all the children in other to right after this span
+    pub fn concat(&self, other: &Self) -> Self {
+        let mut inner = self.0.clone();
+        let end = self.span().end();
+        for id in &other.0 {
+            inner.push(IdInternal(Token::new(end, id.0.kind().clone())));
+        }
+        Self(inner)
+    }
+
+    /// Joins two ids together, changing the span of it's all of this id to be before the other span
+    pub fn resolve(&self, other: &Self) -> Self {
+        let mut inner = vec![];
+        let span = other.span();
+        let start = Span::new(span.file(), span.offset(), 0);
+        for id in &self.0 {
+            inner.push(IdInternal(Token::new(start, id.0.kind().clone())));
+        }
+        inner.extend(other.0.clone());
+        Self(inner)
+    }
+}
+impl Debug for Id<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Id({:?})",
+            self.0.iter().map(|t| t.to_string()).join(".")
+        )
+    }
+}
 impl Display for Id<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0.iter().map(|t| t.to_string()).join(","))
+        write!(f, "{}", self.0.iter().map(|t| t.to_string()).join("."))
     }
 }
 

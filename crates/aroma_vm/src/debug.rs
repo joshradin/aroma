@@ -1,11 +1,11 @@
 //! Helps with debugging
 
 use std::io;
-use std::io::{BufWriter, stdout, Write};
+use std::io::{stdout, BufWriter, Write};
 
-use aroma_bytecode::chunk::{Chunk, ChunkVisitor, ChunkVisitorFunctions, OpCode};
-use aroma_bytecode::chunk::Constant;
 use crate::types::function::ObjFunction;
+use aroma_bytecode::chunk::Constant;
+use aroma_bytecode::chunk::{Chunk, ChunkVisitor, ChunkVisitorFunctions, OpCode};
 
 /// Responsible for disassembling bytes
 #[derive(Debug)]
@@ -77,8 +77,6 @@ impl Disassembler {
 
         Ok(())
     }
-
-
 }
 
 fn format_constant<W: Write>(
@@ -170,8 +168,9 @@ impl<W: Write> ChunkVisitor for DisassemblerVisitor<'_, W> {
         jmp_offset: i32,
     ) -> Result<(), Self::Err> {
         ChunkVisitorFunctions::visit_loop_instruction(self, offset, opcode, jmp_offset)?;
-        let jmp_distance =
-            i32::from(u16::from_be_bytes(self.chunk.code()[offset + 1..][..2].try_into().unwrap())) as isize;
+        let jmp_distance = i32::from(u16::from_be_bytes(
+            self.chunk.code()[offset + 1..][..2].try_into().unwrap(),
+        )) as isize;
         writeln!(
             self.w,
             "{:<16} {jmp_distance:<6} // {:06x}",
@@ -188,7 +187,13 @@ impl<W: Write> ChunkVisitor for DisassemblerVisitor<'_, W> {
         constant_idx: u8,
         constant: &Constant,
     ) -> Result<(), Self::Err> {
-        ChunkVisitorFunctions::visit_constant_instruction(self, offset, opcode, constant_idx, constant)?;
+        ChunkVisitorFunctions::visit_constant_instruction(
+            self,
+            offset,
+            opcode,
+            constant_idx,
+            constant,
+        )?;
         let constant_idx = self.chunk.code()[offset + 1];
         write!(self.w, "{:<16} #{constant_idx:<5} // ", opcode.as_ref())?;
         format_constant(&self.chunk, constant_idx, constant, &mut self.w)?;
@@ -218,7 +223,13 @@ impl<W: Write> ChunkVisitor for DisassemblerVisitor<'_, W> {
         Ok(())
     }
 
-    fn visit_closure_instruction(&mut self, offset: usize, opcode: &OpCode, idx: u8, constant: &Constant) -> Result<(), Self::Err> {
+    fn visit_closure_instruction(
+        &mut self,
+        offset: usize,
+        opcode: &OpCode,
+        idx: u8,
+        constant: &Constant,
+    ) -> Result<(), Self::Err> {
         ChunkVisitorFunctions::visit_closure_instruction(self, offset, opcode, idx, constant)?;
         let constant_idx = self.chunk.code()[offset + 1];
         write!(self.w, "{:<16} #{constant_idx:<5} // ", opcode.as_ref())?;
@@ -228,14 +239,12 @@ impl<W: Write> ChunkVisitor for DisassemblerVisitor<'_, W> {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
-    use aroma_bytecode::chunk::Chunk;
-    use aroma_bytecode::chunk::Constant;
     use crate::debug::Disassembler;
     use crate::examples::{factorial, fibonacci};
+    use aroma_bytecode::chunk::Chunk;
+    use aroma_bytecode::chunk::Constant;
 
     #[test]
     fn test_disassemble_chunk() {

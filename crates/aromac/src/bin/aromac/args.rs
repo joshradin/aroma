@@ -1,9 +1,9 @@
 //! the args for running aromac
 
-use std::path::{Path, PathBuf};
-use clap::ArgAction;
 use clap::value_parser;
+use clap::ArgAction;
 use log::LevelFilter;
+use std::path::{Path, PathBuf};
 
 use aromac::os::PATH_DELIMITER;
 
@@ -26,7 +26,7 @@ pub struct Args {
     ///
     /// Can use multiple includes for many files, a native PATH-like string, or both.
     #[clap(short = 'i', long = "include")]
-    include: Vec<String>
+    include: Vec<String>,
 }
 
 impl Args {
@@ -47,9 +47,7 @@ impl Args {
     pub fn included(&self) -> Vec<&Path> {
         self.include
             .iter()
-            .flat_map(|s| {
-                s.split(PATH_DELIMITER)
-            })
+            .flat_map(|s| s.split(PATH_DELIMITER))
             .map(|s| Path::new(s))
             .collect()
     }
@@ -57,8 +55,8 @@ impl Args {
 
 #[cfg(test)]
 mod tests {
-    use clap::Parser;
     use super::*;
+    use clap::Parser;
 
     #[test]
     fn test_args_parsing() {

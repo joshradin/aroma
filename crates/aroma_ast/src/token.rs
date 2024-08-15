@@ -52,11 +52,9 @@ pub enum TokenKind {
     Interface,
     Abstract,
 
-
     Fn,
     Const,
     Let,
-
 
     Identifier(String),
 
@@ -70,14 +68,13 @@ pub enum TokenKind {
     Nl,
     SemiColon,
 
-
-
     /// =
     Assign,
     /// ==
     Eq,
     /// :
     Colon,
+    Comma,
 
     /// EOF, will only appear at the end of a token
     Eof,
@@ -114,6 +111,12 @@ pub enum TokenKind {
 /// A stream of tokens
 pub struct TokenStream<'a: 'p, 'p>(Box<dyn Iterator<Item = Token<'p>> + 'a>);
 
+impl<'p> FromIterator<Token<'p>> for TokenStream<'p, 'p> {
+    fn from_iter<T: IntoIterator<Item = Token<'p>>>(iter: T) -> Self {
+        Self::from_iter(iter.into_iter().collect::<Vec<_>>())
+    }
+}
+
 impl<'a: 'p, 'p> Iterator for TokenStream<'a, 'p> {
     type Item = Token<'p>;
 
@@ -137,15 +140,12 @@ pub trait ToTokens<'p> {
 
 impl<'p, T: ToTokens<'p>> Spanned<'p> for T {
     fn span(&self) -> Span<'p> {
-        self
-            .to_tokens()
+        self.to_tokens()
             .map::<Span<'p>, _>(|token| token.span())
             .reduce(|a, b| a.join(b).expect("could not join spans"))
             .expect("Spanned has no tokens despite implementing ToTokens")
     }
 }
-
-
 
 #[cfg(test)]
 mod tests {
@@ -157,6 +157,4 @@ mod tests {
         let mut stream = TokenStream::from_iter(vec);
         assert!(stream.next().is_none())
     }
-
-
 }

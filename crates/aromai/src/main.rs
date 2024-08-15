@@ -1,9 +1,9 @@
 use std::io::stdout;
 use std::process::ExitCode;
 
-use chrono::{Utc};
+use chrono::Utc;
 use clap::Parser;
-use log::{Level, LevelFilter, trace};
+use log::{trace, Level, LevelFilter};
 use owo_colors::OwoColorize;
 use owo_colors::Stream::Stdout;
 

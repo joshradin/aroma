@@ -1,4 +1,4 @@
-use aroma_ast::identifier::Id;
+use aroma_ast::id::Id;
 use std::collections::HashSet;
 use std::num::NonZeroUsize;
 use std::sync::{Arc, RwLock};
@@ -8,12 +8,12 @@ pub struct CompileJobId(NonZeroUsize);
 
 #[derive(Debug)]
 pub struct CompileJob {
-    status: Arc<RwLock<CompileJobStatus>>
+    status: Arc<RwLock<CompileJobStatus>>,
 }
 
 #[derive(Debug)]
 pub struct CompileJobHandle {
-    status: Arc<RwLock<CompileJobStatus>>
+    status: Arc<RwLock<CompileJobStatus>>,
 }
 
 /// Compile job status
@@ -27,5 +27,5 @@ pub enum CompileJobStatus {
 #[derive(Debug)]
 pub enum CompileJobCommand {
     Cancel,
-    UpdatingBindings
+    UpdatingBindings,
 }

@@ -1,12 +1,13 @@
 #![doc = include_str!("../README.md")]
 
-pub mod vis;
-pub mod field;
 pub mod class;
-pub mod hierarchy;
-pub mod generic;
-pub mod method;
 pub mod constructor;
+pub mod field;
+pub mod generic;
+pub mod hierarchy;
+pub mod method;
+pub mod type_signature;
+pub mod vis;
 
 #[cfg(test)]
 mod tests {
@@ -22,6 +23,8 @@ mod tests {
     #[test]
     fn test_instantiate_concrete_class() {
         let mut hierarchy = ClassHierarchy::new();
-        let inst = hierarchy.instantiate(&*OBJECT_CLASS, []).expect("could not instantiate");
+        let inst = hierarchy
+            .instantiate(&*OBJECT_CLASS, [])
+            .expect("could not instantiate");
     }
 }

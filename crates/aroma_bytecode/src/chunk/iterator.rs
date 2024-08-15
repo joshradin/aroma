@@ -3,7 +3,7 @@ use crate::chunk::opcode::OpCode;
 #[derive(Debug)]
 pub struct OpcodeIterator<'a> {
     offset: usize,
-    src: &'a [u8]
+    src: &'a [u8],
 }
 
 impl<'a> Iterator for OpcodeIterator<'a> {
@@ -27,8 +27,11 @@ pub trait IntoOpcodeIterator<'a> {
     fn into_opcode_iter(self) -> OpcodeIterator<'a>;
 }
 
-impl<'a, T : AsRef<[u8]> + ?Sized> IntoOpcodeIterator<'a> for &'a T {
+impl<'a, T: AsRef<[u8]> + ?Sized> IntoOpcodeIterator<'a> for &'a T {
     fn into_opcode_iter(self) -> OpcodeIterator<'a> {
-        OpcodeIterator { offset: 0, src: self.as_ref()}
+        OpcodeIterator {
+            offset: 0,
+            src: self.as_ref(),
+        }
     }
 }

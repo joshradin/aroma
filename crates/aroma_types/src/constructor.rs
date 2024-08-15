@@ -1,11 +1,11 @@
 //! Constructors are used for creating objects
 
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
 use crate::class::ClassInst;
 use crate::generic::GenericDeclaration;
 use crate::method::{MethodId, Parameter};
 use crate::vis::Vis;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
 /// Constructors are specialty methods that have no return type
 #[derive(Debug)]

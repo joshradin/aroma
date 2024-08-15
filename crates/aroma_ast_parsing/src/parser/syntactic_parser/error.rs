@@ -1,9 +1,9 @@
+use crate::lexer::LexingError;
 use aroma_ast::spanned::Span;
+use aroma_ast::token::Token;
 use std::cell::Cell;
 use std::fmt::{Display, Formatter};
 use std::io;
-use aroma_ast::token::{Token, TokenKind};
-use crate::lexer::LexingError;
 
 /// Represents an error occurring during parsing
 #[derive(Debug)]
@@ -78,8 +78,8 @@ where
 /// [Error] kind
 #[derive(Debug, thiserror::Error)]
 pub enum ErrorKind<'p> {
-    #[error("Expected a token of kinds {0:?}")]
-    ExpectedToken(Vec<String>),
+    #[error("Expected a token of kinds {0:?}, got {1:?}")]
+    ExpectedToken(Vec<String>, Option<Token<'p>>),
     #[error("Unexpected token: {0:?}")]
     UnexpectedToken(Token<'p>),
     #[error("unexpected EOF")]
@@ -89,12 +89,21 @@ pub enum ErrorKind<'p> {
     #[error(transparent)]
     Io(#[from] io::Error),
     #[error(transparent)]
-    Lex(#[from] LexingError)
+    Lex(#[from] LexingError),
 }
 
 impl<'p> ErrorKind<'p> {
-    pub fn expected_token(token_kinds: impl IntoIterator<Item=String>) -> Self {
-        Self::ExpectedToken(token_kinds.into_iter().collect())
+    pub fn expected_token(
+        token_kinds: impl IntoIterator<Item = impl AsRef<str>>,
+        found: impl Into<Option<Token<'p>>>,
+    ) -> Self {
+        Self::ExpectedToken(
+            token_kinds
+                .into_iter()
+                .map(|s| s.as_ref().to_string())
+                .collect(),
+            found.into(),
+        )
     }
 }
 

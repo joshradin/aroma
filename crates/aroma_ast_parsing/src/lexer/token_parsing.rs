@@ -16,6 +16,7 @@ use nom::multi::{fold_many0, many0, many1};
 use nom::number::complete::recognize_float;
 use nom::sequence::{delimited, preceded, terminated, tuple};
 use nom::{IResult, Parser};
+use aroma_common::nom_helpers::identifier_parser;
 
 type Result<'a, O, E = &'a [u8]> = IResult<&'a [u8], O, VerboseError<E>>;
 
@@ -127,7 +128,7 @@ fn parse_keyword(src: &[u8]) -> Result<TokenKind> {
 }
 
 fn parse_identifier(src: &[u8]) -> Result<TokenKind> {
-    let id_parser = recognize(tuple((alpha1, alphanumeric0)));
+    let id_parser = identifier_parser();
     context(
         "identifier",
         map(id_parser, |id: &[u8]| {
@@ -150,6 +151,7 @@ fn parse_punctuation(src: &[u8]) -> Result<TokenKind> {
             value(TokenKind::SemiColon, char(';')),
             value(TokenKind::LCurly, char('{')),
             value(TokenKind::RCurly, char('}')),
+            value(TokenKind::Comma, char(',')),
         )),
     )(src)
 }
@@ -159,8 +161,8 @@ fn parse_literal(src: &[u8]) -> Result<TokenKind> {
         "literal",
         alt((
             map(parse_boolean, |b| TokenKind::Boolean(b)),
-            map(parse_floating_point_value, |float| TokenKind::Float(float)),
             map(parse_hexadecimal_value, |hex| TokenKind::Integer(hex)),
+            map(parse_floating_point_value, |float| TokenKind::Float(float)),
             map(parse_integer_value, |hex| TokenKind::Integer(hex)),
             map(parse_string_value, |string| TokenKind::String(string)),
         )),
@@ -203,8 +205,16 @@ fn parse_floating_point_value(input: &[u8]) -> Result<f64> {
         std::str::from_utf8(out)
             .map_err(|s| VerboseError::from_external_error(input, ErrorKind::Verify, s))
             .and_then(|s| {
-                f64::from_str(s)
-                    .map_err(|e| VerboseError::from_external_error(input, ErrorKind::Verify, s))
+                if s.contains(".") || s.contains("e") {
+                    f64::from_str(s)
+                        .map_err(|e| VerboseError::from_external_error(input, ErrorKind::Verify, s))
+                } else {
+                    Err(VerboseError::from_external_error(
+                        input,
+                        ErrorKind::Verify,
+                        s,
+                    ))
+                }
             })
     })(input)
 }

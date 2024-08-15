@@ -4,12 +4,12 @@
 pub use macros::*;
 
 pub mod debug;
+pub mod examples;
 #[cfg(feature = "jit")]
 pub mod jit;
 mod macros;
 pub mod types;
 pub mod vm;
-pub mod examples;
 
 #[doc(hidden)]
 pub mod __export {

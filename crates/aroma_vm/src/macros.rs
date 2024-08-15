@@ -277,9 +277,11 @@ macro_rules! native {
     };
 }
 
-#[cfg(not(feature = "macros"))]
-pub(crate) use {_instruction_to_bytecode, _literal_to_constant, bytecode, function, native, require_type};
 use aroma_bytecode::chunk::Chunk;
+#[cfg(not(feature = "macros"))]
+pub(crate) use {
+    _instruction_to_bytecode, _literal_to_constant, bytecode, function, native, require_type,
+};
 
 #[cfg(test)]
 mod tests {

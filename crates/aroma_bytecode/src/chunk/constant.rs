@@ -1,5 +1,5 @@
-use std::fmt::{Display, Formatter};
 use derive_more::TryInto;
+use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, Copy, TryInto)]
 pub enum Constant {

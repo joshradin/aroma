@@ -1,6 +1,6 @@
-use std::path::PathBuf;
-use log::info;
 use aromac::AromaC;
+use log::info;
+use std::path::PathBuf;
 use test_log::test;
 
 mod common;
@@ -19,5 +19,4 @@ fn test_compile_single_file() -> eyre::Result<()> {
     let compiled = aroma_c.compile(file)?;
 
     Ok(())
-
 }

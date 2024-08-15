@@ -1,14 +1,14 @@
+use derive_more::From;
 use std::cell::Cell;
 use std::fmt::{Debug, Display, Formatter};
 use std::marker::PhantomData;
 use std::rc::Rc;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use derive_more::From;
+use std::sync::Arc;
 
-use aroma_bytecode::chunk::OpCode;
 use crate::jit::ir::ir_builder::Block;
 use crate::types::{Type, Value};
+use aroma_bytecode::chunk::OpCode;
 
 /// An intermediate value
 #[derive(Clone, Hash, Eq, PartialEq, From)]
@@ -48,7 +48,6 @@ pub type IrVariableFactory = IdFactory<IrVariable>;
 pub struct IrValueFactory(IdFactory<usize>);
 
 impl IrValueFactory {
-
     pub fn next(&mut self, ty: Type) -> IrValue {
         IrValue(ty, self.0.next())
     }

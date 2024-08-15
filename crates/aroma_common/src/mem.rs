@@ -1,7 +1,7 @@
 //! Some useful memory operations
 
 /// Creates a copy of some type explicitly
-pub const fn copy<T : Copy>(v: &T) -> T {
+pub const fn copy<T: Copy>(v: &T) -> T {
     *v
 }
 

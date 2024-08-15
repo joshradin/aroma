@@ -13,7 +13,12 @@ pub struct Field {
 impl Field {
     /// Creates a new name
     pub fn new(vis: Vis, name: impl AsRef<str>, kind: ClassInst) -> Self {
-        Self { vis, name: name.as_ref().to_string(), kind, is_final: false }
+        Self {
+            vis,
+            name: name.as_ref().to_string(),
+            kind,
+            is_final: false,
+        }
     }
 
     /// Creates a new field
@@ -23,7 +28,12 @@ impl Field {
 
     /// Creates a new field that's final
     pub fn new_final(vis: Vis, name: impl AsRef<str>, kind: ClassInst) -> Self {
-        Self { vis, name: name.as_ref().to_string(), kind, is_final: true }
+        Self {
+            vis,
+            name: name.as_ref().to_string(),
+            kind,
+            is_final: true,
+        }
     }
 
     pub fn name(&self) -> &str {

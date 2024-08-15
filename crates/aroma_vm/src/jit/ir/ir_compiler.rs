@@ -1,26 +1,26 @@
 //! Responsible for compiling IR from bytecode
 
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
-use std::convert::Infallible;
-use std::marker::PhantomData;
-use std::sync::Arc;
 use itertools::Itertools;
 use log::trace;
 use petgraph::data::Build;
 use petgraph::graph::NodeIndex;
 use rangemap::RangeMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
+use std::convert::Infallible;
+use std::marker::PhantomData;
+use std::sync::Arc;
 
-use aroma_bytecode::chunk::{
-    Chunk, ChunkVisitor, ContinuousOffsetVisitor, IntoOpcodeIterator, OpCode,
-};
-use aroma_bytecode::chunk::Constant;
 use crate::debug::Disassembler;
 use crate::jit::ir::ir_builder::{Block, IrBuilder, IrFunction};
 use crate::jit::ir::ir_compiler::offset_graph::{get_offset_graph, OffsetGraph, OffsetRange};
 use crate::jit::ir::ir_op::{IrValue, IrVariable, IrVariableFactory};
-use crate::types::{Type, Value};
 use crate::types::function::ObjFunction;
+use crate::types::{Type, Value};
 use crate::vm::{InsPtr, StaticFunctionTable};
+use aroma_bytecode::chunk::Constant;
+use aroma_bytecode::chunk::{
+    Chunk, ChunkVisitor, ContinuousOffsetVisitor, IntoOpcodeIterator, OpCode,
+};
 
 mod offset_graph;
 
@@ -343,7 +343,9 @@ impl IrCompiler {
                     let signature = callee
                         .get_type()
                         .as_fn_signature()
-                        .ok_or_else(|| CompileIrError::CalleeNotCallable(callee.get_type().clone()))?
+                        .ok_or_else(|| {
+                            CompileIrError::CalleeNotCallable(callee.get_type().clone())
+                        })?
                         .clone();
                     let output = builder.ops().call(callee, &values, &signature);
                     if let Some(output) = output {
@@ -410,7 +412,9 @@ mod tests {
     fn can_compile(func: ObjFunction) {
         let func = Arc::new(func);
         let static_functions = StaticFunctionTable::default();
-        static_functions.write().insert(func.name().to_owned(), func.clone());
+        static_functions
+            .write()
+            .insert(func.name().to_owned(), func.clone());
         let mut compiler = IrCompiler::new(&static_functions);
         Disassembler.disassemble_function(&func).unwrap();
         let compiled = compiler.compile(&func);

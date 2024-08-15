@@ -74,12 +74,9 @@ impl ClassHierarchy {
         for method in class.methods() {
             if let Some(return_type) = method.return_type() {
                 if !self.contains(return_type.as_ref()) {
-                    return Err(Error::ClassNotDefined(
-                        return_type.as_ref().clone(),
-                    ));
+                    return Err(Error::ClassNotDefined(return_type.as_ref().clone()));
                 }
             }
-
         }
 
         Ok(self.unchecked_insert(class))
@@ -182,11 +179,12 @@ impl ClassHierarchy {
     fn add_to_instantiated_set(&self, instantiated: &ClassInst) {
         let mut all_instantiated = self.instantiated.write();
         all_instantiated.insert(instantiated.clone());
-        for parents in self.get_all_in_inheritance_tree(&instantiated) {
-            all_instantiated.extend(parents);
+        if let Ok(result) = self.get_all_in_inheritance_tree(&instantiated) {
+            for parents in result {
+                all_instantiated.insert(parents);
+            }
         }
     }
-
 
     /// Checks if a given class can be assigned to a `target` class.
     ///
@@ -527,5 +525,4 @@ mod tests {
         let real = &hierarchy[&string_class];
         println!("real: {real:#?}");
     }
-
 }

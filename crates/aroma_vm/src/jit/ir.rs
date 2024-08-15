@@ -6,7 +6,6 @@ mod ir_builder;
 mod ir_compiler;
 mod ir_op;
 
-
 #[cfg(test)]
 mod tests {
     use crate::jit::ir::ir_op::IrOp::*;

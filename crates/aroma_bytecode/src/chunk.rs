@@ -3,16 +3,15 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Deref, Index, IndexMut};
 
+pub use constant::*;
 pub use iterator::*;
 pub use opcode::*;
 pub use visitor::*;
-pub use constant::*;
 
-mod visitor;
+mod constant;
 mod iterator;
 mod opcode;
-mod constant;
-
+mod visitor;
 
 /// A chunk of data
 pub struct Chunk {
@@ -22,7 +21,6 @@ pub struct Chunk {
     lines: Vec<usize>,
     constants: Vec<Constant>,
 }
-
 
 macro_rules! grow_capacity {
     ($c:expr) => {

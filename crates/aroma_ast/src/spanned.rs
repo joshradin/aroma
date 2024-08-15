@@ -108,6 +108,14 @@ impl<'p> Span<'p> {
             })
         }
     }
+
+    pub fn offset(&self) -> usize {
+        self.offset
+    }
+
+    pub fn len(&self) -> usize {
+        self.len
+    }
 }
 
 impl<'p> Spanned<'p> for Span<'p> {

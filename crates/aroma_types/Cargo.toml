@@ -15,3 +15,5 @@ itertools.workspace = true
 paste.workspace = true
 derive_more.workspace = true
 parking_lot.workspace = true
+nom.workspace = true
+aroma_common = { version = "0.0.0", path = "../aroma_common" }
