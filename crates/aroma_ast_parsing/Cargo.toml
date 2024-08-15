@@ -8,8 +8,7 @@ readme.workspace = true
 repository.workspace = true
 
 [dependencies]
-aroma_ast = { version = "0.0.0", path = "../aroma_ast" }
-aroma_ast_parsing_derive = { version = "0.0.0", path = "../aroma_ast_parsing_derive" }
+aroma_ast = { version = "0.0.0", path = "../aroma_ast", features = ["derive"] }
 aroma_common = { version = "0.0.0", path = "../aroma_common" }
 aroma_types = { version = "0.0.0", path = "../aroma_types" }
 nom.workspace = true

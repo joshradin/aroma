@@ -1,5 +1,5 @@
 [package]
-name = "aroma_ast_parsing_derive"
+name = "aroma_ast_derive"
 authors.workspace = true
 version.workspace = true
 edition.workspace = true

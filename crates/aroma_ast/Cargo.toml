@@ -7,5 +7,10 @@ license-file.workspace = true
 readme.workspace = true
 repository.workspace = true
 
+[features]
+default = []
+derive = ["dep:aroma_ast_derive"]
+
 [dependencies]
+aroma_ast_derive = { version = "0.0.0", path = "../aroma_ast_derive", optional = true }
 itertools = { workspace = true }

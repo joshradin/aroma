@@ -2,6 +2,8 @@
 
 use crate::spanned::{Span, Spanned};
 use std::fmt::{Debug, Formatter};
+#[cfg(feature = "derive")]
+pub use aroma_ast_derive::ToTokens;
 
 /// A lexical token from a source file
 #[derive(Clone)]

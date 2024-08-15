@@ -4,7 +4,6 @@ use crate::parser::{
 };
 use aroma_ast::id::Id;
 use aroma_ast::token::{ToTokens, TokenKind, TokenStream};
-use aroma_ast_parsing_derive::ToTokens;
 use std::io::Read;
 
 pub fn parse_expr<'p>(parser: &mut SyntacticParser<'p, impl Read>) -> Result<Expr<'p>, Error<'p>> {
@@ -120,7 +119,7 @@ impl<'p> ToTokens<'p> for ExprBinary<'p> {
 }
 
 /// A binary operation
-#[derive(Debug)]
+#[derive(Debug, ToTokens)]
 pub enum BinOp<'p> {
     Add(Plus<'p>),
     Sub(Sub<'p>),
@@ -150,20 +149,9 @@ impl<'p> Parse<'p> for BinOp<'p> {
     }
 }
 
-impl<'p> ToTokens<'p> for BinOp<'p> {
-    fn to_tokens(&self) -> TokenStream<'p, 'p> {
-        match self {
-            BinOp::Add(a) => a.to_tokens(),
-            BinOp::Sub(a) => a.to_tokens(),
-            BinOp::Mult(a) => a.to_tokens(),
-            BinOp::Div(a) => a.to_tokens(),
-            BinOp::Rem(a) => a.to_tokens(),
-        }
-    }
-}
 
 /// A call expression
-#[derive(Debug)]
+#[derive(Debug, ToTokens)]
 pub struct CallExpr<'p> {
     pub callee: Box<Expr<'p>>,
     pub lparen: LParen<'p>,
@@ -171,16 +159,7 @@ pub struct CallExpr<'p> {
     pub rparen: RParen<'p>,
 }
 
-impl<'p> ToTokens<'p> for CallExpr<'p> {
-    fn to_tokens(&self) -> TokenStream<'p, 'p> {
-        self.callee
-            .to_tokens()
-            .chain(self.lparen.to_tokens())
-            .chain(self.parameters.to_tokens())
-            .chain(self.rparen.to_tokens())
-            .collect()
-    }
-}
+
 
 /// A field expression
 #[derive(Debug, ToTokens)]
@@ -207,7 +186,7 @@ pub enum Expr<'p> {
     Binary(ExprBinary<'p>),
     Field(FieldExpr<'p>),
     Call(CallExpr<'p>),
-    Index(),
+    Index(IndexExpr<'p>),
     Unary(),
 }
 

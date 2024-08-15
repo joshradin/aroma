@@ -118,7 +118,16 @@ checksum = "7d5a26814d8dcb93b0e5a0ff3c6d80a8843bafb21b39e8e18a6f05471870e110"
 name = "aroma_ast"
 version = "0.0.0"
 dependencies = [
+ "aroma_ast_derive",
  "itertools",
+]
+
+[[package]]
+name = "aroma_ast_derive"
+version = "0.0.0"
+dependencies = [
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -126,20 +135,11 @@ name = "aroma_ast_parsing"
 version = "0.0.0"
 dependencies = [
  "aroma_ast",
- "aroma_ast_parsing_derive",
  "aroma_common",
  "aroma_types",
  "nom",
  "tempfile",
  "thiserror",
-]
-
-[[package]]
-name = "aroma_ast_parsing_derive"
-version = "0.0.0"
-dependencies = [
- "quote",
- "syn",
 ]
 
 [[package]]
