@@ -1,5 +1,5 @@
 [package]
-name = "aroma_ast"
+name = "aroma_ast_parsing_derive"
 authors.workspace = true
 version.workspace = true
 edition.workspace = true
@@ -7,5 +7,9 @@ license-file.workspace = true
 readme.workspace = true
 repository.workspace = true
 
+[lib]
+proc-macro = true
+
 [dependencies]
-itertools = { workspace = true }
+syn = { workspace = true, features = ["full"] }
+quote = { workspace = true }

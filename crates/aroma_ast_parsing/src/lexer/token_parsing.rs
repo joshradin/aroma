@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
 use aroma_ast::token::TokenKind;
+use aroma_common::nom_helpers::identifier_parser;
 use nom::branch::alt;
 use nom::bytes::complete::{is_not, take_until, take_while_m_n};
 use nom::bytes::streaming::tag;
@@ -16,7 +17,6 @@ use nom::multi::{fold_many0, many0, many1};
 use nom::number::complete::recognize_float;
 use nom::sequence::{delimited, preceded, terminated, tuple};
 use nom::{IResult, Parser};
-use aroma_common::nom_helpers::identifier_parser;
 
 type Result<'a, O, E = &'a [u8]> = IResult<&'a [u8], O, VerboseError<E>>;
 

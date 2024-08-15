@@ -26,19 +26,16 @@ impl<'p> Id<'p> {
     ///
     /// Returns `Some(Id)` if all tokens given are identifiers
     #[track_caller]
-    pub fn new_call_site<I: IntoIterator<Item : AsRef<str>>>(tokens: I) -> Option<Self> {
-        let r = tokens
-            .into_iter()
-            .fold(vec![], |mut accum, next| {
-                let internal = IdInternal::new(
-                    Token::new(
-                        Span::call_site(),
-                        TokenKind::Identifier(next.as_ref().to_string())
-                    )
-                ).unwrap();
-                accum.push(internal);
-                accum
-            });
+    pub fn new_call_site<I: IntoIterator<Item: AsRef<str>>>(tokens: I) -> Option<Self> {
+        let r = tokens.into_iter().fold(vec![], |mut accum, next| {
+            let internal = IdInternal::new(Token::new(
+                Span::call_site(),
+                TokenKind::Identifier(next.as_ref().to_string()),
+            ))
+            .unwrap();
+            accum.push(internal);
+            accum
+        });
         if r.is_empty() {
             None
         } else {
@@ -101,10 +98,8 @@ impl<'p> Id<'p> {
 
     /// Joins two ids together, changing the span of it's all of this id to be before the other span
     #[inline]
-    pub fn join<S : AsRef<str> + ?Sized>(&self, other: &S) -> Self {
-        self.concat(
-            &Id::new_call_site([other]).unwrap()
-        )
+    pub fn join<S: AsRef<str> + ?Sized>(&self, other: &S) -> Self {
+        self.concat(&Id::new_call_site([other]).unwrap())
     }
 }
 impl Debug for Id<'_> {

@@ -169,11 +169,13 @@ impl<'p, R: Read> From<Lexer<'p, R>> for SyntacticParser<'p, R> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser::{ConstantKind, Expr};
+    use crate::parser::syntactic_parser::syntax_tree::expr::Expr;
+    use crate::parser::ConstantKind;
     use aroma_ast::spanned::{Span, Spanned};
     use aroma_ast::token::{ToTokens, TokenKind};
     use std::io::Write as _;
     use tempfile::NamedTempFile;
+
     fn test_parser<F>(s: &str, callback: F)
     where
         F: FnOnce(&mut SyntacticParser<File>, &Path),
@@ -259,7 +261,7 @@ mod tests {
 
     #[test]
     fn test_parse_method_calls() {
-        test_parser("foo(bar(), bar(1+2))", |parser, _| {
+        test_parser("foo(bar() + 2, bar(1+2))", |parser, _| {
             let expr = parser.parse::<Expr>().unwrap();
             println!("{expr:#?}");
             println!("{:?}", expr.to_tokens().collect::<Vec<_>>())

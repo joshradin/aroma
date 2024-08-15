@@ -83,7 +83,10 @@ impl<'p> Bindings<'p> {
 
     /// Insert a value into the bindings
     pub fn insert(&mut self, id: Id<'p>, value: TypeSignature) {
-        let mut scope = self.scopes.last_mut().expect("scopes should never be empty");
+        let mut scope = self
+            .scopes
+            .last_mut()
+            .expect("scopes should never be empty");
         scope.bindings.insert(id, value);
     }
 }
@@ -115,12 +118,17 @@ mod tests {
     fn test_resolve_type() {
         let mut bindings = Bindings::new();
         let id = Id::new_call_site(["aroma", "system"]).unwrap();
-        bindings.insert(id.resolve(&Id::new_call_site(["global_value"]).unwrap()), TypeSignature::Boolean);
+        bindings.insert(
+            id.resolve(&Id::new_call_site(["global_value"]).unwrap()),
+            TypeSignature::Boolean,
+        );
         bindings.new_scope(id.clone());
 
         println!("{bindings:#?}");
 
-        let bound = bindings.get(&id.join("global_value")).expect("could not resolve");
+        let bound = bindings
+            .get(&id.join("global_value"))
+            .expect("could not resolve");
         assert!(matches!(bound, TypeSignature::Boolean));
     }
 }

@@ -1,6 +1,7 @@
 #![doc = include_str!("../README.md")]
 
-use crate::parser::{Expr, SyntacticParser};
+use crate::parser::SyntacticParser;
+use parser::expr::Expr;
 use std::path::Path;
 
 pub mod lexer;

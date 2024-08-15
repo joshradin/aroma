@@ -117,8 +117,8 @@ fn parse_type_signature(input: &str) -> IResult<&str, TypeSignature, VerboseErro
                         delimited(
                             char('('),
                             cut(separated_list0(char(','), parse_type_signature)),
-                            char(')')
-                        )
+                            char(')'),
+                        ),
                     ),
                     context("ret-type", parse_type_signature),
                 )),
@@ -180,6 +180,8 @@ mod tests {
     fn test_parse_complex_function() {
         let p = "(LClass<String>;,J)I";
         let signature = TypeSignature::from_str(p).unwrap_or_else(|e| panic!("{}", e));
-        assert!(matches!(signature, TypeSignature::Function(args, f) if *f == TypeSignature::Int && args.len() == 2))
+        assert!(
+            matches!(signature, TypeSignature::Function(args, f) if *f == TypeSignature::Int && args.len() == 2)
+        )
     }
 }
