@@ -263,8 +263,26 @@ mod tests {
     fn test_parse_method_calls() {
         test_parser("foo(bar() + 2, bar(1+2))", |parser, _| {
             let expr = parser.parse::<Expr>().unwrap();
+            println!("{expr:?}");
+            println!("{:?}", expr.to_tokens().collect::<Vec<_>>())
+        })
+    }
+
+    #[test]
+    fn test_parse_fields() {
+        test_parser("foo.blah.get(1)", |parser, _| {
+            let expr = parser.parse::<Expr>().unwrap();
             println!("{expr:#?}");
             println!("{:?}", expr.to_tokens().collect::<Vec<_>>())
+        })
+    }
+
+    #[test]
+    fn test_parse_index() {
+        test_parser("foo[0]", |parser, _| {
+            let expr = parser.parse::<Expr>().unwrap();
+            println!("{expr:#?}");
+            println!("{:?}", expr.to_tokens().collect::<Vec<_>>());
         })
     }
 }

@@ -22,11 +22,11 @@ pub fn parse_expr<'p>(parser: &mut SyntacticParser<'p, impl Read>) -> Result<Exp
 }
 
 fn parse_group<'p>(parser: &mut SyntacticParser<'p, impl Read>) -> Result<Expr<'p>, Error<'p>> {
-    let mut l = parse_call(parser)?;
+    let mut l = parse_tail(parser)?;
     while matches!(parser.peek()?, Some(t) if matches!(t.kind(), TokenKind::Star | TokenKind::Div))
     {
         let binop = parser.parse::<BinOp>()?;
-        let r = parse_call(parser)?;
+        let r = parse_tail(parser)?;
         l = Expr::Binary(ExprBinary {
             left: Box::new(l),
             op: binop,
@@ -36,8 +36,34 @@ fn parse_group<'p>(parser: &mut SyntacticParser<'p, impl Read>) -> Result<Expr<'
     Ok(l)
 }
 
-fn parse_call<'p>(parser: &mut SyntacticParser<'p, impl Read>) -> Result<Expr<'p>, Error<'p>> {
-    let mut callee = parse_primary(parser)?;
+fn parse_tail<'p>(parser: &mut SyntacticParser<'p, impl Read>) -> Result<Expr<'p>, Error<'p>> {
+    let mut owner = parse_primary(parser)?;
+    while matches!(parser.peek()?, Some(t) if matches!(t.kind(), TokenKind::LParen | TokenKind::LBracket | TokenKind::Dot))
+    {
+        let token = parser.peek()?.unwrap();
+        match token.kind() {
+            TokenKind::LParen => {
+                owner = parse_call(owner, parser)?;
+            }
+            TokenKind::LBracket => {
+                owner = parse_index(owner, parser)?;
+            }
+            TokenKind::Dot => {
+                owner = parse_field(owner, parser)?;
+            }
+            _ => {
+                unreachable!()
+            }
+        }
+    }
+
+    Ok(owner)
+}
+
+fn parse_call<'p>(
+    mut owner: Expr<'p>,
+    parser: &mut SyntacticParser<'p, impl Read>,
+) -> Result<Expr<'p>, Error<'p>> {
     while LParen::could_parse(parser)? {
         let lparen = parser.parse::<LParen>()?;
         let punctuated = if RParen::could_parse(parser)? {
@@ -46,14 +72,52 @@ fn parse_call<'p>(parser: &mut SyntacticParser<'p, impl Read>) -> Result<Expr<'p
             parser.parse::<Punctuated<_, _>>()?
         };
         let rparen = parser.parse::<RParen>()?;
-        callee = Expr::Call(CallExpr {
-            callee: Box::new(callee),
+        owner = Expr::Call(CallExpr {
+            callee: Box::new(owner),
             lparen,
             parameters: punctuated,
             rparen,
         });
     }
-    Ok(callee)
+    Ok(owner)
+}
+
+fn parse_field<'p>(
+    mut owner: Expr<'p>,
+    parser: &mut SyntacticParser<'p, impl Read>,
+) -> Result<Expr<'p>, Error<'p>> {
+    while Dot::could_parse(parser)? {
+        let dot = parser.parse::<Dot>()?;
+        let Some(field) = parser.consume_if(|p| matches!(p.kind(), TokenKind::Identifier(_)))?
+        else {
+            return Err(parser.error(ErrorKind::expected_token(["identifier"], None), None));
+        };
+        let field = Id::new([field]).unwrap();
+        owner = Expr::Field(FieldExpr {
+            obj: Box::new(owner),
+            dot,
+            field,
+        });
+    }
+    Ok(owner)
+}
+
+fn parse_index<'p>(
+    mut owner: Expr<'p>,
+    parser: &mut SyntacticParser<'p, impl Read>,
+) -> Result<Expr<'p>, Error<'p>> {
+    while LBracket::could_parse(parser)? {
+        let lbracket = parser.parse::<LBracket>()?;
+        let index = parser.parse::<Expr>()?;
+        let rbracket = parser.parse::<RBracket>()?;
+        owner = Expr::Index(IndexExpr {
+            obj: Box::new(owner),
+            lbracket,
+            index: Box::new(index),
+            rbracket
+        });
+    }
+    Ok(owner)
 }
 
 fn parse_primary<'p>(parser: &mut SyntacticParser<'p, impl Read>) -> Result<Expr<'p>, Error<'p>> {
@@ -149,7 +213,6 @@ impl<'p> Parse<'p> for BinOp<'p> {
     }
 }
 
-
 /// A call expression
 #[derive(Debug, ToTokens)]
 pub struct CallExpr<'p> {
@@ -158,8 +221,6 @@ pub struct CallExpr<'p> {
     pub parameters: Punctuated<Expr<'p>, Comma<'p>>,
     pub rparen: RParen<'p>,
 }
-
-
 
 /// A field expression
 #[derive(Debug, ToTokens)]
@@ -174,7 +235,7 @@ pub struct FieldExpr<'p> {
 pub struct IndexExpr<'p> {
     pub obj: Box<Expr<'p>>,
     pub lbracket: LBracket<'p>,
-    pub field: Id<'p>,
+    pub index: Box<Expr<'p>>,
     pub rbracket: RBracket<'p>,
 }
 

@@ -12,7 +12,7 @@ default = ["jit"]
 jit = ["aroma_vm/jit"]
 
 [dependencies]
-aroma_vm = { version = "0.0.0", path = "../aroma_vm", features = ["macros", "debug_all"] }
+aroma_vm = { version = "0.0.0", path = "../aroma_vm", default-features = false, features = ["macros", "debug_all"] }
 clap = { workspace = true, features = ["derive", "env"] }
 color-eyre = { workspace = true }
 eyre = { workspace = true }

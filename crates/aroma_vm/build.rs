@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use itertools::Itertools;
 
-const MAX_INPUT_PARAMS: usize = 3;
+const MAX_INPUT_PARAMS: usize = 2;
 
 fn main() {
     println!("cargo::rerun-if-changed=build.rs");
