@@ -3,34 +3,21 @@ use std::str::FromStr;
 use aroma_ast::token::TokenKind;
 use aroma_common::nom_helpers::identifier_parser;
 use nom::branch::alt;
-use nom::bytes::complete::{is_not, take_until, take_while_m_n};
-use nom::bytes::streaming::tag;
-use nom::character::complete::space1;
-use nom::character::streaming::{
-    alpha1, alphanumeric0, char, digit1, hex_digit1, multispace1, newline,
-};
-use nom::combinator::{
-    consumed, cut, eof, map, map_opt, map_res, not, peek, recognize, value, verify,
-};
+use nom::bytes::complete::{is_not, take_while_m_n, tag};
+use nom::character::complete::{alpha1, space0, space1, char, digit1, hex_digit1, multispace1};
+use nom::combinator::{all_consuming, consumed, cut, eof, map, map_opt, map_parser, map_res, peek, recognize, value, verify};
 use nom::error::{context, ErrorKind, FromExternalError, VerboseError};
 use nom::multi::{fold_many0, many0, many1};
 use nom::number::complete::recognize_float;
-use nom::sequence::{delimited, preceded, terminated, tuple};
+use nom::sequence::{delimited, preceded, terminated};
 use nom::{IResult, Parser};
 
 type Result<'a, O, E = &'a [u8]> = IResult<&'a [u8], O, VerboseError<E>>;
 
 pub fn parse_token(mut src: &[u8]) -> Result<(usize, TokenKind), String> {
-    loop {
-        let Ok((rest, _parsed)) = parse_insignificant(src) else {
-            break;
-        };
-        src = rest;
-    }
-
     let mut main_parser = context(
         "token",
-        map(consumed(_parse_token), |(consumed, token)| {
+        map(delimited(space0, consumed(_parse_token), space0), |(consumed, token)| {
             (consumed.len(), token)
         }),
     );
@@ -88,6 +75,19 @@ fn parse_operator(src: &[u8]) -> Result<TokenKind> {
                 value(TokenKind::RParen, char(')')),
                 value(TokenKind::Dot, char('.')),
                 value(TokenKind::Hash, char('#')),
+                alt((
+                    value(TokenKind::And, tag("&&")),
+                    value(TokenKind::BitwiseAnd, char('&')),
+                    value(TokenKind::Or, tag("||")),
+                    value(TokenKind::BitwiseOr, char('|')),
+                    value(TokenKind::BitwiseXor, char('^')),
+                    value(TokenKind::LShift, tag("<<")),
+                    value(TokenKind::RShift, tag(">>")),
+                    value(TokenKind::Lte, tag("<=")),
+                    value(TokenKind::Lt, char('<')),
+                    value(TokenKind::Gte, tag(">=")),
+                    value(TokenKind::Gt, char('>')),
+                )),
             )),
         )),
     )(src)
@@ -96,7 +96,12 @@ fn parse_operator(src: &[u8]) -> Result<TokenKind> {
 fn parse_word(src: &[u8]) -> Result<TokenKind, &[u8]> {
     context(
         "word",
-        preceded(peek(alpha1), cut(alt((parse_keyword, parse_identifier)))),
+        preceded(
+            peek(alpha1),
+            cut(map_parser(recognize_identifier, |p| {
+                alt((all_consuming(parse_keyword), parse_identifier))(p)
+            })),
+        ),
     )(src)
 }
 
@@ -125,6 +130,10 @@ fn parse_keyword(src: &[u8]) -> Result<TokenKind> {
             )),
         )),
     )(src)
+}
+
+fn recognize_identifier(src: &[u8]) -> Result<&[u8]> {
+    identifier_parser()(src)
 }
 
 fn parse_identifier(src: &[u8]) -> Result<TokenKind> {
@@ -323,8 +332,8 @@ fn parse_insignificant(src: &[u8]) -> Result<&[u8], &[u8]> {
         "insignificant",
         recognize(alt((
             context("whitespace", space1),
-            recognize(delimited(tag("/*"), take_until("*/"), tag("*/"))),
-            recognize(tuple((tag("//"), many0(not(newline))))),
+            // recognize(delimited(tag("/*"), take_until("*/"), tag("*/"))),
+            // recognize(tuple((tag("//"), many0(not(newline))))),
         ))),
     )(src)
 }

@@ -1,9 +1,10 @@
 //! A lexical token from a source file, along with streams for said token
 
 use crate::spanned::{Span, Spanned};
-use std::fmt::{Debug, Formatter};
 #[cfg(feature = "derive")]
 pub use aroma_ast_derive::ToTokens;
+use std::fmt::{Debug, Formatter};
+use std::iter;
 
 /// A lexical token from a source file
 #[derive(Clone)]
@@ -26,14 +27,7 @@ impl<'p> Token<'p> {
 
 impl Debug for Token<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if f.alternate() {
-            f.debug_struct("Token")
-                .field("kind", &self.kind)
-                .field("span", &self.span)
-                .finish()
-        } else {
-            self.kind.fmt(f)
-        }
+        self.kind.fmt(f)
     }
 }
 
@@ -108,6 +102,17 @@ pub enum TokenKind {
     Native,
     Static,
     Hash,
+    And,
+    BitwiseAnd,
+    Or,
+    BitwiseOr,
+    BitwiseXor,
+    Lt,
+    LShift,
+    RShift,
+    Lte,
+    Gte,
+    Gt,
 }
 
 /// A stream of tokens
@@ -127,7 +132,14 @@ impl<'a: 'p, 'p> Iterator for TokenStream<'a, 'p> {
     }
 }
 
+impl<'p> TokenStream<'p, 'p> {
+    #[inline]
+    pub fn new() -> Self {
+        TokenStream::from_iter(iter::empty())
+    }
+}
 impl<'a: 'p, 'p> TokenStream<'a, 'p> {
+
     /// Create a token stream from an iterator
     pub fn from_iter<T: IntoIterator<Item = Token<'p>, IntoIter: 'a>>(iter: T) -> Self {
         Self(Box::new(iter.into_iter()))
@@ -140,12 +152,22 @@ pub trait ToTokens<'p> {
     fn to_tokens(&self) -> TokenStream<'p, 'p>;
 }
 
+
+
 impl<'p, T: ToTokens<'p>> Spanned<'p> for T {
     fn span(&self) -> Span<'p> {
         self.to_tokens()
             .map::<Span<'p>, _>(|token| token.span())
             .reduce(|a, b| a.join(b).expect("could not join spans"))
             .expect("Spanned has no tokens despite implementing ToTokens")
+    }
+}
+impl<'p, T: ToTokens<'p>> ToTokens<'p> for Option<T> {
+    fn to_tokens(&self) -> TokenStream<'p, 'p> {
+        match self {
+            None => { TokenStream::new() }
+            Some(s) => { s.to_tokens()}
+        }
     }
 }
 

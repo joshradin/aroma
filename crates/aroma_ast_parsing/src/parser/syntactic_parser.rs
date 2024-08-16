@@ -9,7 +9,7 @@ use std::path::Path;
 pub mod error;
 pub mod syntax_tree;
 
-use crate::parser::{Constant, ConstantKind, Parse};
+use crate::parser::{Constant, ConstantKind, CouldParse, Parse};
 pub use error::*;
 
 #[derive(Debug, Default)]
@@ -160,6 +160,17 @@ impl<'p> Parse<'p> for Id<'p> {
         }
     }
 }
+impl<'p> CouldParse<'p> for Id<'p> {
+    fn could_parse<R: Read>(
+        parser: &mut SyntacticParser<'p, R>,
+    ) -> std::result::Result<bool, Self::Err> {
+        Ok(parser
+            .peek()?
+            .map(|t| matches!(t.kind(), TokenKind::Identifier(_)))
+            .unwrap_or(false))
+    }
+}
+
 impl<'p, R: Read> From<Lexer<'p, R>> for SyntacticParser<'p, R> {
     fn from(value: Lexer<'p, R>) -> Self {
         Self::new(value)
@@ -251,8 +262,24 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_identifier_single_letter() {
+        test_parser("i", |parser, _| {
+            let identifier = parser.parse::<Id>().unwrap();
+            assert!(matches!(identifier.most_specific(), "i"));
+        })
+    }
+
+    #[test]
+    fn test_parse_unary() {
+        test_parser("--helloWorld", |parser, _| {
+            let expr = parser.parse::<Expr>().unwrap();
+            println!("{expr:#?}");
+        })
+    }
+
+    #[test]
     fn test_parse_expressions() {
-        test_parser("helloWorld + 3*2/5 - 1", |parser, _| {
+        test_parser("helloWorld + 3*2/5 - 1 << 3 * -2.0", |parser, _| {
             let expr = parser.parse::<Expr>().unwrap();
             println!("{expr:#?}");
             println!("{:?}", expr.to_tokens().collect::<Vec<_>>())
@@ -263,7 +290,7 @@ mod tests {
     fn test_parse_method_calls() {
         test_parser("foo(bar() + 2, bar(1+2))", |parser, _| {
             let expr = parser.parse::<Expr>().unwrap();
-            println!("{expr:?}");
+            println!("{expr:#?}");
             println!("{:?}", expr.to_tokens().collect::<Vec<_>>())
         })
     }
@@ -283,6 +310,64 @@ mod tests {
             let expr = parser.parse::<Expr>().unwrap();
             println!("{expr:#?}");
             println!("{:?}", expr.to_tokens().collect::<Vec<_>>());
+        })
+    }
+
+    #[test]
+    fn test_closure() {
+        test_parser("{ -> }", |parser, _| {
+            let expr = parser.parse::<Expr>().unwrap();
+            println!("{expr:#?}");
+            println!("{:?}", expr.to_tokens().collect::<Vec<_>>());
+        })
+    }
+
+    #[test]
+    fn test_closure_with_bindings() {
+        test_parser("{ i -> }", |parser, _| {
+            let expr = parser.parse::<Expr>().unwrap();
+            println!("{expr:#?}");
+            println!("{:?}", expr.to_tokens().collect::<Vec<_>>());
+        })
+    }
+
+    #[test]
+    fn test_closure_after_method_no_parens() {
+        test_parser("forEach { -> }", |parser, _| {
+            let expr = parser.parse::<Expr>().unwrap();
+            println!("{expr:#?}");
+            println!("{:?}", expr.to_tokens().collect::<Vec<_>>());
+        })
+    }
+
+    #[test]
+    fn test_closure_after_method_no_args() {
+        test_parser("forEach() { -> }", |parser, _| {
+            let expr = parser.parse::<Expr>().unwrap();
+            println!("{expr:#?}");
+            assert!(
+                matches!(expr, Expr::Call(call) if call.parameters.is_some() && call.parameters.as_ref().unwrap().punctuated.len() == 1)
+            );
+        })
+    }
+
+    #[test]
+    fn test_closure_after_method_mixed_args() {
+        test_parser("repeat(10){ -> }", |parser, _| {
+            let expr = parser.parse::<Expr>().unwrap();
+            println!("{expr:#?}");
+            assert!(
+                matches!(expr, Expr::Call(call) if call.parameters.is_some() && call.parameters.as_ref().unwrap().punctuated.len() == 2)
+            );
+        })
+    }
+
+    #[test]
+    fn test_closure_after_method_mixed_args_then_expr() {
+        test_parser("(repeat(10)) { -> } ", |parser, _| {
+            let expr = parser.parse::<Expr>().unwrap();
+            println!("{expr:#?}");
+
         })
     }
 }

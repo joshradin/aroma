@@ -1,15 +1,15 @@
 //! Syntax tree
 
+use std::fmt::{Debug, Formatter};
 use crate::parser::syntactic_parser::error::{Error, ErrorKind};
 use crate::parser::SyntacticParser;
 use aroma_ast::token::{ToTokens, Token, TokenKind, TokenStream};
 use std::io::Read;
 pub mod expr;
 mod helpers;
-mod singletons;
+pub mod singletons;
 
 pub use helpers::*;
-pub use singletons::*;
 
 /// Parse a syntax tree part
 pub trait Parse<'p>: ToTokens<'p> + Sized {
@@ -33,11 +33,18 @@ pub enum ConstantKind {
     Boolean(bool),
 }
 
-#[derive(Debug)]
+
 pub struct Constant<'p> {
     pub kind: ConstantKind,
     pub tok: Token<'p>,
 }
+
+impl<'p> Debug for Constant<'p> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        self.kind.fmt(f)
+    }
+}
+
 impl<'p> Parse<'p> for Constant<'p> {
     type Err = Error<'p>;
 
