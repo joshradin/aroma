@@ -1,15 +1,15 @@
 native function print();
 
 public class String {
-    private Array<Byte> utf8;
+    private Array[Byte] utf8;
 
     public fn toString() -> String {
         return this;
     }
 }
 
-s = new String {
-    public fn toString() -> String {
+s = new String[asd]() {
+    public fn toString() -> String throws E[E] {
         return this + this;
     }
 };

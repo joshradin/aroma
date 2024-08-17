@@ -6,7 +6,7 @@ use std::fmt::{Display, Formatter};
 use std::io;
 
 /// Represents an error occurring during parsing
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub struct Error<'p> {
     pub location: Option<Span<'p>>,
     pub kind: ErrorKind<'p>,
@@ -78,6 +78,8 @@ where
 /// [Error] kind
 #[derive(Debug, thiserror::Error)]
 pub enum ErrorKind<'p> {
+    #[error("illegal statement: {reason}")]
+    IllegalStatement { reason: String },
     #[error("Expected a token of kinds {0:?}, got {1:?}")]
     ExpectedToken(Vec<String>, Option<Token<'p>>),
     #[error("Unexpected token: {0:?}")]
@@ -107,4 +109,4 @@ impl<'p> ErrorKind<'p> {
     }
 }
 
-pub type Result<'p, T = ()> = std::result::Result<T, Error<'p>>;
+pub type Result<'p, T = ()> = std::result::Result<T, super::Err<Error<'p>>>;

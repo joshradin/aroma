@@ -13,7 +13,7 @@ pub mod type_resolution;
 /// This creates the baseline AST for aroma source code.
 pub fn syntactic_parse(path: &Path) -> Result<(), parser::Error> {
     let mut parser = SyntacticParser::with_file(path)?;
-    let expr = parser.parse::<Expr>()?;
+
 
     Ok(())
 }

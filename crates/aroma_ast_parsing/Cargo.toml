@@ -13,6 +13,6 @@ aroma_common = { version = "0.0.0", path = "../aroma_common" }
 aroma_types = { version = "0.0.0", path = "../aroma_types" }
 nom.workspace = true
 thiserror.workspace = true
-
+log.workspace = true
 [dev-dependencies]
 tempfile = { workspace = true }

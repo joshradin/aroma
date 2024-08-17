@@ -13,6 +13,7 @@ use petgraph::visit::Walker;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::str::FromStr;
+use nom::error::ParseError;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum ClassKind {
@@ -172,7 +173,7 @@ pub struct ClassInst(ClassRef, GenericParameterBounds);
 
 impl ClassInst {
     /// Creates a new class reference
-    pub(crate) fn with_generics<I: IntoIterator<Item = GenericParameterBound>>(
+    pub fn with_generics<I: IntoIterator<Item = GenericParameterBound>>(
         name: ClassRef,
         bounds: I,
     ) -> Self {
@@ -180,12 +181,12 @@ impl ClassInst {
     }
 
     /// Creates a new class reference with no generics
-    pub(crate) fn new(name: ClassRef) -> Self {
+    pub fn new(name: ClassRef) -> Self {
         Self(name, vec![])
     }
 
     /// Creates a new class reference with no generics
-    pub(crate) fn new_generic_param(name: &str) -> Self {
+    pub fn new_generic_param(name: &str) -> Self {
         Self(ClassRef::from(name), vec![])
     }
     pub fn class_ref(&self) -> &ClassRef {
@@ -208,15 +209,15 @@ impl ClassInst {
     }
 }
 
-fn class_inst_parser(v: &str) -> IResult<&str, ClassInst> {
+pub fn class_inst_parser<'a, E : ParseError<&'a str>>(v: &'a str) -> IResult<&str, ClassInst, E> {
     let fqi = recognize(separated_list1(char('.'), identifier_parser()));
     map(
         tuple((
             fqi,
             opt(delimited(
-                char('<'),
+                char('['),
                 separated_list0(char(','), class_inst_parser),
-                char('>'),
+                char(']'),
             )),
         )),
         |(fqi, generics)| {

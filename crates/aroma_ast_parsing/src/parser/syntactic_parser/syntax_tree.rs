@@ -1,29 +1,20 @@
 //! Syntax tree
 
-use std::fmt::{Debug, Formatter};
 use crate::parser::syntactic_parser::error::{Error, ErrorKind};
 use crate::parser::SyntacticParser;
 use aroma_ast::token::{ToTokens, Token, TokenKind, TokenStream};
+use std::fmt::{Debug, Formatter};
 use std::io::Read;
+
+pub mod statement;
+pub mod binding;
 pub mod expr;
 mod helpers;
 pub mod singletons;
 
 pub use helpers::*;
-
-/// Parse a syntax tree part
-pub trait Parse<'p>: ToTokens<'p> + Sized {
-    type Err;
-
-    /// Attempt to parse some syntax tree part
-    fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<Self, Self::Err>;
-}
-
-/// A sub trait that determines if this type could be parsed without doing the parsing
-pub trait CouldParse<'p>: Parse<'p> {
-    /// Attempt to parse some syntax tree part
-    fn could_parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<bool, Self::Err>;
-}
+use crate::parser::expr::remove_nl;
+use crate::parser::syntactic_parser::{Parsable, Err};
 
 #[derive(Debug)]
 pub enum ConstantKind {
@@ -32,7 +23,6 @@ pub enum ConstantKind {
     String(String),
     Boolean(bool),
 }
-
 
 pub struct Constant<'p> {
     pub kind: ConstantKind,
@@ -45,10 +35,11 @@ impl<'p> Debug for Constant<'p> {
     }
 }
 
-impl<'p> Parse<'p> for Constant<'p> {
+impl<'p> Parsable<'p> for Constant<'p> {
     type Err = Error<'p>;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> std::result::Result<Self, Self::Err> {
+    fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<Self, Err<Self::Err>> {
+        parser.parse(remove_nl)?;
         if let Some(tok) = parser.consume_if(|token| {
             matches!(
                 token.kind(),

@@ -137,6 +137,7 @@ dependencies = [
  "aroma_ast",
  "aroma_common",
  "aroma_types",
+ "log",
  "nom",
  "tempfile",
  "thiserror",

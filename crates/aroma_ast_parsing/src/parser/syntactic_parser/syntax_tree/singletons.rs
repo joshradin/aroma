@@ -1,11 +1,12 @@
 use super::{Error, ErrorKind, SyntacticParser};
-use crate::parser::{CouldParse, Parse};
+use aroma_ast::spanned::Span;
 use aroma_ast::token::ToTokens;
 use aroma_ast::token::Token;
 use aroma_ast::token::TokenKind;
 use aroma_ast::token::TokenStream;
-use aroma_ast::spanned::Span;
 use std::io::Read;
+use crate::parser::{CouldParse, Parsable, Err};
+use crate::parser::syntactic_parser::remove_nl;
 
 macro_rules! token_singleton {
     ($ty:ident, $($pat:tt)*) => {
@@ -22,6 +23,17 @@ macro_rules! token_singleton {
             }
         }
 
+        impl<'p> TryFrom<Token<'p>> for $ty<'p> {
+            type Error = Error<'p>;
+
+            fn try_from(token: Token<'p>) -> Result<Self, Self::Error> {
+                match token.kind() {
+                    $($pat)* => { Ok(Self { token }) },
+                    _ => Err(ErrorKind::ExpectedToken(vec![format!("{:?}", $($pat)*)], Some(token)).into())
+                }
+            }
+        }
+
         #[automatically_derived]
         impl<'p> ToTokens<'p> for $ty<'p> {
             fn to_tokens(&self) -> TokenStream<'p, 'p> {
@@ -30,10 +42,13 @@ macro_rules! token_singleton {
         }
 
         #[automatically_derived]
-        impl<'p> Parse<'p> for $ty<'p> {
+        impl<'p> Parsable<'p> for $ty<'p> {
             type Err = Error<'p>;
 
-            fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<Self, Self::Err> {
+            fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<Self, Err<Self::Err>> {
+                if !matches!($($pat)*, TokenKind::Nl) {
+                    parser.parse(remove_nl)?;
+                }
                 if let Some(tok) = parser.consume_if(|token| matches!(token.kind(),  $($pat)*))? {
                     Ok($ty { token: tok })
                 } else {
@@ -47,7 +62,7 @@ macro_rules! token_singleton {
         impl<'p> CouldParse<'p> for $ty<'p> {
             fn could_parse<R: Read>(
                 parser: &mut SyntacticParser<'p, R>,
-            ) -> Result<bool, Self::Err> {
+            ) -> Result<bool, Err<Self::Err>> {
                 if let Some(peek) = parser.peek()? {
                     Ok(matches!(peek.kind(), $($pat)*))
                 } else {
@@ -83,7 +98,8 @@ token_singleton!(MultAssign, TokenKind::MultAssign);
 token_singleton!(PlusAssign, TokenKind::PlusAssign);
 token_singleton!(MinusAssign, TokenKind::MinusAssign);
 token_singleton!(DivAssign, TokenKind::DivAssign);
-token_singleton!(RemnAssign, TokenKind::RemAssign);
+token_singleton!(RemAssign, TokenKind::RemAssign);
+token_singleton!(Assign, TokenKind::Assign);
 
 token_singleton!(LParen, TokenKind::LParen);
 token_singleton!(RParen, TokenKind::RParen);
@@ -94,6 +110,23 @@ token_singleton!(RCurly, TokenKind::RCurly);
 token_singleton!(LCurly, TokenKind::LCurly);
 token_singleton!(Arrow, TokenKind::Arrow);
 token_singleton!(SemiC, TokenKind::SemiColon);
+token_singleton!(Nl, TokenKind::Nl);
 
 token_singleton!(Comma, TokenKind::Comma);
 token_singleton!(Dot, TokenKind::Dot);
+token_singleton!(Colon, TokenKind::Colon);
+token_singleton!(QMark, TokenKind::QMark);
+
+token_singleton!(Class, TokenKind::Class);
+token_singleton!(Interface, TokenKind::Interface);
+token_singleton!(Let, TokenKind::Let);
+token_singleton!(Const, TokenKind::Const);
+token_singleton!(In, TokenKind::In);
+token_singleton!(Out, TokenKind::Out);
+token_singleton!(If, TokenKind::If);
+token_singleton!(Else, TokenKind::Else);
+token_singleton!(While, TokenKind::While);
+token_singleton!(For, TokenKind::For);
+token_singleton!(Try, TokenKind::Try);
+token_singleton!(Catch, TokenKind::Catch);
+token_singleton!(Match, TokenKind::Match);

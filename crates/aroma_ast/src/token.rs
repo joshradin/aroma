@@ -113,6 +113,11 @@ pub enum TokenKind {
     Lte,
     Gte,
     Gt,
+    QMark,
+    Out,
+    Try,
+    Catch,
+    Match,
 }
 
 /// A stream of tokens
@@ -139,7 +144,6 @@ impl<'p> TokenStream<'p, 'p> {
     }
 }
 impl<'a: 'p, 'p> TokenStream<'a, 'p> {
-
     /// Create a token stream from an iterator
     pub fn from_iter<T: IntoIterator<Item = Token<'p>, IntoIter: 'a>>(iter: T) -> Self {
         Self(Box::new(iter.into_iter()))
@@ -150,9 +154,11 @@ impl<'a: 'p, 'p> TokenStream<'a, 'p> {
 pub trait ToTokens<'p> {
     /// Gets an iterator over tokens
     fn to_tokens(&self) -> TokenStream<'p, 'p>;
+
+    fn to_token_tree(&self) -> TokenTree<'p> {
+        TokenTree::Leaf(Vec::from_iter(self.to_tokens()))
+    }
 }
-
-
 
 impl<'p, T: ToTokens<'p>> Spanned<'p> for T {
     fn span(&self) -> Span<'p> {
@@ -165,11 +171,33 @@ impl<'p, T: ToTokens<'p>> Spanned<'p> for T {
 impl<'p, T: ToTokens<'p>> ToTokens<'p> for Option<T> {
     fn to_tokens(&self) -> TokenStream<'p, 'p> {
         match self {
-            None => { TokenStream::new() }
-            Some(s) => { s.to_tokens()}
+            None => TokenStream::new(),
+            Some(s) => s.to_tokens(),
         }
     }
 }
+impl<'p, T: ToTokens<'p>> ToTokens<'p> for Vec<T> {
+    fn to_tokens(&self) -> TokenStream<'p, 'p> {
+        self.iter().flat_map(|t| t.to_tokens()).collect()
+    }
+
+    fn to_token_tree(&self) -> TokenTree<'p> {
+        TokenTree::Node(
+            self.iter()
+                .map(|t| t.to_token_tree())
+                .collect()
+        )
+    }
+}
+
+/// A way of representing tokens in a tree format
+#[derive(Debug)]
+pub enum TokenTree<'p> {
+    Leaf(Vec<Token<'p>>),
+    Node(Vec<TokenTree<'p>>),
+}
+
+
 
 #[cfg(test)]
 mod tests {

@@ -1,24 +1,113 @@
 use crate::lexer::Lexer;
 use aroma_ast::id::Id;
-use aroma_ast::token::{Token, TokenKind};
-use std::fmt::{Display, Pointer};
+use aroma_ast::spanned::Spanned;
+use aroma_ast::token::{ToTokens, Token, TokenKind};
+use std::collections::VecDeque;
+use std::fmt::{Display, Formatter, Pointer};
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
+use std::result;
 
 pub mod error;
 pub mod syntax_tree;
 
-use crate::parser::{Constant, ConstantKind, CouldParse, Parse};
+use crate::parser::{Constant, ConstantKind};
 pub use error::*;
+use log::trace;
+use crate::parser::expr::remove_nl;
+
+/// Parser for syntax tree items
+pub trait Parser<'p, R: Read, O, E = Error<'p>>: Clone
+    where E : std::error::Error
+{
+    fn parse(&mut self, parser: &mut SyntacticParser<'p, R>) -> result::Result<O, Err<E>>;
+}
+
+impl<'p, R, O, E, F> Parser<'p, R, O, E> for F
+where
+    R: Read,
+    F: FnMut(&mut SyntacticParser<'p, R>) -> result::Result<O, Err<E>>,
+    F: Clone,
+    E : std::error::Error
+{
+    fn parse(&mut self, parser: &mut SyntacticParser<'p, R>) -> result::Result<O, Err<E>> {
+        (self)(parser)
+    }
+}
+
+/// Parse a syntax tree part
+pub trait Parsable<'p>: ToTokens<'p> + Sized {
+    type Err;
+
+    /// Attempt to parse some syntax tree part
+    fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> result::Result<Self, Err<Self::Err>>;
+}
+
+/// A sub trait that determines if this type could be parsed without doing the parsing
+pub trait CouldParse<'p>: Parsable<'p> {
+    /// Attempt to parse some syntax tree part
+    fn could_parse<R: Read>(
+        parser: &mut SyntacticParser<'p, R>,
+    ) -> result::Result<bool, Err<Self::Err>>;
+}
 
 #[derive(Debug, Default)]
 enum State<'p> {
     #[default]
     Uninit,
     Lookahead(Token<'p>),
+    Buffered(VecDeque<Token<'p>>),
     Eof,
     Poisoned,
+}
+
+#[derive(Debug, Default)]
+struct StateFrame<'p> {
+    used: VecDeque<Token<'p>>,
+    ignore_nl_prev: bool,
+}
+
+/// Err enum used to represent recoverable and non-recoverable errors
+#[derive(Debug)]
+pub enum Err<E> {
+    /// a recoverable error
+    Error(E),
+    /// a non-recoverable error
+    Failure(E),
+}
+
+impl<E: std::error::Error> Display for Err<E> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Err::Error(e) => {
+                write!(f, "recoverable error: {e}")
+            }
+            Err::Failure(e) => {
+                write!(f, "unrecoverable error: {e}")
+            }
+        }
+    }
+}
+
+impl<E: std::error::Error> std::error::Error for Err<E> {}
+
+impl<E> Err<E> {
+    pub fn convert<E2>(self) -> Err<E2>
+    where
+        E: Into<E2>,
+    {
+        match self {
+            Err::Error(e) => Err::Error(e.into()),
+            Err::Failure(e) => Err::Failure(e.into()),
+        }
+    }
+}
+
+impl<'p> From<Error<'p>> for Err<Error<'p>> {
+    fn from(value: Error<'p>) -> Self {
+        Err::Error(value)
+    }
 }
 
 /// Creates the syntactic parse tree from a token stream.
@@ -40,6 +129,8 @@ enum State<'p> {
 pub struct SyntacticParser<'p, R: Read> {
     lexer: Lexer<'p, R>,
     state: State<'p>,
+    frames: Vec<StateFrame<'p>>,
+    ignore_nl: bool
 }
 
 impl<'p, R: Read> SyntacticParser<'p, R> {
@@ -48,19 +139,43 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
         Self {
             lexer,
             state: Default::default(),
+            frames: vec![],
+            ignore_nl: true,
         }
     }
 
     fn next_token(&mut self) -> Result<'p, ()> {
-        match self.lexer.next() {
-            None => {
-                self.state = State::Eof;
+        loop {
+            match &self.state {
+                // nothing needs to be done to get the next token
+                State::Buffered(v) if !v.is_empty() => {}
+                _ => {
+                    match self.lexer.next() {
+                        None => {
+                            self.state = State::Eof;
+                            return Ok(());
+                        }
+                        Some(res) => {
+                            let token = res.map_err(|e| Err::Failure(ErrorKind::from(e).into()))?;
+                            self.state = State::Lookahead(token);
+                        }
+                    }
+                }
             }
-            Some(res) => {
-                let token = res?;
-                self.state = State::Lookahead(token);
+
+            if self.ignore_nl {
+                if let Some(o) = self.peek()? {
+                    if !matches!(o.kind(), TokenKind::Nl) {
+                        break;
+                    }
+                }
+            } else {
+                break;
             }
         }
+
+
+
         Ok(())
     }
 
@@ -76,6 +191,7 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
             }
             State::Eof => Ok(None),
             State::Poisoned => Err(self.error(ErrorKind::ParserPoisoned, None)),
+            State::Buffered(buf) => Ok(buf.front()),
         }
     }
 
@@ -83,18 +199,124 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
         if matches!(self.state, State::Uninit) {
             let _ = self.next_token()?;
         }
+        trace!("starting consume, state={:?}", self.state);
         let swapped = std::mem::replace(&mut self.state, State::Poisoned);
         match swapped {
             State::Uninit => {
                 unreachable!("next_token() should init parser")
             }
-            State::Lookahead(token) => {
-                self.next_token()?;
+            State::Buffered(mut buffer) => {
+                let token = buffer.pop_front().expect("buffer should always have >0 len");
+                if buffer.is_empty() {
+                    self.next_token()?;
+                } else {
+                    self.state = State::Buffered(buffer);
+                }
+                trace!("consumed {token:?}, state ={:?}", self.state);
+                if let Some(state_frame) = self.state_frame_mut() {
+                    state_frame.used.push_back(token.clone());
+                }
                 Ok(Some(token))
             }
-            State::Eof => Ok(None),
+            State::Lookahead(token) => {
+                self.next_token()?;
+                trace!("consumed {token:?}, state ={:?}", self.state);
+                if let Some(state_frame) = self.state_frame_mut() {
+                    state_frame.used.push_back(token.clone());
+                }
+
+                Ok(Some(token))
+            }
+            State::Eof => {
+                self.state = State::Eof;
+                Ok(None)
+            },
             State::Poisoned => Err(self.error(ErrorKind::ParserPoisoned, None)),
+
         }
+    }
+
+    fn state_frame_mut(&mut self) -> Option<&mut StateFrame<'p>> {
+        self.frames.last_mut()
+    }
+
+    fn push_backtrack_frame(&mut self) {
+        let mut frame = StateFrame::default();
+        frame.ignore_nl_prev = self.ignore_nl;
+        self.frames.push(frame)
+    }
+
+    fn pop_backtrack_frame(&mut self) -> Option<StateFrame<'p>> {
+        self.frames.pop()
+    }
+
+    /// Tries to run a parser, backtracking if an errors occurs within the parser.
+    ///
+    /// returns `Ok(Some(parsed))` on success, `Ok(None)` on `Err::Error(_)` and `Err(e)` on `Err::Failure(e)`.
+    pub fn try_parse<O, E : std::error::Error, P: Parser<'p, R, O, E>>(
+        &mut self,
+        mut parser: P,
+    ) -> result::Result<Option<O>, E> {
+        trace!("({}) starting backtracking parse with state at {:?}", self.frames.len(), self.state);
+        self.push_backtrack_frame();
+        let result = parser.parse(self);
+        let pop = self.pop_backtrack_frame().unwrap();
+        match result {
+            Ok(ok) => Ok(Some(ok)),
+            Err(Err::Error(e)) => {
+                let state = std::mem::replace(&mut self.state, State::Poisoned);
+                trace!("({}) error occurred while state={state:?} -> {e:?}", self.frames.len());
+                let mut v = pop.used;
+                let next_state = match state {
+                    State::Buffered(buffered) => {
+                        v.extend(buffered);
+                        State::Buffered(v)
+                    }
+                    State::Lookahead(tok) if v.is_empty() => {
+                        State::Lookahead(tok)
+                    }
+                    State::Lookahead(tok) => {
+                        v.push_back(tok);
+                        State::Buffered(v)
+                    }
+                    State::Eof if v.is_empty() => {
+                        State::Eof
+                    }
+                    State::Eof => {
+                        State::Buffered(v)
+                    }
+                    state => panic!("unhandled state: {state:?}")
+                };
+                self.state = next_state;
+                trace!("({}) after backtrack state={:?}", self.frames.len(), self.state);
+                self.ignore_nl = pop.ignore_nl_prev;
+                Ok(None)
+            }
+            Err(Err::Failure(e)) => Err(e),
+        }
+    }
+
+    /// Sets the parser into a given ignore state.
+    pub fn set_ignore_nl(&mut self, state: bool) -> Result<'p> {
+        if self.ignore_nl == state {
+            return Ok(());
+        }
+        if !self.ignore_nl {
+            while self.peek()?.map(|i| matches!(i.kind(), TokenKind::Nl)).unwrap_or(false) {
+                self.consume()?;
+            }
+        }
+
+        self.ignore_nl = state;
+        Ok(())
+    }
+
+    pub fn with_ignore_nl<F : FnOnce(&mut Self) -> Result<'p, O>, O>(&mut self, state: bool, func: F)  -> Result<'p, O> {
+        let old_state = self.ignore_nl;
+        self.set_ignore_nl(state)?;
+        let ret = (func)(self);
+        self.set_ignore_nl(old_state)?;
+        ret
     }
 
     /// consumes if predicate matches
@@ -117,36 +339,42 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
         }
     }
 
-    fn error<E1, E2>(&self, error: E1, cause: E2) -> Error<'p>
+    fn error<E1, E2>(&self, error: E1, cause: E2) -> Err<Error<'p>>
     where
         E1: Into<ErrorKind<'p>>,
         E2: Into<Option<Error<'p>>>,
     {
-        Error::new(error.into(), None, cause)
+        let span = match &self.state {
+            State::Lookahead(t) => Some(t.span()),
+            _ => None,
+        };
+        Err::Error(Error::new(error.into(), span, cause))
     }
 
     /// Wrapper function for parsing an item
-    pub fn parse<T>(&mut self) -> std::result::Result<T, T::Err>
-    where
-        T: Parse<'p>,
+    pub fn parse<O, E, P: Parser<'p, R, O, E>>(
+        &mut self,
+        mut parser: P,
+    ) -> result::Result<O, Err<E>>
+    where E : std::error::Error
     {
-        T::parse(self)
+        parser.parse(self)
     }
 }
 
 impl<'p> SyntacticParser<'p, File> {
     /// Creates a new parser for a given file
-    pub fn with_file(path: &'p Path) -> error::Result<Self> {
+    pub fn with_file(path: &'p Path) -> result::Result<Self, Error<'p>> {
         let file = File::open(path)?;
         let lexer = Lexer::new(path, file)?;
         Ok(Self::new(lexer))
     }
 }
 
-impl<'p> Parse<'p> for Id<'p> {
+impl<'p> Parsable<'p> for Id<'p> {
     type Err = Error<'p>;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> std::result::Result<Self, Self::Err> {
+    fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> result::Result<Self, Err<Self::Err>> {
         if let Some(tok) =
             parser.consume_if(|token| matches!(token.kind(), TokenKind::Identifier(_)))?
         {
@@ -163,7 +391,7 @@ impl<'p> Parse<'p> for Id<'p> {
 impl<'p> CouldParse<'p> for Id<'p> {
     fn could_parse<R: Read>(
         parser: &mut SyntacticParser<'p, R>,
-    ) -> std::result::Result<bool, Self::Err> {
+    ) -> std::result::Result<bool, Err<Self::Err>> {
         Ok(parser
             .peek()?
             .map(|t| matches!(t.kind(), TokenKind::Identifier(_)))
@@ -180,14 +408,15 @@ impl<'p, R: Read> From<Lexer<'p, R>> for SyntacticParser<'p, R> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::parser::singletons::Class;
     use crate::parser::syntactic_parser::syntax_tree::expr::Expr;
-    use crate::parser::ConstantKind;
+    use crate::parser::{cut, ConstantKind};
     use aroma_ast::spanned::{Span, Spanned};
     use aroma_ast::token::{ToTokens, TokenKind};
     use std::io::Write as _;
     use tempfile::NamedTempFile;
 
-    fn test_parser<F>(s: &str, callback: F)
+    pub fn test_parser<F>(s: &str, callback: F)
     where
         F: FnOnce(&mut SyntacticParser<File>, &Path),
     {
@@ -221,6 +450,26 @@ mod tests {
     }
 
     #[test]
+    fn test_try_parse() {
+        test_parser("class", |parser, _| {
+            let result = parser.try_parse(Expr::parse);
+            assert!(matches!(result, Ok(None)), "should not be okay");
+            trace!("parser: {:#?}", parser);
+            let result = parser.try_parse(Class::parse);
+            assert!(
+                matches!(result, Ok(Some(Class { .. }))),
+                "should be okay but got {result:?}"
+            );
+            let result = parser.try_parse(cut(Class::parse));
+            assert!(
+                matches!(result, Err(_)),
+                "should be err but got {result:?}"
+            );
+        });
+    }
+
+
+    #[test]
     fn test_consume_if() {
         test_parser("let x = 1.0;", |parser, _| {
             assert!(parser
@@ -237,137 +486,21 @@ mod tests {
     #[test]
     fn test_parse_constant() {
         test_parser("3.0", |parser, _| {
-            let constant = parser.parse::<Constant>().unwrap();
+            let constant = parser.parse(Constant::parse).unwrap();
             assert!(matches!(constant.kind, ConstantKind::Float(3.0)));
-            println!(
+            trace!(
                 "{constant:?} -> {:#?}",
                 constant.to_tokens().collect::<Vec<_>>()
             );
         });
         test_parser("3", |parser, _| {
-            let constant = parser.parse::<Constant>().unwrap();
+            let constant = parser.parse(Constant::parse).unwrap();
             assert!(matches!(constant.kind, ConstantKind::Integer(3)));
-            println!(
+            trace!(
                 "{constant:?} -> {:#?}",
                 constant.to_tokens().collect::<Vec<_>>()
             );
         })
     }
-    #[test]
-    fn test_parse_identifier() {
-        test_parser("helloWorld", |parser, _| {
-            let identifier = parser.parse::<Id>().unwrap();
-            assert!(matches!(identifier.most_specific(), "helloWorld"));
-        })
-    }
 
-    #[test]
-    fn test_parse_identifier_single_letter() {
-        test_parser("i", |parser, _| {
-            let identifier = parser.parse::<Id>().unwrap();
-            assert!(matches!(identifier.most_specific(), "i"));
-        })
-    }
-
-    #[test]
-    fn test_parse_unary() {
-        test_parser("--helloWorld", |parser, _| {
-            let expr = parser.parse::<Expr>().unwrap();
-            println!("{expr:#?}");
-        })
-    }
-
-    #[test]
-    fn test_parse_expressions() {
-        test_parser("helloWorld + 3*2/5 - 1 << 3 * -2.0", |parser, _| {
-            let expr = parser.parse::<Expr>().unwrap();
-            println!("{expr:#?}");
-            println!("{:?}", expr.to_tokens().collect::<Vec<_>>())
-        })
-    }
-
-    #[test]
-    fn test_parse_method_calls() {
-        test_parser("foo(bar() + 2, bar(1+2))", |parser, _| {
-            let expr = parser.parse::<Expr>().unwrap();
-            println!("{expr:#?}");
-            println!("{:?}", expr.to_tokens().collect::<Vec<_>>())
-        })
-    }
-
-    #[test]
-    fn test_parse_fields() {
-        test_parser("foo.blah.get(1)", |parser, _| {
-            let expr = parser.parse::<Expr>().unwrap();
-            println!("{expr:#?}");
-            println!("{:?}", expr.to_tokens().collect::<Vec<_>>())
-        })
-    }
-
-    #[test]
-    fn test_parse_index() {
-        test_parser("foo[0]", |parser, _| {
-            let expr = parser.parse::<Expr>().unwrap();
-            println!("{expr:#?}");
-            println!("{:?}", expr.to_tokens().collect::<Vec<_>>());
-        })
-    }
-
-    #[test]
-    fn test_closure() {
-        test_parser("{ -> }", |parser, _| {
-            let expr = parser.parse::<Expr>().unwrap();
-            println!("{expr:#?}");
-            println!("{:?}", expr.to_tokens().collect::<Vec<_>>());
-        })
-    }
-
-    #[test]
-    fn test_closure_with_bindings() {
-        test_parser("{ i -> }", |parser, _| {
-            let expr = parser.parse::<Expr>().unwrap();
-            println!("{expr:#?}");
-            println!("{:?}", expr.to_tokens().collect::<Vec<_>>());
-        })
-    }
-
-    #[test]
-    fn test_closure_after_method_no_parens() {
-        test_parser("forEach { -> }", |parser, _| {
-            let expr = parser.parse::<Expr>().unwrap();
-            println!("{expr:#?}");
-            println!("{:?}", expr.to_tokens().collect::<Vec<_>>());
-        })
-    }
-
-    #[test]
-    fn test_closure_after_method_no_args() {
-        test_parser("forEach() { -> }", |parser, _| {
-            let expr = parser.parse::<Expr>().unwrap();
-            println!("{expr:#?}");
-            assert!(
-                matches!(expr, Expr::Call(call) if call.parameters.is_some() && call.parameters.as_ref().unwrap().punctuated.len() == 1)
-            );
-        })
-    }
-
-    #[test]
-    fn test_closure_after_method_mixed_args() {
-        test_parser("repeat(10){ -> }", |parser, _| {
-            let expr = parser.parse::<Expr>().unwrap();
-            println!("{expr:#?}");
-            assert!(
-                matches!(expr, Expr::Call(call) if call.parameters.is_some() && call.parameters.as_ref().unwrap().punctuated.len() == 2)
-            );
-        })
-    }
-
-    #[test]
-    fn test_closure_after_method_mixed_args_then_expr() {
-        test_parser("(repeat(10)) { -> } ", |parser, _| {
-            let expr = parser.parse::<Expr>().unwrap();
-            println!("{expr:#?}");
-
-        })
-    }
 }

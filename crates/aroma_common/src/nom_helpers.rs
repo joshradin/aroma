@@ -23,7 +23,9 @@ mod tests {
     #[test]
     fn test_one_letter_variable() {
         let id = "i ";
-        let (rest, parsed) = identifier_parser::<_, nom::error::Error<_>>()(id).finish().unwrap();
+        let (rest, parsed) = identifier_parser::<_, nom::error::Error<_>>()(id)
+            .finish()
+            .unwrap();
         assert_eq!(parsed, "i");
     }
 }

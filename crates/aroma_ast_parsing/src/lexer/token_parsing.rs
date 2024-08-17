@@ -3,9 +3,12 @@ use std::str::FromStr;
 use aroma_ast::token::TokenKind;
 use aroma_common::nom_helpers::identifier_parser;
 use nom::branch::alt;
-use nom::bytes::complete::{is_not, take_while_m_n, tag};
-use nom::character::complete::{alpha1, space0, space1, char, digit1, hex_digit1, multispace1};
-use nom::combinator::{all_consuming, consumed, cut, eof, map, map_opt, map_parser, map_res, peek, recognize, value, verify};
+use nom::bytes::complete::{is_not, tag, take_while_m_n};
+use nom::character::complete::{alpha1, char, digit1, hex_digit1, multispace1, space0, space1};
+use nom::combinator::{
+    all_consuming, consumed, cut, eof, map, map_opt, map_parser, map_res, peek, recognize, value,
+    verify,
+};
 use nom::error::{context, ErrorKind, FromExternalError, VerboseError};
 use nom::multi::{fold_many0, many0, many1};
 use nom::number::complete::recognize_float;
@@ -17,9 +20,10 @@ type Result<'a, O, E = &'a [u8]> = IResult<&'a [u8], O, VerboseError<E>>;
 pub fn parse_token(mut src: &[u8]) -> Result<(usize, TokenKind), String> {
     let mut main_parser = context(
         "token",
-        map(delimited(space0, consumed(_parse_token), space0), |(consumed, token)| {
-            (consumed.len(), token)
-        }),
+        map(
+            delimited(space0, consumed(_parse_token), space0),
+            |(consumed, token)| (consumed.len(), token),
+        ),
     );
     (main_parser)(src).map_err(|e| {
         e.map(|e| {
@@ -124,9 +128,13 @@ fn parse_keyword(src: &[u8]) -> Result<TokenKind> {
                 value(TokenKind::Private, tag("private")),
                 value(TokenKind::Protected, tag("protected")),
                 value(TokenKind::In, tag("in")),
+                value(TokenKind::Out, tag("out")),
                 value(TokenKind::Namespace, tag("namespace")),
                 value(TokenKind::Native, tag("native")),
                 value(TokenKind::Static, tag("static")),
+                value(TokenKind::Try, tag("try")),
+                value(TokenKind::Catch, tag("catch")),
+                value(TokenKind::Match, tag("match")),
             )),
         )),
     )(src)
@@ -161,6 +169,7 @@ fn parse_punctuation(src: &[u8]) -> Result<TokenKind> {
             value(TokenKind::LCurly, char('{')),
             value(TokenKind::RCurly, char('}')),
             value(TokenKind::Comma, char(',')),
+            value(TokenKind::QMark, char('?')),
         )),
     )(src)
 }
