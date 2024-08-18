@@ -6,6 +6,7 @@ use aroma_common::nom_helpers::identifier_parser;
 use itertools::Itertools;
 use nom::character::complete::char;
 use nom::combinator::{all_consuming, map, opt, recognize};
+use nom::error::ParseError;
 use nom::multi::{separated_list0, separated_list1};
 use nom::sequence::{delimited, tuple};
 use nom::{Finish, IResult, Parser};
@@ -13,7 +14,6 @@ use petgraph::visit::Walker;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::str::FromStr;
-use nom::error::ParseError;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum ClassKind {
@@ -209,7 +209,7 @@ impl ClassInst {
     }
 }
 
-pub fn class_inst_parser<'a, E : ParseError<&'a str>>(v: &'a str) -> IResult<&str, ClassInst, E> {
+pub fn class_inst_parser<'a, E: ParseError<&'a str>>(v: &'a str) -> IResult<&str, ClassInst, E> {
     let fqi = recognize(separated_list1(char('.'), identifier_parser()));
     map(
         tuple((

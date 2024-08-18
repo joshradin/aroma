@@ -11,13 +11,18 @@ pub fn derive_to_tokens(tokens: TokenStream) -> TokenStream {
         Data::Struct(s) => {
             let generics = derive_input.generics.type_params();
             let generic_uses = derive_input.generics.type_params().map(|t| &t.ident);
-            let fields = s.fields.iter().enumerate().map(|(index, field)| {
-                field
-                    .ident
-                    .as_ref()
-                    .map(|id| quote!( #id ))
-                    .unwrap_or(quote! { #index })
-            }).collect::<Vec<_>>();
+            let fields = s
+                .fields
+                .iter()
+                .enumerate()
+                .map(|(index, field)| {
+                    field
+                        .ident
+                        .as_ref()
+                        .map(|id| quote!( #id ))
+                        .unwrap_or(quote! { #index })
+                })
+                .collect::<Vec<_>>();
 
             quote! (
                 #[automatically_derived]
@@ -67,30 +72,31 @@ pub fn derive_to_tokens(tokens: TokenStream) -> TokenStream {
                             .map(|(field_id, binding)| {
                                 quote! { #field_id: #binding }
                             })
-                            .collect::<Vec<_>>();;
+                            .collect::<Vec<_>>();
 
                         let len = named.named.len();
 
                         (
                             quote! {
-                            #ident::#id { #(#pats),* } => {
-                                aroma_ast::token::TokenStream::from_iter(
-                                    <[aroma_ast::token::TokenStream<'p, 'p>; #len]>::into_iter([#(
-                                       #bindings.to_tokens()
-                                    ),*]
+                                #ident::#id { #(#pats),* } => {
+                                    aroma_ast::token::TokenStream::from_iter(
+                                        <[aroma_ast::token::TokenStream<'p, 'p>; #len]>::into_iter([#(
+                                           #bindings.to_tokens()
+                                        ),*]
+                                        )
+                                        .flatten()
                                     )
-                                    .flatten()
-                                )
-                            }
-                        }, quote! {
-                            #ident::#id { #(#pats),* } => {
-                                aroma_ast::token::TokenTree::Node(
-                                    Vec::from([
-                                            #(#bindings.to_token_tree()),*
-                                        ])
-                                )
-                            }
-                        },
+                                }
+                            },
+                            quote! {
+                                #ident::#id { #(#pats),* } => {
+                                    aroma_ast::token::TokenTree::Node(
+                                        Vec::from([
+                                                #(#bindings.to_token_tree()),*
+                                            ])
+                                    )
+                                }
+                            },
                         )
                     }
                     Fields::Unnamed(unnamed) => {
@@ -99,40 +105,42 @@ pub fn derive_to_tokens(tokens: TokenStream) -> TokenStream {
                             .map(|i| format_ident!("__self_{i}"))
                             .collect::<Vec<_>>();
                         let len = bindings.len();
-                        (quote! {
-                            #ident::#id(#(#bindings),*) => {
-                                aroma_ast::token::TokenStream::from_iter(
-                                    <[aroma_ast::token::TokenStream<'p, 'p>; #len]>::into_iter([#(
-                                       #bindings.to_tokens()
-                                    ),*]
+                        (
+                            quote! {
+                                #ident::#id(#(#bindings),*) => {
+                                    aroma_ast::token::TokenStream::from_iter(
+                                        <[aroma_ast::token::TokenStream<'p, 'p>; #len]>::into_iter([#(
+                                           #bindings.to_tokens()
+                                        ),*]
+                                        )
+                                        .flatten()
                                     )
-                                    .flatten()
-                                )
-                            }
-                        },
+                                }
+                            },
+                            quote! {
+                                #ident::#id(#(#bindings),*) => {
+                                    aroma_ast::token::TokenTree::Node(
+                                        Vec::from([
+                                                #(#bindings.to_token_tree()),*
+                                            ])
+                                    )
+                                }
+                            },
+                        )
+                    }
+                    Fields::Unit => (
                         quote! {
-                            #ident::#id(#(#bindings),*) => {
-                                aroma_ast::token::TokenTree::Node(
-                                    Vec::from([
-                                            #(#bindings.to_token_tree()),*
-                                        ])
-                                )
-                            }
-                        })
-                    }
-                    Fields::Unit => {
-                        (quote! {
                             #ident::#id => { aroma_ast::token::TokenStream::new() }
-                        }, quote! { #ident::#id => { aroma_ast::token::TokenTree::Leaf(vec![]) }})
-                    }
+                        },
+                        quote! { #ident::#id => { aroma_ast::token::TokenTree::Leaf(vec![]) }},
+                    ),
                 };
 
                 matches.push(match_case);
             }
 
-            let (to_token_matches, to_token_tree_matches) = matches
-                .into_iter()
-                .unzip::<_, _, Vec<_>, Vec<_>>();
+            let (to_token_matches, to_token_tree_matches) =
+                matches.into_iter().unzip::<_, _, Vec<_>, Vec<_>>();
 
             quote! (
                 #[automatically_derived]

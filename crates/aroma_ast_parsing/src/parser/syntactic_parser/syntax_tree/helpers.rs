@@ -120,7 +120,7 @@ pub fn cut<'p, P, R, O, E>(mut parser: P) -> impl Parser<'p, R, O, E>
 where
     P: Parser<'p, R, O, E> + Clone,
     R: Read,
-    E : std::error::Error
+    E: std::error::Error,
 {
     move |syn_parser: &mut SyntacticParser<'p, R>| -> Result<O, Err<E>> {
         syn_parser.parse(parser.clone()).map_err(|e| match e {
@@ -135,10 +135,32 @@ pub fn multi0<'p, P, R, O, E>(mut parser: P) -> impl Parser<'p, R, Vec<O>, E>
 where
     P: Parser<'p, R, O, E> + Clone,
     R: Read,
-    E : std::error::Error
+    E: std::error::Error,
 {
     move |syn_parser: &mut SyntacticParser<'p, R>| -> Result<Vec<O>, Err<E>> {
         let mut r = vec![];
+        while let Some(parsed) = syn_parser
+            .try_parse(parser.clone())
+            .map_err(|e| Err::Failure(e))?
+        {
+            r.push(parsed);
+        }
+        Ok(r)
+    }
+}
+
+/// Runs the same parser over and over until failure, requiring at least one successful parse
+pub fn multi1<'p, P, R, O, E>(mut parser: P) -> impl Parser<'p, R, Vec<O>, E>
+where
+    P: Parser<'p, R, O, E> + Clone,
+    R: Read,
+    E: std::error::Error,
+{
+    move |syn_parser: &mut SyntacticParser<'p, R>| -> Result<Vec<O>, Err<E>> {
+        let mut r = vec![];
+        let item =  syn_parser
+            .parse(parser.clone())?;
+        r.push(item);
         while let Some(parsed) = syn_parser
             .try_parse(parser.clone())
             .map_err(|e| Err::Failure(e))?
@@ -155,7 +177,7 @@ where
     P: Parser<'p, R, O, E> + Clone,
     R: Read,
     F: FnMut(O) -> O2 + Clone,
-    E : std::error::Error
+    E: std::error::Error,
 {
     move |syn_parser: &mut SyntacticParser<'p, R>| -> Result<O2, Err<E>> {
         let parsed = syn_parser.parse(parser.clone())?;

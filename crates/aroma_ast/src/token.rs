@@ -118,6 +118,10 @@ pub enum TokenKind {
     Try,
     Catch,
     Match,
+    Return,
+    Loop,
+    Break,
+    Continue,
 }
 
 /// A stream of tokens
@@ -182,11 +186,7 @@ impl<'p, T: ToTokens<'p>> ToTokens<'p> for Vec<T> {
     }
 
     fn to_token_tree(&self) -> TokenTree<'p> {
-        TokenTree::Node(
-            self.iter()
-                .map(|t| t.to_token_tree())
-                .collect()
-        )
+        TokenTree::Node(self.iter().map(|t| t.to_token_tree()).collect())
     }
 }
 
@@ -196,8 +196,6 @@ pub enum TokenTree<'p> {
     Leaf(Vec<Token<'p>>),
     Node(Vec<TokenTree<'p>>),
 }
-
-
 
 #[cfg(test)]
 mod tests {

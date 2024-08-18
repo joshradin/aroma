@@ -62,7 +62,7 @@ impl Display for TypeSignature {
                 write!(f, "D")
             }
             TypeSignature::Invariant(o, generics) => {
-                write!(f, "L{}",o)?;
+                write!(f, "L{}", o)?;
                 if !generics.is_empty() {
                     write!(f, "[{}]", generics.iter().map(|s| s.to_string()).join(","))?;
                 }
@@ -92,33 +92,35 @@ impl Display for TypeSignature {
             TypeSignature::Array(a) => {
                 write!(f, "[{a}")
             }
-
         }
     }
 }
 
 impl From<ClassInst> for TypeSignature {
     fn from(t: ClassInst) -> Self {
-        TypeSignature::Invariant(t.class_ref().clone(), t.generics()
-                                                         .iter().map(|bound| {
-            match bound {
-                GenericParameterBound::Invariant(i) => {
-                    TypeSignature::from(i.clone())
-                }
-                GenericParameterBound::Covariant(i) => {
-                    let TypeSignature::Invariant(i, generics) = TypeSignature::from(i.clone()) else {
-                        panic!()
-                    };
-                    TypeSignature::Covariant(i, generics)
-                }
-                GenericParameterBound::Contravariant(i) => {
-                    let TypeSignature::Invariant(i, generics) = TypeSignature::from(i.clone()) else {
-                        panic!()
-                    };
-                    TypeSignature::Contravariant(i, generics)
-                }
-            }
-        }).collect())
+        TypeSignature::Invariant(
+            t.class_ref().clone(),
+            t.generics()
+                .iter()
+                .map(|bound| match bound {
+                    GenericParameterBound::Invariant(i) => TypeSignature::from(i.clone()),
+                    GenericParameterBound::Covariant(i) => {
+                        let TypeSignature::Invariant(i, generics) = TypeSignature::from(i.clone())
+                        else {
+                            panic!()
+                        };
+                        TypeSignature::Covariant(i, generics)
+                    }
+                    GenericParameterBound::Contravariant(i) => {
+                        let TypeSignature::Invariant(i, generics) = TypeSignature::from(i.clone())
+                        else {
+                            panic!()
+                        };
+                        TypeSignature::Contravariant(i, generics)
+                    }
+                })
+                .collect(),
+        )
     }
 }
 
@@ -143,7 +145,6 @@ fn parse_class_ts(input: &str) -> IResult<&str, TypeSignature, VerboseError<&str
     )(input)
 }
 
-
 fn parse_type_signature(input: &str) -> IResult<&str, TypeSignature, VerboseError<&str>> {
     context(
         "parse_type_signature",
@@ -157,24 +158,18 @@ fn parse_type_signature(input: &str) -> IResult<&str, TypeSignature, VerboseErro
             value(TypeSignature::Float, char('F')),
             value(TypeSignature::Double, char('D')),
             delimited(char('L'), parse_class_ts, char(';')),
-            map(
-                delimited(char('^'), parse_class_ts, char(';')),
-                |t| {
-                    let TypeSignature::Invariant(i, generics) = t else {
-                        panic!()
-                    };
-                    TypeSignature::Contravariant(i, generics)
-                },
-            ),
-            map(
-                delimited(char('_'), parse_class_ts, char(';')),
-                |t|  {
-                    let TypeSignature::Invariant(i, generics) = t else {
-                        panic!()
-                    };
-                    TypeSignature::Covariant(i, generics)
-                },
-            ),
+            map(delimited(char('^'), parse_class_ts, char(';')), |t| {
+                let TypeSignature::Invariant(i, generics) = t else {
+                    panic!()
+                };
+                TypeSignature::Contravariant(i, generics)
+            }),
+            map(delimited(char('_'), parse_class_ts, char(';')), |t| {
+                let TypeSignature::Invariant(i, generics) = t else {
+                    panic!()
+                };
+                TypeSignature::Covariant(i, generics)
+            }),
             map(preceded(char('['), parse_type_signature), |ts| {
                 TypeSignature::Array(Box::new(ts))
             }),

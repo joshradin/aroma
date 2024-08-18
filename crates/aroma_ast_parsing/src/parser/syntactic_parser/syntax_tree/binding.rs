@@ -216,10 +216,10 @@ pub enum Variance<'p> {
 
 #[cfg(test)]
 mod tests {
-    use aroma_ast::token::ToTokens;
     use crate::parser::binding::{Binding, OptTypeBinding, Type, TypeDec};
     use crate::parser::syntactic_parser::tests::test_parser;
     use crate::parser::Parsable;
+    use aroma_ast::token::ToTokens;
 
     #[test]
     fn parse_basic_type() {
@@ -253,11 +253,15 @@ mod tests {
     #[test]
     fn parse_type_opt_binding() {
         test_parser("x", |parser, _| {
-            let type_dec = parser.parse(OptTypeBinding::parse).expect("could not parse");
+            let type_dec = parser
+                .parse(OptTypeBinding::parse)
+                .expect("could not parse");
             assert!(type_dec.type_dec.is_none());
         });
         test_parser("x: a", |parser, _| {
-            let type_dec = parser.parse(OptTypeBinding::parse).expect("could not parse");
+            let type_dec = parser
+                .parse(OptTypeBinding::parse)
+                .expect("could not parse");
             assert!(type_dec.type_dec.is_some());
             println!("{:#?}", type_dec.to_token_tree());
         });

@@ -1,10 +1,12 @@
 use crate::parser::singletons::*;
+use crate::parser::statement::{StatementLet, StatementList};
 use crate::parser::syntactic_parser::{CouldParse, Parsable};
-use crate::parser::{map, multi0, Constant, Err, Error, ErrorKind, Punctuated0, Punctuated1, SyntacticParser};
+use crate::parser::{
+    map, multi0, Constant, Err, Error, ErrorKind, Punctuated0, Punctuated1, SyntacticParser,
+};
 use aroma_ast::id::Id;
 use aroma_ast::token::{ToTokens, TokenKind, TokenStream};
 use std::io::Read;
-use crate::parser::statement::{StatementLet, StatementList};
 
 #[derive(Debug, ToTokens)]
 pub struct ExprUnary<'p> {
@@ -183,7 +185,7 @@ pub struct TernaryExpr<'p> {
     pub qmark: QMark<'p>,
     pub then_expr: Box<Expr<'p>>,
     pub colon: Colon<'p>,
-    pub else_expr: Box<Expr<'p>>
+    pub else_expr: Box<Expr<'p>>,
 }
 
 /// A list expression
@@ -191,8 +193,7 @@ pub struct TernaryExpr<'p> {
 pub struct ListExpr<'p> {
     pub lbracket: LBracket<'p>,
     pub items: Option<Punctuated1<Expr<'p>, Comma<'p>>>,
-    pub rbracket: RBracket<'p>
-
+    pub rbracket: RBracket<'p>,
 }
 
 /// A list expression
@@ -200,7 +201,7 @@ pub struct ListExpr<'p> {
 pub struct MapExpr<'p> {
     pub lbracket: LBracket<'p>,
     pub items: Option<Punctuated1<Expr<'p>, Comma<'p>>>,
-    pub rbracket: RBracket<'p>
+    pub rbracket: RBracket<'p>,
 }
 
 /// An expression
@@ -228,7 +229,9 @@ impl<'p> Parsable<'p> for Expr<'p> {
 }
 /// Parses an expression
 #[inline]
-pub fn parse_expr<'p>(parser: &mut SyntacticParser<'p, impl Read>) -> Result<Expr<'p>, Err<Error<'p>>> {
+pub fn parse_expr<'p>(
+    parser: &mut SyntacticParser<'p, impl Read>,
+) -> Result<Expr<'p>, Err<Error<'p>>> {
     parser.parse(remove_nl)?;
     let peek = parser.peek()?.map(|t| t.kind()).cloned();
     match peek.ok_or_else(|| parser.error(ErrorKind::UnexpectedEof, None))? {
@@ -236,40 +239,42 @@ pub fn parse_expr<'p>(parser: &mut SyntacticParser<'p, impl Read>) -> Result<Exp
         _ => {
             let e = parse_or(parser)?;
             if QMark::could_parse(parser)? {
-
                 let qmark = parser.parse(QMark::parse)?;
                 parser.parse(remove_nl)?;
                 let then_expr = parse_or(parser)?;
                 let colon = parser.parse(Colon::parse)?;
                 let else_expr = parse_expr(parser)?;
-                Ok(Expr::Ternary(
-                    TernaryExpr {
-                        cond: Box::new(e),
-                        qmark,
-                        then_expr: Box::new(then_expr),
-                        colon,
-                        else_expr: Box::new(else_expr),
-                    }
-                ))
+                Ok(Expr::Ternary(TernaryExpr {
+                    cond: Box::new(e),
+                    qmark,
+                    then_expr: Box::new(then_expr),
+                    colon,
+                    else_expr: Box::new(else_expr),
+                }))
             } else {
                 Ok(e)
             }
-        },
+        }
     }
-
 }
 
-pub(crate) fn remove_nl<'p>(parser: &mut SyntacticParser<'p, impl Read>) -> Result<(), Err<Error<'p>>> {
+pub(crate) fn remove_nl<'p>(
+    parser: &mut SyntacticParser<'p, impl Read>,
+) -> Result<(), Err<Error<'p>>> {
     parser.parse(map(multi0(Nl::parse), |_| ()))
 }
 
-fn parse_closure<'p>(parser: &mut SyntacticParser<'p, impl Read>) -> Result<Expr<'p>, Err<Error<'p>>> {
+fn parse_closure<'p>(
+    parser: &mut SyntacticParser<'p, impl Read>,
+) -> Result<Expr<'p>, Err<Error<'p>>> {
     let lcurl = parser.parse(LCurly::parse)?;
-    let (opt_parameters, opt_arrow) = parser.try_parse(|parser: &mut SyntacticParser<'p, _>| {
-        let parameters = parser.parse(Punctuated0::<Id<'p>, Comma<'p>>::parse)?;
-        let arrow = parser.parse(Arrow::parse)?;
-        Ok((parameters, arrow))
-    })?.unzip();
+    let (opt_parameters, opt_arrow) = parser
+        .try_parse(|parser: &mut SyntacticParser<'p, _>| {
+            let parameters = parser.parse(Punctuated0::<Id<'p>, Comma<'p>>::parse)?;
+            let arrow = parser.parse(Arrow::parse)?;
+            Ok((parameters, arrow))
+        })?
+        .unzip();
     let list = parser.parse(StatementList::parse)?;
     let rcurl = parser.parse(RCurly::parse)?;
 
@@ -369,7 +374,9 @@ fn parse_bitwise_and<'p>(
     }
     Ok(l)
 }
-fn parse_shift<'p>(parser: &mut SyntacticParser<'p, impl Read>) -> Result<Expr<'p>, Err<Error<'p>>> {
+fn parse_shift<'p>(
+    parser: &mut SyntacticParser<'p, impl Read>,
+) -> Result<Expr<'p>, Err<Error<'p>>> {
     let mut l = parse_add(parser)?;
     while matches!(parser.peek()?, Some(t) if matches!(t.kind(), TokenKind::LShift | TokenKind::RShift))
     {
@@ -399,7 +406,9 @@ fn parse_add<'p>(parser: &mut SyntacticParser<'p, impl Read>) -> Result<Expr<'p>
     Ok(l)
 }
 
-fn parse_group<'p>(parser: &mut SyntacticParser<'p, impl Read>) -> Result<Expr<'p>, Err<Error<'p>>> {
+fn parse_group<'p>(
+    parser: &mut SyntacticParser<'p, impl Read>,
+) -> Result<Expr<'p>, Err<Error<'p>>> {
     let mut l = parse_unary(parser)?;
     while matches!(parser.peek()?, Some(t) if matches!(t.kind(), TokenKind::Star | TokenKind::Div))
     {
@@ -414,7 +423,9 @@ fn parse_group<'p>(parser: &mut SyntacticParser<'p, impl Read>) -> Result<Expr<'
     Ok(l)
 }
 
-fn parse_unary<'p>(parser: &mut SyntacticParser<'p, impl Read>) -> Result<Expr<'p>, Err<Error<'p>>> {
+fn parse_unary<'p>(
+    parser: &mut SyntacticParser<'p, impl Read>,
+) -> Result<Expr<'p>, Err<Error<'p>>> {
     if matches!(parser.peek()?, Some(t) if matches!(t.kind(), TokenKind::Minus | TokenKind::Bang)) {
         let unary_op = parser.parse(UnaryOp::parse)?;
         let unary = parse_unary(parser)?;
@@ -535,7 +546,9 @@ fn parse_index<'p>(
     Ok(owner)
 }
 
-fn parse_primary<'p>(parser: &mut SyntacticParser<'p, impl Read>) -> Result<Expr<'p>, Err<Error<'p>>> {
+fn parse_primary<'p>(
+    parser: &mut SyntacticParser<'p, impl Read>,
+) -> Result<Expr<'p>, Err<Error<'p>>> {
     match parser.peek()? {
         Some(t)
             if matches!(
@@ -680,13 +693,16 @@ mod tests {
 
     #[test]
     fn test_closure_after_method_no_parens() {
-        test_parser(r"[1, 2, 3].forEach { it ->
+        test_parser(
+            r"[1, 2, 3].forEach { it ->
             let a = 2
-         }", |parser, _| {
-            let expr = parser.parse(Expr::parse).unwrap_or_else(|e| panic!("{e}"));
-            println!("{expr:#?}");
-            println!("{:#?}", expr.to_token_tree());
-        })
+         }",
+            |parser, _| {
+                let expr = parser.parse(Expr::parse).unwrap_or_else(|e| panic!("{e}"));
+                println!("{expr:#?}");
+                println!("{:#?}", expr.to_token_tree());
+            },
+        )
     }
 
     #[test]
@@ -745,13 +761,16 @@ mod tests {
 
     #[test]
     fn test_multiline() {
-        test_parser(r"a < 3 ?
+        test_parser(
+            r"a < 3 ?
                 1 :
-                3", |parser, _| {
-            parser.set_ignore_nl(false).expect("could not set ignore");
-            let expr = parser.parse(Expr::parse).unwrap();
-            println!("{expr:#?}");
-            assert!(matches!(expr, Expr::Ternary(_)));
-        })
+                3",
+            |parser, _| {
+                parser.set_ignore_nl(false).expect("could not set ignore");
+                let expr = parser.parse(Expr::parse).unwrap();
+                println!("{expr:#?}");
+                assert!(matches!(expr, Expr::Ternary(_)));
+            },
+        )
     }
 }

@@ -95,6 +95,10 @@ pub enum ErrorKind<'p> {
 }
 
 impl<'p> ErrorKind<'p> {
+    pub fn illegal_statement(reason: impl AsRef<str>) -> Self {
+        Self::IllegalStatement { reason: reason.as_ref().to_string()}
+    }
+
     pub fn expected_token(
         token_kinds: impl IntoIterator<Item = impl AsRef<str>>,
         found: impl Into<Option<Token<'p>>>,

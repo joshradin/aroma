@@ -14,6 +14,5 @@ pub mod type_resolution;
 pub fn syntactic_parse(path: &Path) -> Result<(), parser::Error> {
     let mut parser = SyntacticParser::with_file(path)?;
 
-
     Ok(())
 }

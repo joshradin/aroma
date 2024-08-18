@@ -135,6 +135,12 @@ fn parse_keyword(src: &[u8]) -> Result<TokenKind> {
                 value(TokenKind::Try, tag("try")),
                 value(TokenKind::Catch, tag("catch")),
                 value(TokenKind::Match, tag("match")),
+                alt((
+                    value(TokenKind::Return, tag("return")),
+                    value(TokenKind::Loop, tag("loop")),
+                    value(TokenKind::Break, tag("break")),
+                    value(TokenKind::Continue, tag("continue")),
+                )),
             )),
         )),
     )(src)

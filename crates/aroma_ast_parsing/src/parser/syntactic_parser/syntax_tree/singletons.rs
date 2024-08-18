@@ -1,12 +1,12 @@
 use super::{Error, ErrorKind, SyntacticParser};
+use crate::parser::syntactic_parser::remove_nl;
+use crate::parser::{CouldParse, Err, Parsable};
 use aroma_ast::spanned::Span;
 use aroma_ast::token::ToTokens;
 use aroma_ast::token::Token;
 use aroma_ast::token::TokenKind;
 use aroma_ast::token::TokenStream;
 use std::io::Read;
-use crate::parser::{CouldParse, Parsable, Err};
-use crate::parser::syntactic_parser::remove_nl;
 
 macro_rules! token_singleton {
     ($ty:ident, $($pat:tt)*) => {
@@ -119,6 +119,7 @@ token_singleton!(QMark, TokenKind::QMark);
 
 token_singleton!(Class, TokenKind::Class);
 token_singleton!(Interface, TokenKind::Interface);
+token_singleton!(Abstract, TokenKind::Abstract);
 token_singleton!(Let, TokenKind::Let);
 token_singleton!(Const, TokenKind::Const);
 token_singleton!(In, TokenKind::In);
@@ -130,3 +131,11 @@ token_singleton!(For, TokenKind::For);
 token_singleton!(Try, TokenKind::Try);
 token_singleton!(Catch, TokenKind::Catch);
 token_singleton!(Match, TokenKind::Match);
+token_singleton!(Loop, TokenKind::Loop);
+token_singleton!(Break, TokenKind::Break);
+token_singleton!(Continue, TokenKind::Continue);
+token_singleton!(Return, TokenKind::Return);
+
+token_singleton!(Public, TokenKind::Public);
+token_singleton!(Protected, TokenKind::Protected);
+token_singleton!(Private, TokenKind::Private);
