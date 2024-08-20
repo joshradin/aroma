@@ -36,7 +36,7 @@ impl AromaC {
     where
         I: IntoIterator<Item: AsRef<Path>>,
     {
-        let mut outputs = HashSet::new();
+        let outputs = HashSet::new();
         Ok(outputs)
     }
 }

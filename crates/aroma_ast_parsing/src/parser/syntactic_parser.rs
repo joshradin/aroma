@@ -2,10 +2,13 @@ use crate::lexer::Lexer;
 use aroma_ast::id::Id;
 use aroma_ast::spanned::Spanned;
 use aroma_ast::token::{ToTokens, Token, TokenKind};
+use std::any::type_name;
+use std::backtrace::Backtrace;
 use std::collections::VecDeque;
-use std::fmt::{Display, Formatter, Pointer};
+use std::fmt::{Debug, Display, Formatter, Pointer};
 use std::fs::File;
 use std::io::Read;
+use std::panic::Location;
 use std::path::Path;
 use std::result;
 
@@ -13,15 +16,17 @@ pub mod error;
 pub mod syntax_tree;
 
 use crate::parser::expr::remove_nl;
-use crate::parser::{Constant, ConstantKind};
+use crate::parser::singletons::{Comma, Dot, VarId};
+use crate::parser::{map, seperated_list1, Constant, ConstantKind, Punctuated1};
 pub use error::*;
-use log::trace;
+use log::{error, trace};
 
 /// Parser for syntax tree items
-pub trait Parser<'p, R: Read, O, E = Error<'p>>: Clone
+pub trait Parser<'p, R: Read, O, E = SyntaxError<'p>>: Clone
 where
     E: std::error::Error,
 {
+    fn non_terminal(&self) -> &'static str;
     fn parse(&mut self, parser: &mut SyntacticParser<'p, R>) -> result::Result<O, Err<E>>;
 }
 
@@ -32,6 +37,10 @@ where
     F: Clone,
     E: std::error::Error,
 {
+    fn non_terminal(&self) -> &'static str {
+        type_name::<F>()
+    }
+
     fn parse(&mut self, parser: &mut SyntacticParser<'p, R>) -> result::Result<O, Err<E>> {
         (self)(parser)
     }
@@ -67,6 +76,7 @@ enum State<'p> {
 struct StateFrame<'p> {
     used: VecDeque<Token<'p>>,
     ignore_nl_prev: bool,
+    non_terminals_prev: Vec<&'static str>,
 }
 
 /// Err enum used to represent recoverable and non-recoverable errors
@@ -105,8 +115,8 @@ impl<E> Err<E> {
     }
 }
 
-impl<'p> From<Error<'p>> for Err<Error<'p>> {
-    fn from(value: Error<'p>) -> Self {
+impl<'p> From<SyntaxError<'p>> for Err<SyntaxError<'p>> {
+    fn from(value: SyntaxError<'p>) -> Self {
         Err::Error(value)
     }
 }
@@ -131,6 +141,7 @@ pub struct SyntacticParser<'p, R: Read> {
     lexer: Lexer<'p, R>,
     state: State<'p>,
     frames: Vec<StateFrame<'p>>,
+    non_terminals: Vec<&'static str>,
     ignore_nl: bool,
 }
 
@@ -141,6 +152,7 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
             lexer,
             state: Default::default(),
             frames: vec![],
+            non_terminals: vec![],
             ignore_nl: true,
         }
     }
@@ -241,6 +253,7 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
     fn push_backtrack_frame(&mut self) {
         let mut frame = StateFrame::default();
         frame.ignore_nl_prev = self.ignore_nl;
+        frame.non_terminals_prev = self.non_terminals.clone();
         self.frames.push(frame)
     }
 
@@ -249,6 +262,7 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
     }
 
     /// Wrapper function for parsing an item
+    #[inline]
     pub fn parse<O, E, P: Parser<'p, R, O, E>>(
         &mut self,
         mut parser: P,
@@ -256,15 +270,28 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
     where
         E: std::error::Error,
     {
-        parser.parse(self)
+        trace!(
+            "starting parsing {} state={:?}",
+            parser.non_terminal(),
+            self.state
+        );
+        self.non_terminals.push(parser.non_terminal());
+        let r = parser.parse(self);
+        trace!(
+            "after parsing {} state={:?}",
+            parser.non_terminal(),
+            self.state
+        );
+        if let Ok(_) = &r {
+            self.non_terminals.pop();
+        }
+        r
     }
 
     /// Wrapper function for parsing an optional item
-    pub fn parse_opt<P : Parsable<'p, Err : std::error::Error> + CouldParse<'p>>(
+    pub fn parse_opt<P: Parsable<'p, Err: std::error::Error> + CouldParse<'p>>(
         &mut self,
-    ) -> result::Result<Option<P>, Err<P::Err>>
-    {
-        self.parse(remove_nl).unwrap();
+    ) -> result::Result<Option<P>, Err<P::Err>> {
         if P::could_parse(self)? {
             Ok(Some(self.parse(P::parse)?))
         } else {
@@ -317,6 +344,7 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
                     self.state
                 );
                 self.ignore_nl = pop.ignore_nl_prev;
+                self.non_terminals = pop.non_terminals_prev;
                 Ok(None)
             }
             Err(Err::Failure(e)) => Err(e),
@@ -374,44 +402,51 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
         }
     }
 
-    fn error<E1, E2>(&self, error: E1, cause: E2) -> Err<Error<'p>>
+    fn error<E1, E2>(&self, error: E1, cause: E2) -> Err<SyntaxError<'p>>
     where
         E1: Into<ErrorKind<'p>>,
-        E2: Into<Option<Error<'p>>>,
+        E2: Into<Option<SyntaxError<'p>>>,
     {
         let span = match &self.state {
             State::Lookahead(t) => Some(t.span()),
             _ => None,
         };
-        Err::Error(Error::new(error.into(), span, cause))
+        Err::Error(SyntaxError::new(
+            error.into(),
+            span,
+            cause,
+            self.non_terminals.clone(),
+        ))
     }
-
 }
 
 impl<'p> SyntacticParser<'p, File> {
     /// Creates a new parser for a given file
-    pub fn with_file(path: &'p Path) -> result::Result<Self, Error<'p>> {
+    pub fn with_file(path: &'p Path) -> result::Result<Self, SyntaxError<'p>> {
         let file = File::open(path)?;
         let lexer = Lexer::new(path, file)?;
         Ok(Self::new(lexer))
     }
+
+
 }
 
 impl<'p> Parsable<'p> for Id<'p> {
-    type Err = Error<'p>;
+    type Err = SyntaxError<'p>;
 
     fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> result::Result<Self, Err<Self::Err>> {
-        if let Some(tok) =
-            parser.consume_if(|token| matches!(token.kind(), TokenKind::Identifier(_)))?
-        {
-            match tok.kind() {
-                TokenKind::Identifier(_) => Ok(Id::new([tok]).unwrap()),
-                _ => unreachable!(),
-            }
-        } else {
-            let kind = ErrorKind::expected_token(["constant".to_string()], parser.consume()?);
-            Err(parser.error(kind, None))
-        }
+        let parts = map(Punctuated1::<VarId, Dot>::parse, |ids| {
+            Id::new(
+                ids.punctuated
+                    .into_iter()
+                    .flat_map(|(var, _)| var.id.to_tokens()),
+            )
+            .unwrap()
+        });
+        parser
+            .try_parse(parts)
+            .map_err(|e| Err::Error(e))
+            .and_then(|id| id.ok_or_else(|| parser.error(ErrorKind::UnexpectedEof, None)))
     }
 }
 impl<'p> CouldParse<'p> for Id<'p> {

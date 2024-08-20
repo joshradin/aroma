@@ -1,6 +1,6 @@
 //! Syntax tree
 
-use crate::parser::syntactic_parser::error::{Error, ErrorKind};
+use crate::parser::syntactic_parser::error::{ErrorKind, SyntaxError};
 use crate::parser::SyntacticParser;
 use aroma_ast::token::{ToTokens, Token, TokenKind, TokenStream};
 use std::fmt::{Debug, Formatter};
@@ -9,9 +9,9 @@ use std::io::Read;
 pub mod binding;
 pub mod expr;
 mod helpers;
+pub mod items;
 pub mod singletons;
 pub mod statement;
-pub mod items;
 
 use crate::parser::expr::remove_nl;
 use crate::parser::syntactic_parser::{Err, Parsable};
@@ -23,6 +23,7 @@ pub enum ConstantKind {
     Integer(i64),
     String(String),
     Boolean(bool),
+    Null,
 }
 
 pub struct Constant<'p> {
@@ -37,7 +38,7 @@ impl<'p> Debug for Constant<'p> {
 }
 
 impl<'p> Parsable<'p> for Constant<'p> {
-    type Err = Error<'p>;
+    type Err = SyntaxError<'p>;
 
     fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<Self, Err<Self::Err>> {
         parser.parse(remove_nl)?;
@@ -48,6 +49,7 @@ impl<'p> Parsable<'p> for Constant<'p> {
                     | TokenKind::Integer(_)
                     | TokenKind::Boolean(_)
                     | TokenKind::String(_)
+                    | TokenKind::Null
             )
         })? {
             match tok.kind() {
@@ -65,6 +67,10 @@ impl<'p> Parsable<'p> for Constant<'p> {
                 }),
                 TokenKind::String(f) => Ok(Constant {
                     kind: ConstantKind::String(f.clone()),
+                    tok,
+                }),
+                TokenKind::Null => Ok(Constant {
+                    kind: ConstantKind::Null,
                     tok,
                 }),
                 _ => unreachable!(),

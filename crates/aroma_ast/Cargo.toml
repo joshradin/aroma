@@ -13,4 +13,6 @@ derive = ["dep:aroma_ast_derive"]
 
 [dependencies]
 aroma_ast_derive = { version = "0.0.0", path = "../aroma_ast_derive", optional = true }
+aroma_types = { version = "0.0.0", path = "../aroma_types"}
 itertools = { workspace = true }
+thiserror = "1.0.63"

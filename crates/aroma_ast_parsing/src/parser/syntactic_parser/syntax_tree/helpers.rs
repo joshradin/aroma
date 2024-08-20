@@ -1,7 +1,8 @@
 use super::SyntacticParser;
-use crate::parser::{CouldParse, Err, Parsable, Parser};
-use aroma_ast::token::ToTokens;
+use crate::parser::singletons::{Nl, SemiC};
+use crate::parser::{CouldParse, Err, ErrorKind, Parsable, Parser, SyntaxError};
 use aroma_ast::token::TokenStream;
+use aroma_ast::token::{ToTokens, TokenKind};
 use std::io::Read;
 
 #[derive(Debug)]
@@ -28,6 +29,18 @@ where
                     .chain(punc.iter().flat_map(|i| i.to_tokens()))
             })
             .collect()
+    }
+}
+
+impl<T, P> TryFrom<Vec<(T, Option<P>)>> for Punctuated1<T, P> {
+    type Error = &'static str;
+
+    fn try_from(value: Vec<(T, Option<P>)>) -> Result<Self, Self::Error> {
+        if value.is_empty() {
+            Err("can not be empty")
+        } else {
+            Ok(Punctuated1 { punctuated: value })
+        }
     }
 }
 
@@ -71,6 +84,12 @@ impl<T, P> From<Punctuated1<T, P>> for Punctuated0<T, P> {
 impl<T, P> Default for Punctuated0<T, P> {
     fn default() -> Self {
         Self { punctuated: vec![] }
+    }
+}
+
+impl<T, P> From<Vec<(T, Option<P>)>> for Punctuated0<T, P> {
+    fn from(value: Vec<(T, Option<P>)>) -> Self {
+        Self { punctuated: value }
     }
 }
 
@@ -158,14 +177,77 @@ where
 {
     move |syn_parser: &mut SyntacticParser<'p, R>| -> Result<Vec<O>, Err<E>> {
         let mut r = vec![];
-        let item =  syn_parser
-            .parse(parser.clone())?;
+        let item = syn_parser.parse(parser.clone())?;
         r.push(item);
         while let Some(parsed) = syn_parser
             .try_parse(parser.clone())
             .map_err(|e| Err::Failure(e))?
         {
             r.push(parsed);
+        }
+        Ok(r)
+    }
+}
+
+/// Runs the same parser over and over with the given delimiter until failure, requiring at least one successful parse
+pub fn seperated_list0<'p, P, G, R, O1, O2, E>(
+    mut sep: G,
+    mut e: P,
+) -> impl Parser<'p, R, Vec<(O1, Option<O2>)>, E>
+where
+    P: Parser<'p, R, O1, E> + Clone,
+    G: Parser<'p, R, O2, E> + Clone,
+    R: Read,
+    E: std::error::Error,
+{
+    move |syn_parser: &mut SyntacticParser<'p, R>| -> Result<Vec<(O1, Option<O2>)>, Err<E>> {
+        let mut r = vec![];
+        let Some(item) = syn_parser
+            .try_parse(e.clone())
+            .map_err(|e| Err::Failure(e))?
+        else {
+            return Ok(vec![]);
+        };
+        r.push((item, None));
+        while let Some(sep) = syn_parser
+            .try_parse(sep.clone())
+            .map_err(|e| Err::Failure(e))?
+        {
+            let (last, None) = r.pop().unwrap() else {
+                panic!("should always be none initially")
+            };
+            r.push((last, Some(sep)));
+            let item = syn_parser.parse(e.clone())?;
+            r.push((item, None));
+        }
+        Ok(r)
+    }
+}
+/// Runs the same parser over and over with the given delimiter until failure, requiring at least one successful parse
+pub fn seperated_list1<'p, P, G, R, O1, O2, E>(
+    mut sep: G,
+    mut e: P,
+) -> impl Parser<'p, R, Vec<(O1, Option<O2>)>, E>
+where
+    P: Parser<'p, R, O1, E> + Clone,
+    G: Parser<'p, R, O2, E> + Clone,
+    R: Read,
+    E: std::error::Error,
+{
+    move |syn_parser: &mut SyntacticParser<'p, R>| -> Result<Vec<(O1, Option<O2>)>, Err<E>> {
+        let mut r = vec![];
+        let item = syn_parser.parse(e.clone())?;
+        r.push((item, None));
+        while let Some(sep) = syn_parser
+            .try_parse(sep.clone())
+            .map_err(|e| Err::Failure(e))?
+        {
+            let (last, None) = r.pop().unwrap() else {
+                panic!("should always be none initially")
+            };
+            r.push((last, Some(sep)));
+            let item = syn_parser.parse(e.clone())?;
+            r.push((item, None));
         }
         Ok(r)
     }
@@ -182,5 +264,45 @@ where
     move |syn_parser: &mut SyntacticParser<'p, R>| -> Result<O2, Err<E>> {
         let parsed = syn_parser.parse(parser.clone())?;
         Ok(map.clone()(parsed))
+    }
+}
+
+/// End of statement
+#[derive(Debug, ToTokens)]
+pub enum End<'p> {
+    SemiC(SemiC<'p>),
+    Nl(Nl<'p>),
+}
+
+impl<'p> CouldParse<'p> for End<'p> {
+    fn could_parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<bool, Err<Self::Err>> {
+        Ok(parser
+            .peek()?
+            .clone()
+            .map(|i| matches!(i.kind(), TokenKind::Nl | TokenKind::SemiColon))
+            .unwrap_or(false))
+    }
+}
+
+impl<'p> Parsable<'p> for End<'p> {
+    type Err = SyntaxError<'p>;
+
+    fn parse<R: Read>(
+        parser: &mut SyntacticParser<'p, R>,
+    ) -> Result<Self, crate::parser::Err<Self::Err>> {
+        let p = parser
+            .consume()?
+            .ok_or_else(|| parser.error(ErrorKind::UnexpectedEof, None))?;
+        match p.kind() {
+            TokenKind::SemiColon => {
+                let c = SemiC::try_from(p)?;
+                Ok(End::SemiC(c))
+            }
+            TokenKind::Nl => {
+                let c = Nl::try_from(p)?;
+                Ok(End::Nl(c))
+            }
+            _ => Err(parser.error(ErrorKind::expected_token([";", "\\n"], p), None)),
+        }
     }
 }

@@ -3,13 +3,16 @@ use std::str::FromStr;
 use aroma_ast::token::TokenKind;
 use aroma_common::nom_helpers::identifier_parser;
 use nom::branch::alt;
-use nom::bytes::complete::{is_not, tag, take_while_m_n};
-use nom::character::complete::{alpha1, char, digit1, hex_digit1, multispace1, space0, space1};
-use nom::combinator::{
-    all_consuming, consumed, cut, eof, map, map_opt, map_parser, map_res, peek, recognize, value,
-    verify,
+use nom::bytes::complete::{is_not, tag, take_till, take_until, take_while_m_n};
+use nom::character::complete::{
+    alpha1, anychar, char, digit1, hex_digit1, multispace1, newline, satisfy, space1,
 };
-use nom::error::{context, ErrorKind, FromExternalError, VerboseError};
+use nom::character::is_newline;
+use nom::combinator::{
+    all_consuming, consumed, cut, eof, map, map_opt, map_parser, map_res, peek, recognize, rest,
+    value, verify,
+};
+use nom::error::{context, Error, ErrorKind, FromExternalError, VerboseError};
 use nom::multi::{fold_many0, many0, many1};
 use nom::number::complete::recognize_float;
 use nom::sequence::{delimited, preceded, terminated};
@@ -17,24 +20,28 @@ use nom::{IResult, Parser};
 
 type Result<'a, O, E = &'a [u8]> = IResult<&'a [u8], O, VerboseError<E>>;
 
-pub fn parse_token(mut src: &[u8]) -> Result<(usize, TokenKind), String> {
+pub fn parse_token(src: &[u8]) -> Result<(usize, TokenKind), String> {
     let mut main_parser = context(
         "token",
         map(
-            delimited(space0, consumed(_parse_token), space0),
+            delimited(
+                parse_insignificant,
+                consumed(_parse_token),
+                parse_insignificant,
+            ),
             |(consumed, token)| (consumed.len(), token),
         ),
     );
-    (main_parser)(src).map_err(|e| {
-        e.map(|e| {
-            let VerboseError { errors } = e;
-            let errors = errors
-                .into_iter()
-                .map(|(bytes, kind)| (String::from_utf8_lossy(bytes).as_ref().to_owned(), kind))
-                .collect();
-            VerboseError { errors }
-        })
-    })
+    (main_parser)(src).map_err(|e| e.map(map_error))
+}
+
+fn map_error(e: VerboseError<&[u8]>) -> VerboseError<String> {
+    let VerboseError { errors } = e;
+    let errors = errors
+        .into_iter()
+        .map(|(bytes, kind)| (String::from_utf8_lossy(bytes).as_ref().to_owned(), kind))
+        .collect();
+    VerboseError { errors }
 }
 
 fn _parse_token(src: &[u8]) -> Result<TokenKind> {
@@ -140,6 +147,13 @@ fn parse_keyword(src: &[u8]) -> Result<TokenKind> {
                     value(TokenKind::Loop, tag("loop")),
                     value(TokenKind::Break, tag("break")),
                     value(TokenKind::Continue, tag("continue")),
+                    value(TokenKind::Extends, tag("extends")),
+                    value(TokenKind::Implements, tag("implements")),
+                    value(TokenKind::Boolean(true), tag("true")),
+                    value(TokenKind::Boolean(false), tag("false")),
+                    value(TokenKind::Null, tag("null")),
+                    value(TokenKind::Final, tag("final")),
+                    value(TokenKind::Throws, tag("throws")),
                 )),
             )),
         )),
@@ -342,13 +356,49 @@ fn parse_string_value(input: &[u8]) -> Result<String> {
     delimited(char('"'), cut(build_string), char('"'))(input)
 }
 
-fn parse_insignificant(src: &[u8]) -> Result<&[u8], &[u8]> {
+fn parse_insignificant(src: &[u8]) -> Result<()> {
     context(
         "insignificant",
-        recognize(alt((
-            context("whitespace", space1),
-            // recognize(delimited(tag("/*"), take_until("*/"), tag("*/"))),
-            // recognize(tuple((tag("//"), many0(not(newline))))),
-        ))),
+        map(
+            alt((
+                recognize(eof),
+                recognize(many0(alt((
+                    context("whitespace", space1),
+                    context(
+                        "block comment",
+                        recognize(delimited(tag("/*"), take_until("*/"), tag("*/"))),
+                    ),
+                    context(
+                        "line comment",
+                        recognize(delimited(tag("//"), take_till(|s| is_newline(s)), newline)),
+                    ),
+                    context("line comment", recognize(preceded(tag("//"), rest))),
+                )))),
+            )),
+            |_| (),
+        ),
     )(src)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nom::Finish;
+    use test_log::test;
+
+    #[test]
+    fn test_insignificant() {
+        let (rest, ()) = all_consuming(parse_insignificant)(b"/* hello */")
+            .finish()
+            .unwrap_or_else(|e| panic!("{}", map_error(e)));
+        assert_eq!(rest, &[], "should be empty but got {rest:?}");
+        let (rest, ()) = all_consuming(parse_insignificant)(b"// whats her name?\n")
+            .finish()
+            .unwrap_or_else(|e| panic!("{}", map_error(e)));
+        assert_eq!(rest, &[], "should be empty but got {rest:?}");
+        let (rest, ()) = all_consuming(parse_insignificant)(b"// whats his name?\n// blah")
+            .finish()
+            .unwrap_or_else(|e| panic!("{}", map_error(e)));
+        assert_eq!(rest, &[], "should be empty but got {rest:?}");
+    }
 }

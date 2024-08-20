@@ -1,12 +1,35 @@
-use super::{Error, ErrorKind, SyntacticParser};
+use super::{ErrorKind, SyntacticParser, SyntaxError};
 use crate::parser::syntactic_parser::remove_nl;
 use crate::parser::{CouldParse, Err, Parsable};
+use aroma_ast::id::Id;
 use aroma_ast::spanned::Span;
 use aroma_ast::token::ToTokens;
 use aroma_ast::token::Token;
 use aroma_ast::token::TokenKind;
 use aroma_ast::token::TokenStream;
 use std::io::Read;
+
+/// A variable id, an Id with a signle id
+#[derive(Debug, ToTokens)]
+pub struct VarId<'p> {
+    pub id: Id<'p>,
+}
+
+impl<'p> Parsable<'p> for VarId<'p> {
+    type Err = SyntaxError<'p>;
+
+    fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<Self, Err<Self::Err>> {
+        if let Some(tok) =
+            parser.consume_if(|tok| matches!(tok.kind(), TokenKind::Identifier(_)))?
+        {
+            Ok(VarId {
+                id: Id::new([tok]).expect("should not fail"),
+            })
+        } else {
+            Err(parser.error(ErrorKind::expected_token(["id"], None), None))
+        }
+    }
+}
 
 macro_rules! token_singleton {
     ($ty:ident, $($pat:tt)*) => {
@@ -24,7 +47,7 @@ macro_rules! token_singleton {
         }
 
         impl<'p> TryFrom<Token<'p>> for $ty<'p> {
-            type Error = Error<'p>;
+            type Error = SyntaxError<'p>;
 
             fn try_from(token: Token<'p>) -> Result<Self, Self::Error> {
                 match token.kind() {
@@ -43,7 +66,7 @@ macro_rules! token_singleton {
 
         #[automatically_derived]
         impl<'p> Parsable<'p> for $ty<'p> {
-            type Err = Error<'p>;
+            type Err = SyntaxError<'p>;
 
             fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<Self, Err<Self::Err>> {
                 if !matches!($($pat)*, TokenKind::Nl) {
@@ -139,3 +162,9 @@ token_singleton!(Return, TokenKind::Return);
 token_singleton!(Public, TokenKind::Public);
 token_singleton!(Protected, TokenKind::Protected);
 token_singleton!(Private, TokenKind::Private);
+token_singleton!(Extends, TokenKind::Extends);
+token_singleton!(Implements, TokenKind::Implements);
+token_singleton!(Static, TokenKind::Static);
+token_singleton!(Fn, TokenKind::Fn);
+token_singleton!(Final, TokenKind::Final);
+token_singleton!(Throws, TokenKind::Throws);

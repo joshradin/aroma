@@ -17,7 +17,7 @@ use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
 /// A type signature
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum TypeSignature {
     Never,
     Void,

@@ -8,6 +8,10 @@ public class String {
     }
 }
 
+s.mixin {
+    int: Int = 3;
+}
+
 s = new String[asd]() {
     public fn toString() -> String throws E[E] {
         return this + this;

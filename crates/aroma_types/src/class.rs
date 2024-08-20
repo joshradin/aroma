@@ -298,7 +298,7 @@ mod tests {
 
     #[test]
     fn test_parse_basic_class_inst_with_generics1() {
-        let t = "aroma.system.Class<aroma.system.Object>";
+        let t = "aroma.system.Class[aroma.system.Object]";
         let class_inst: ClassInst = t.parse().expect("could not parse");
         assert_eq!(
             class_inst,
@@ -313,7 +313,7 @@ mod tests {
 
     #[test]
     fn test_parse_basic_class_inst_with_generics2() {
-        let t = "aroma.system.Tuple2<aroma.system.Object,aroma.system.Object>";
+        let t = "aroma.system.Tuple2[aroma.system.Object,aroma.system.Object]";
         let class_inst: ClassInst = t.parse().expect("could not parse");
         assert_eq!(
             class_inst,

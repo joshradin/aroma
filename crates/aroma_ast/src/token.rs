@@ -122,6 +122,13 @@ pub enum TokenKind {
     Loop,
     Break,
     Continue,
+    Implements,
+    Extends,
+    True,
+    False,
+    Null,
+    Final,
+    Throws,
 }
 
 /// A stream of tokens

@@ -3,7 +3,8 @@
 use crate::parser::binding::OptTypeBinding;
 use crate::parser::expr::{remove_nl, Expr};
 use crate::parser::singletons::*;
-use crate::parser::{cut, multi1, Error, ErrorKind, Parsable, SyntacticParser};
+use crate::parser::syntactic_parser::syntax_tree::helpers::End;
+use crate::parser::{cut, multi1, CouldParse, ErrorKind, Parsable, SyntacticParser, SyntaxError};
 use aroma_ast::token::{ToTokens, TokenKind};
 use std::io::Read;
 
@@ -33,14 +34,14 @@ impl Statement<'_> {
     /// Checks if this statement is terminated
     pub fn is_terminated(&self) -> bool {
         match self {
-            Statement::Expr(expr) => { expr.end.is_some()}
-            _ => true
+            Statement::Expr(expr) => expr.end.is_some(),
+            _ => true,
         }
     }
 }
 
 impl<'p> Parsable<'p> for Statement<'p> {
-    type Err = Error<'p>;
+    type Err = SyntaxError<'p>;
 
     fn parse<R: Read>(
         parser: &mut SyntacticParser<'p, R>,
@@ -54,7 +55,7 @@ pub struct StatementList<'p> {
     pub statements: Vec<Statement<'p>>,
 }
 impl<'p> Parsable<'p> for StatementList<'p> {
-    type Err = Error<'p>;
+    type Err = SyntaxError<'p>;
 
     fn parse<R: Read>(
         parser: &mut SyntacticParser<'p, R>,
@@ -71,7 +72,7 @@ pub struct StatementBlock<'p> {
 }
 
 impl<'p> Parsable<'p> for StatementBlock<'p> {
-    type Err = Error<'p>;
+    type Err = SyntaxError<'p>;
 
     fn parse<R: Read>(
         parser: &mut SyntacticParser<'p, R>,
@@ -93,7 +94,7 @@ pub struct StatementLet<'p> {
     pub binding: OptTypeBinding<'p>,
     pub assign: Assign<'p>,
     pub expr: Expr<'p>,
-    pub end: StatementEnd<'p>,
+    pub end: End<'p>,
 }
 
 #[derive(Debug, ToTokens)]
@@ -102,7 +103,7 @@ pub struct StatementConst<'p> {
     pub binding: OptTypeBinding<'p>,
     pub assign: Assign<'p>,
     pub expr: Expr<'p>,
-    pub end: StatementEnd<'p>,
+    pub end: End<'p>,
 }
 
 /// If statement
@@ -153,27 +154,26 @@ pub struct ElseBlock<'p> {
 #[derive(Debug, ToTokens)]
 pub struct StatementExpr<'p> {
     pub expr: Expr<'p>,
-    pub end: Option<StatementEnd<'p>>,
+    pub end: Option<End<'p>>,
 }
 
 #[derive(Debug, ToTokens)]
 pub struct StatementReturn<'p> {
     pub ret: Return<'p>,
     pub expr: Option<Expr<'p>>,
-    pub end: StatementEnd<'p>,
+    pub end: End<'p>,
 }
-
 
 #[derive(Debug, ToTokens)]
 pub struct StatementBreak<'p> {
     pub break_tok: Break<'p>,
-    pub end: StatementEnd<'p>,
+    pub end: End<'p>,
 }
 
 #[derive(Debug, ToTokens)]
 pub struct StatementContinue<'p> {
     pub break_tok: Break<'p>,
-    pub end: StatementEnd<'p>,
+    pub end: End<'p>,
 }
 
 #[derive(Debug, ToTokens)]
@@ -188,7 +188,7 @@ pub struct StatementMatch<'p> {
 pub struct StatementTryCatch<'p> {
     pub try_tok: Try<'p>,
     pub statement_block: StatementBlock<'p>,
-    pub catches: Vec<CatchBlock<'p>>
+    pub catches: Vec<CatchBlock<'p>>,
 }
 
 #[derive(Debug, ToTokens)]
@@ -198,38 +198,6 @@ pub struct CatchBlock<'p> {
     pub binding: OptTypeBinding<'p>,
     pub rparen: RParen<'p>,
     pub statement_block: StatementBlock<'p>,
-}
-
-
-
-/// End of statement
-#[derive(Debug, ToTokens)]
-pub enum StatementEnd<'p> {
-    SemiC(SemiC<'p>),
-    Nl(Nl<'p>),
-}
-
-impl<'p> Parsable<'p> for StatementEnd<'p> {
-    type Err = Error<'p>;
-
-    fn parse<R: Read>(
-        parser: &mut SyntacticParser<'p, R>,
-    ) -> Result<Self, crate::parser::Err<Self::Err>> {
-        let p = parser
-            .consume()?
-            .ok_or_else(|| parser.error(ErrorKind::UnexpectedEof, None))?;
-        match p.kind() {
-            TokenKind::SemiColon => {
-                let c = SemiC::try_from(p)?;
-                Ok(StatementEnd::SemiC(c))
-            }
-            TokenKind::Nl => {
-                let c = Nl::try_from(p)?;
-                Ok(StatementEnd::Nl(c))
-            }
-            _ => Err(parser.error(ErrorKind::expected_token([";", "\\n"], p), None)),
-        }
-    }
 }
 
 /// Parse a statement block
@@ -254,13 +222,22 @@ fn parse_statement_list<'p, R: Read>(
             return Ok(());
         }
         if let Statement::Expr(expr) = item {
-
             if !matches!(expr.expr, Expr::Call(_)) {
-                return Err(parser.error(ErrorKind::illegal_statement("expressions must be non function calls if not last statement"), None))
+                return Err(parser.error(
+                    ErrorKind::illegal_statement(
+                        "expressions must be non function calls if not last statement",
+                    ),
+                    None,
+                ));
             }
         }
         if !item.is_terminated() {
-            return Err(parser.error(ErrorKind::illegal_statement("statements can only be non-terminated if last statement"), None))
+            return Err(parser.error(
+                ErrorKind::illegal_statement(
+                    "statements can only be non-terminated if last statement",
+                ),
+                None,
+            ));
         }
         Ok(())
     })?;
@@ -275,14 +252,14 @@ fn parse_statement<'p, R: Read>(
     let lookahead = parser
         .peek()?
         .cloned()
-        .ok_or::<Error<'p>>(ErrorKind::UnexpectedEof.into())?;
+        .ok_or::<SyntaxError<'p>>(ErrorKind::UnexpectedEof.into())?;
     let statement: Statement<'p> = match lookahead.kind() {
         TokenKind::Let => {
             let let_tok = parser.parse(Let::parse)?;
             let binding = parser.parse(cut(OptTypeBinding::parse))?;
             let assign = parser.parse(cut(Assign::parse))?;
             let val = parser.parse(cut(Expr::parse))?;
-            let end = parser.parse(cut(StatementEnd::parse))?;
+            let end = parser.parse(cut(End::parse))?;
 
             Statement::Let(StatementLet {
                 let_tok,
@@ -297,7 +274,7 @@ fn parse_statement<'p, R: Read>(
             let binding = parser.parse(cut(OptTypeBinding::parse))?;
             let assign = parser.parse(cut(Assign::parse))?;
             let val = parser.parse(cut(Expr::parse))?;
-            let end = parser.parse(cut(StatementEnd::parse))?;
+            let end = parser.parse(cut(End::parse))?;
 
             Statement::Const(StatementConst {
                 const_tok,
@@ -315,14 +292,20 @@ fn parse_statement<'p, R: Read>(
 
             let then_stmt = parser.parse(Statement::parse)?;
             if then_stmt.is_binding() {
-                return Err(parser.error(ErrorKind::illegal_statement("Can not having binding statement alone"), None))
+                return Err(parser.error(
+                    ErrorKind::illegal_statement("Can not having binding statement alone"),
+                    None,
+                ));
             }
 
             let else_block = parser.try_parse(|parser: &mut SyntacticParser<'p, R>| {
                 let else_tok = parser.parse(Else::parse)?;
                 let else_stmt = parser.parse(Statement::parse)?;
                 if else_stmt.is_binding() {
-                    return Err(parser.error(ErrorKind::illegal_statement("Can not having binding statement alone"), None))
+                    return Err(parser.error(
+                        ErrorKind::illegal_statement("Can not having binding statement alone"),
+                        None,
+                    ));
                 }
                 Ok(ElseBlock {
                     else_tok,
@@ -358,7 +341,7 @@ fn parse_statement<'p, R: Read>(
             let block = parser.parse(StatementBlock::parse)?;
             Statement::Loop(StatementLoop {
                 loop_tok,
-                block: Box::new(block)
+                block: Box::new(block),
             })
         }
         TokenKind::Try => {
@@ -384,9 +367,23 @@ fn parse_statement<'p, R: Read>(
                 catches,
             })
         }
+        TokenKind::Return => {
+            let ret = parser.parse(Return::parse)?;
+            let (return_expr, end) = if End::could_parse(parser)? {
+                (None, parser.parse(End::parse)?)
+            } else {
+                let expr = parser.parse(Expr::parse)?;
+                (Some(expr), parser.parse(End::parse)?)
+            };
+            Statement::Return(StatementReturn {
+                ret,
+                expr: return_expr,
+                end,
+            })
+        }
         _ => {
             let e: Expr = parser.parse(Expr::parse)?;
-            let end = parser.try_parse(StatementEnd::parse)?;
+            let end = parser.try_parse(End::parse)?;
             Statement::Expr(StatementExpr { expr: e, end })
         }
     };
@@ -398,6 +395,7 @@ mod tests {
     use super::*;
     use crate::parser::syntactic_parser::tests::test_parser;
     use crate::parser::Err;
+    use test_log::test;
 
     #[test]
     fn test_parse_statement_list() {
@@ -430,7 +428,9 @@ mod tests {
         "#,
             |parser, _| {
                 let parsed = parser.parse(parse_statement_list).unwrap_err();
-                assert!(matches!(parsed, Err::Error(error) if matches!(error.kind, ErrorKind::IllegalStatement { .. })));
+                assert!(
+                    matches!(parsed, Err::Error(error) if matches!(error.kind, ErrorKind::IllegalStatement { .. }))
+                );
             },
         );
     }
@@ -551,7 +551,7 @@ mod tests {
             |parser, _| {
                 let parsed = parser.parse(parse_statement).unwrap();
                 let Statement::TryCatch(try_catch) = parsed else {
-                    panic!("expected try-catch {:#?}",parsed);
+                    panic!("expected try-catch {:#?}", parsed);
                 };
                 assert_eq!(try_catch.catches.len(), 1, "one catch expected");
             },

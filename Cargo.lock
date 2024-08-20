@@ -119,7 +119,9 @@ name = "aroma_ast"
 version = "0.0.0"
 dependencies = [
  "aroma_ast_derive",
+ "aroma_types",
  "itertools",
+ "thiserror",
 ]
 
 [[package]]
@@ -140,6 +142,7 @@ dependencies = [
  "log",
  "nom",
  "tempfile",
+ "test-log",
  "thiserror",
 ]
 

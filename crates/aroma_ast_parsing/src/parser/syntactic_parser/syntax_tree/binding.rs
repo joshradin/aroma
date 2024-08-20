@@ -1,29 +1,32 @@
 //! bindings of id to type
 
 use crate::parser;
-use crate::parser::singletons::{Colon, Comma, In, LBracket, Out, RBracket};
+use crate::parser::singletons::{
+    Colon, Comma, In, LBracket, LParen, Out, QMark, RBracket, RParen, VarId,
+};
 use crate::parser::{
-    cut, CouldParse, Error, ErrorKind, Parsable, Punctuated0, Punctuated1, SyntacticParser,
+    cut, CouldParse, ErrorKind, Parsable, Punctuated0, Punctuated1, SyntacticParser, SyntaxError,
 };
 use aroma_ast::id::Id;
 use aroma_ast::token::{ToTokens, TokenKind};
 use aroma_types::class::{ClassInst, ClassRef};
 use aroma_types::generic::GenericParameterBound;
 use aroma_types::type_signature::TypeSignature;
+use log::debug;
 use std::io::Read;
 
 /// A binding between an id to a type
 #[derive(Debug, ToTokens)]
 pub struct Binding<'p> {
-    pub id: Id<'p>,
+    pub id: VarId<'p>,
     pub type_dec: TypeDec<'p>,
 }
 
 impl<'p> Parsable<'p> for Binding<'p> {
-    type Err = Error<'p>;
+    type Err = SyntaxError<'p>;
 
     fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<Self, parser::Err<Self::Err>> {
-        let id = parser.parse(Id::parse)?;
+        let id = parser.parse(VarId::parse)?;
         let type_dec = parser.parse(TypeDec::parse)?;
         Ok(Self { id, type_dec })
     }
@@ -32,15 +35,15 @@ impl<'p> Parsable<'p> for Binding<'p> {
 /// A binding between an id to an optional
 #[derive(Debug, ToTokens)]
 pub struct OptTypeBinding<'p> {
-    pub id: Id<'p>,
+    pub id: VarId<'p>,
     pub type_dec: Option<TypeDec<'p>>,
 }
 
 impl<'p> Parsable<'p> for OptTypeBinding<'p> {
-    type Err = Error<'p>;
+    type Err = SyntaxError<'p>;
 
     fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<Self, parser::Err<Self::Err>> {
-        let id = parser.parse(Id::parse)?;
+        let id = parser.parse(VarId::parse)?;
         let type_dec = parser.try_parse(TypeDec::parse)?;
         Ok(Self { id, type_dec })
     }
@@ -53,7 +56,7 @@ pub struct TypeDec<'p> {
 }
 
 impl<'p> Parsable<'p> for TypeDec<'p> {
-    type Err = Error<'p>;
+    type Err = SyntaxError<'p>;
 
     fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<Self, parser::Err<Self::Err>> {
         let colon = parser.parse(Colon::parse)?;
@@ -77,6 +80,16 @@ pub struct Type<'p> {
     pub id: Id<'p>,
     /// Generics
     pub generics: Option<GenericParameters<'p>>,
+    /// If present, this type is nullable
+    pub nullable: Option<QMark<'p>>,
+}
+
+impl<'p> CouldParse<'p> for Type<'p> {
+    fn could_parse<R: Read>(
+        parser: &mut SyntacticParser<'p, R>,
+    ) -> Result<bool, parser::Err<Self::Err>> {
+        Ok(matches!(parser.peek()?, Some(tok) if matches!(tok.kind(), TokenKind::Identifier(_))))
+    }
 }
 
 impl Type<'_> {
@@ -125,20 +138,22 @@ impl From<Type<'_>> for TypeSignature {
 }
 
 impl<'p> Parsable<'p> for Type<'p> {
-    type Err = Error<'p>;
+    type Err = SyntaxError<'p>;
 
-    fn parse<R: Read>(
-        parser: &mut SyntacticParser<'p, R>,
-    ) -> Result<Self, crate::parser::Err<Self::Err>> {
+    fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<Self, parser::Err<Self::Err>> {
         let id = parser.parse(Id::parse)?;
-
         let generics = if GenericParameters::could_parse(parser)? {
             Some(parser.parse(GenericParameters::parse)?)
         } else {
             None
         };
+        let qmark = parser.parse_opt::<QMark>()?;
 
-        Ok(Type { id, generics })
+        Ok(Type {
+            id,
+            generics,
+            nullable: qmark,
+        })
     }
 }
 
@@ -150,7 +165,7 @@ pub struct GenericParameters<'p> {
 }
 
 impl<'p> Parsable<'p> for GenericParameters<'p> {
-    type Err = Error<'p>;
+    type Err = SyntaxError<'p>;
 
     fn parse<R: Read>(
         parser: &mut SyntacticParser<'p, R>,
@@ -190,7 +205,7 @@ pub struct GenericParameter<'p> {
 }
 
 impl<'p> Parsable<'p> for GenericParameter<'p> {
-    type Err = Error<'p>;
+    type Err = SyntaxError<'p>;
 
     fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<Self, parser::Err<Self::Err>> {
         let variance =
@@ -208,18 +223,47 @@ impl<'p> Parsable<'p> for GenericParameter<'p> {
     }
 }
 
+/// Generic variance
 #[derive(Debug, ToTokens)]
 pub enum Variance<'p> {
     In(In<'p>),
     Out(Out<'p>),
 }
 
+/// Function parameters
+#[derive(Debug, ToTokens)]
+pub struct FnParameters<'p> {
+    pub lparen: LParen<'p>,
+    pub parameters: Punctuated0<Binding<'p>, Comma<'p>>,
+    pub rparen: RParen<'p>,
+}
+
+impl<'p> Parsable<'p> for FnParameters<'p> {
+    type Err = SyntaxError<'p>;
+
+    fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<Self, parser::Err<Self::Err>> {
+        let lparen = parser.parse(LParen::parse)?;
+        let parameters = if RParen::could_parse(parser)? {
+            Punctuated0::default()
+        } else {
+            Punctuated0::from(parser.parse(Punctuated1::parse)?)
+        };
+        let rparen = parser.parse(RParen::parse)?;
+        Ok(FnParameters {
+            lparen,
+            parameters,
+            rparen,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::parser::binding::{Binding, OptTypeBinding, Type, TypeDec};
+    use crate::parser::binding::{Binding, FnParameters, OptTypeBinding, Type};
     use crate::parser::syntactic_parser::tests::test_parser;
     use crate::parser::Parsable;
     use aroma_ast::token::ToTokens;
+    use test_log::test;
 
     #[test]
     fn parse_basic_type() {
@@ -264,6 +308,28 @@ mod tests {
                 .expect("could not parse");
             assert!(type_dec.type_dec.is_some());
             println!("{:#?}", type_dec.to_token_tree());
+        });
+    }
+
+    #[test]
+    fn parse_fn_parameters() {
+        test_parser("()", |parser, _| {
+            let fn_parameters = parser
+                .parse(FnParameters::parse)
+                .unwrap_or_else(|e| panic!("{e}"));
+            assert_eq!(fn_parameters.parameters.punctuated.len(), 0);
+        });
+        test_parser("(x: a)", |parser, _| {
+            let fn_parameters = parser
+                .parse(FnParameters::parse)
+                .unwrap_or_else(|e| panic!("{e}"));
+            assert_eq!(fn_parameters.parameters.punctuated.len(), 1);
+        });
+        test_parser("(x: a, y: b)", |parser, _| {
+            let fn_parameters = parser
+                .parse(FnParameters::parse)
+                .unwrap_or_else(|e| panic!("{e}"));
+            assert_eq!(fn_parameters.parameters.punctuated.len(), 2);
         });
     }
 }

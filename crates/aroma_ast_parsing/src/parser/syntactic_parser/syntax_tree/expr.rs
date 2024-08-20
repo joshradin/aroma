@@ -2,7 +2,7 @@ use crate::parser::singletons::*;
 use crate::parser::statement::{StatementLet, StatementList};
 use crate::parser::syntactic_parser::{CouldParse, Parsable};
 use crate::parser::{
-    map, multi0, Constant, Err, Error, ErrorKind, Punctuated0, Punctuated1, SyntacticParser,
+    map, multi0, Constant, Err, ErrorKind, Punctuated0, Punctuated1, SyntacticParser, SyntaxError,
 };
 use aroma_ast::id::Id;
 use aroma_ast::token::{ToTokens, TokenKind, TokenStream};
@@ -21,12 +21,12 @@ pub enum UnaryOp<'p> {
 }
 
 impl<'p> Parsable<'p> for UnaryOp<'p> {
-    type Err = Error<'p>;
+    type Err = SyntaxError<'p>;
 
     fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<Self, Err<Self::Err>> {
         let tok = parser
             .peek()?
-            .ok_or::<Error>(ErrorKind::UnexpectedEof.into())?;
+            .ok_or::<SyntaxError>(ErrorKind::UnexpectedEof.into())?;
         match tok.kind() {
             TokenKind::Minus => Ok(Self::Sub(parser.parse(Sub::parse)?)),
             TokenKind::Bang => Ok(Self::Not(parser.parse(Not::parse)?)),
@@ -94,12 +94,12 @@ impl<'p> BinOp<'p> {
 }
 
 impl<'p> Parsable<'p> for BinOp<'p> {
-    type Err = Error<'p>;
+    type Err = SyntaxError<'p>;
 
     fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<Self, Err<Self::Err>> {
         let tok = parser
             .peek()?
-            .ok_or::<Error>(ErrorKind::UnexpectedEof.into())?;
+            .ok_or::<SyntaxError>(ErrorKind::UnexpectedEof.into())?;
         match tok.kind() {
             TokenKind::Star => Ok(Self::Mult(parser.parse(Mult::parse)?)),
             TokenKind::Div => Ok(Self::Div(parser.parse(Div::parse)?)),
@@ -221,7 +221,7 @@ pub enum Expr<'p> {
 }
 
 impl<'p> Parsable<'p> for Expr<'p> {
-    type Err = Error<'p>;
+    type Err = SyntaxError<'p>;
 
     fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<Self, Err<Self::Err>> {
         parse_expr(parser)
@@ -231,7 +231,7 @@ impl<'p> Parsable<'p> for Expr<'p> {
 #[inline]
 pub fn parse_expr<'p>(
     parser: &mut SyntacticParser<'p, impl Read>,
-) -> Result<Expr<'p>, Err<Error<'p>>> {
+) -> Result<Expr<'p>, Err<SyntaxError<'p>>> {
     parser.parse(remove_nl)?;
     let peek = parser.peek()?.map(|t| t.kind()).cloned();
     match peek.ok_or_else(|| parser.error(ErrorKind::UnexpectedEof, None))? {
@@ -258,15 +258,25 @@ pub fn parse_expr<'p>(
     }
 }
 
-pub(crate) fn remove_nl<'p>(
-    parser: &mut SyntacticParser<'p, impl Read>,
-) -> Result<(), Err<Error<'p>>> {
-    parser.parse(map(multi0(Nl::parse), |_| ()))
+pub(crate) fn remove_nl<'p, R: Read>(
+    parser: &mut SyntacticParser<'p, R>,
+) -> Result<(), Err<SyntaxError<'p>>> {
+    parser.parse(|parser: &mut SyntacticParser<'p, R>| {
+        loop {
+            if parser
+                .consume_if(|p| matches!(p.kind(), TokenKind::Nl))?
+                .is_none()
+            {
+                break;
+            }
+        }
+        Ok(())
+    })
 }
 
 fn parse_closure<'p>(
     parser: &mut SyntacticParser<'p, impl Read>,
-) -> Result<Expr<'p>, Err<Error<'p>>> {
+) -> Result<Expr<'p>, Err<SyntaxError<'p>>> {
     let lcurl = parser.parse(LCurly::parse)?;
     let (opt_parameters, opt_arrow) = parser
         .try_parse(|parser: &mut SyntacticParser<'p, _>| {
@@ -287,7 +297,9 @@ fn parse_closure<'p>(
     }))
 }
 
-fn parse_or<'p>(parser: &mut SyntacticParser<'p, impl Read>) -> Result<Expr<'p>, Err<Error<'p>>> {
+fn parse_or<'p>(
+    parser: &mut SyntacticParser<'p, impl Read>,
+) -> Result<Expr<'p>, Err<SyntaxError<'p>>> {
     let mut l = parse_and(parser)?;
     while matches!(parser.peek()?, Some(t) if matches!(t.kind(), TokenKind::Or)) {
         let binop = parser.parse(BinOp::parse)?;
@@ -301,7 +313,9 @@ fn parse_or<'p>(parser: &mut SyntacticParser<'p, impl Read>) -> Result<Expr<'p>,
     Ok(l)
 }
 
-fn parse_and<'p>(parser: &mut SyntacticParser<'p, impl Read>) -> Result<Expr<'p>, Err<Error<'p>>> {
+fn parse_and<'p>(
+    parser: &mut SyntacticParser<'p, impl Read>,
+) -> Result<Expr<'p>, Err<SyntaxError<'p>>> {
     let mut l = parse_cmp(parser)?;
     while matches!(parser.peek()?, Some(t) if matches!(t.kind(), TokenKind::And)) {
         let binop = parser.parse(BinOp::parse)?;
@@ -314,7 +328,9 @@ fn parse_and<'p>(parser: &mut SyntacticParser<'p, impl Read>) -> Result<Expr<'p>
     }
     Ok(l)
 }
-fn parse_cmp<'p>(parser: &mut SyntacticParser<'p, impl Read>) -> Result<Expr<'p>, Err<Error<'p>>> {
+fn parse_cmp<'p>(
+    parser: &mut SyntacticParser<'p, impl Read>,
+) -> Result<Expr<'p>, Err<SyntaxError<'p>>> {
     let mut l = parse_bitwise_or(parser)?;
     while matches!(parser.peek()?, Some(t) if matches!(t.kind(), TokenKind::Eq | TokenKind::Neq | TokenKind::Lt | TokenKind::Lte | TokenKind::Gt | TokenKind::Gte))
     {
@@ -331,7 +347,7 @@ fn parse_cmp<'p>(parser: &mut SyntacticParser<'p, impl Read>) -> Result<Expr<'p>
 
 fn parse_bitwise_or<'p>(
     parser: &mut SyntacticParser<'p, impl Read>,
-) -> Result<Expr<'p>, Err<Error<'p>>> {
+) -> Result<Expr<'p>, Err<SyntaxError<'p>>> {
     let mut l = parse_bitwise_xor(parser)?;
     while matches!(parser.peek()?, Some(t) if matches!(t.kind(), TokenKind::BitwiseOr)) {
         let binop = parser.parse(BinOp::parse)?;
@@ -346,7 +362,7 @@ fn parse_bitwise_or<'p>(
 }
 fn parse_bitwise_xor<'p>(
     parser: &mut SyntacticParser<'p, impl Read>,
-) -> Result<Expr<'p>, Err<Error<'p>>> {
+) -> Result<Expr<'p>, Err<SyntaxError<'p>>> {
     let mut l = parse_bitwise_and(parser)?;
     while matches!(parser.peek()?, Some(t) if matches!(t.kind(), TokenKind::BitwiseXor)) {
         let binop = parser.parse(BinOp::parse)?;
@@ -361,7 +377,7 @@ fn parse_bitwise_xor<'p>(
 }
 fn parse_bitwise_and<'p>(
     parser: &mut SyntacticParser<'p, impl Read>,
-) -> Result<Expr<'p>, Err<Error<'p>>> {
+) -> Result<Expr<'p>, Err<SyntaxError<'p>>> {
     let mut l = parse_shift(parser)?;
     while matches!(parser.peek()?, Some(t) if matches!(t.kind(), TokenKind::BitwiseAnd)) {
         let binop = parser.parse(BinOp::parse)?;
@@ -376,7 +392,7 @@ fn parse_bitwise_and<'p>(
 }
 fn parse_shift<'p>(
     parser: &mut SyntacticParser<'p, impl Read>,
-) -> Result<Expr<'p>, Err<Error<'p>>> {
+) -> Result<Expr<'p>, Err<SyntaxError<'p>>> {
     let mut l = parse_add(parser)?;
     while matches!(parser.peek()?, Some(t) if matches!(t.kind(), TokenKind::LShift | TokenKind::RShift))
     {
@@ -391,7 +407,9 @@ fn parse_shift<'p>(
     Ok(l)
 }
 
-fn parse_add<'p>(parser: &mut SyntacticParser<'p, impl Read>) -> Result<Expr<'p>, Err<Error<'p>>> {
+fn parse_add<'p>(
+    parser: &mut SyntacticParser<'p, impl Read>,
+) -> Result<Expr<'p>, Err<SyntaxError<'p>>> {
     let mut l = parse_group(parser)?;
     while matches!(parser.peek()?, Some(t) if matches!(t.kind(), TokenKind::Plus | TokenKind::Minus))
     {
@@ -408,7 +426,7 @@ fn parse_add<'p>(parser: &mut SyntacticParser<'p, impl Read>) -> Result<Expr<'p>
 
 fn parse_group<'p>(
     parser: &mut SyntacticParser<'p, impl Read>,
-) -> Result<Expr<'p>, Err<Error<'p>>> {
+) -> Result<Expr<'p>, Err<SyntaxError<'p>>> {
     let mut l = parse_unary(parser)?;
     while matches!(parser.peek()?, Some(t) if matches!(t.kind(), TokenKind::Star | TokenKind::Div))
     {
@@ -425,7 +443,7 @@ fn parse_group<'p>(
 
 fn parse_unary<'p>(
     parser: &mut SyntacticParser<'p, impl Read>,
-) -> Result<Expr<'p>, Err<Error<'p>>> {
+) -> Result<Expr<'p>, Err<SyntaxError<'p>>> {
     if matches!(parser.peek()?, Some(t) if matches!(t.kind(), TokenKind::Minus | TokenKind::Bang)) {
         let unary_op = parser.parse(UnaryOp::parse)?;
         let unary = parse_unary(parser)?;
@@ -438,7 +456,9 @@ fn parse_unary<'p>(
     }
 }
 
-fn parse_tail<'p>(parser: &mut SyntacticParser<'p, impl Read>) -> Result<Expr<'p>, Err<Error<'p>>> {
+fn parse_tail<'p>(
+    parser: &mut SyntacticParser<'p, impl Read>,
+) -> Result<Expr<'p>, Err<SyntaxError<'p>>> {
     let mut owner = parse_primary(parser)?;
     while matches!(parser.peek()?, Some(t) if matches!(t.kind(), TokenKind::LParen | TokenKind::LBracket | TokenKind::LCurly | TokenKind::Dot))
     {
@@ -465,7 +485,7 @@ fn parse_tail<'p>(parser: &mut SyntacticParser<'p, impl Read>) -> Result<Expr<'p
 fn parse_call<'p>(
     mut owner: Expr<'p>,
     parser: &mut SyntacticParser<'p, impl Read>,
-) -> Result<Expr<'p>, Err<Error<'p>>> {
+) -> Result<Expr<'p>, Err<SyntaxError<'p>>> {
     while LParen::could_parse(parser)? {
         let lparen = parser.parse(LParen::parse)?;
         let punctuated = if RParen::could_parse(parser)? {
@@ -511,7 +531,7 @@ fn parse_call<'p>(
 fn parse_field<'p>(
     mut owner: Expr<'p>,
     parser: &mut SyntacticParser<'p, impl Read>,
-) -> Result<Expr<'p>, Err<Error<'p>>> {
+) -> Result<Expr<'p>, Err<SyntaxError<'p>>> {
     while Dot::could_parse(parser)? {
         let dot = parser.parse(Dot::parse)?;
         let Some(field) = parser.consume_if(|p| matches!(p.kind(), TokenKind::Identifier(_)))?
@@ -531,7 +551,7 @@ fn parse_field<'p>(
 fn parse_index<'p>(
     mut owner: Expr<'p>,
     parser: &mut SyntacticParser<'p, impl Read>,
-) -> Result<Expr<'p>, Err<Error<'p>>> {
+) -> Result<Expr<'p>, Err<SyntaxError<'p>>> {
     while LBracket::could_parse(parser)? {
         let lbracket = parser.parse(LBracket::parse)?;
         let index = parser.parse(Expr::parse)?;
@@ -548,7 +568,7 @@ fn parse_index<'p>(
 
 fn parse_primary<'p>(
     parser: &mut SyntacticParser<'p, impl Read>,
-) -> Result<Expr<'p>, Err<Error<'p>>> {
+) -> Result<Expr<'p>, Err<SyntaxError<'p>>> {
     match parser.peek()? {
         Some(t)
             if matches!(
