@@ -23,6 +23,14 @@ impl<'p> Token<'p> {
     pub fn kind(&self) -> &TokenKind {
         &self.kind
     }
+
+    /// Leaks this token, making the associated span leak
+    pub fn leak(self) -> Token<'static> {
+        Token {
+            span: self.span.leak(),
+            kind: self.kind
+        }
+    }
 }
 
 impl Debug for Token<'_> {

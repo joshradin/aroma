@@ -3,7 +3,7 @@
 use std::cell::{Cell, LazyCell};
 use std::io;
 use std::panic::Location;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// A trait that can provide the [Span] of the complete context of an ir node
 ///
@@ -58,6 +58,15 @@ impl<'p> Span<'p> {
             }
         }
         Self::new(path, offset, 0)
+    }
+
+    /// leaks this span, creating a permanent memory allocation.
+    pub fn leak(self) -> Span<'static> {
+        Span {
+            path: Box::leak(Box::from(self.path)),
+            offset: self.offset,
+            len: self.len,
+        }
     }
 
     /// Gets a span directly after this span

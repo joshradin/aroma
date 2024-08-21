@@ -88,6 +88,15 @@ pub enum Err<E> {
     Failure(E),
 }
 
+impl<E> Err<E> {
+    pub fn cut(self) -> Self {
+        match self {
+            Err::Error(e) => Err::Failure(e),
+            e @ Err::Failure(_) => e,
+        }
+    }
+}
+
 impl<E: std::error::Error> Display for Err<E> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -427,8 +436,6 @@ impl<'p> SyntacticParser<'p, File> {
         let lexer = Lexer::new(path, file)?;
         Ok(Self::new(lexer))
     }
-
-
 }
 
 impl<'p> Parsable<'p> for Id<'p> {

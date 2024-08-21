@@ -1,7 +1,6 @@
 use crate::lexer::LexingError;
 use aroma_ast::spanned::Span;
 use aroma_ast::token::Token;
-use std::cell::Cell;
 use std::fmt::{Display, Formatter};
 use std::io;
 
@@ -12,7 +11,7 @@ pub struct SyntaxError<'p> {
     pub kind: ErrorKind<'p>,
     pub cause: Option<Box<Self>>,
     pub non_terminal_stack: Option<Vec<&'static str>>,
-    line_col: Cell<Option<(usize, usize)>>,
+    // line_col: Cell<Option<(usize, usize)>>,
 }
 
 impl<'p> SyntaxError<'p> {
@@ -28,21 +27,12 @@ impl<'p> SyntaxError<'p> {
             kind,
             cause: cause.into().map(Box::new),
             non_terminal_stack: non_terminals.into(),
-            line_col: Cell::new(None),
+            // line_col: Cell::new(None),
         }
     }
 
     fn get_line_col(&self) -> Option<(usize, usize)> {
-        if let Some(location) = &self.location {
-            if self.line_col.get().is_none() {
-                if let Ok((line, col)) = location.get_line_col() {
-                    self.line_col.set(Some((line, col)));
-                }
-            }
-            self.line_col.get()
-        } else {
-            None
-        }
+        self.location.and_then(|l| l.get_line_col().ok())
     }
 }
 
@@ -80,7 +70,7 @@ where
             kind: value.into(),
             cause: None,
             non_terminal_stack: None,
-            line_col: Cell::new(None),
+            // line_col: Cell::new(None),
         }
     }
 }

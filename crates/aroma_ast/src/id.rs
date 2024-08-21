@@ -101,6 +101,11 @@ impl<'p> Id<'p> {
     pub fn join<S: AsRef<str> + ?Sized>(&self, other: &S) -> Self {
         self.concat(&Id::new_call_site([other]).unwrap())
     }
+
+    /// Leaks the contents
+    pub fn leak(self) -> Id<'static> {
+        Id(self.0.into_iter().map(|s| IdInternal(s.0.leak())).collect())
+    }
 }
 impl Debug for Id<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

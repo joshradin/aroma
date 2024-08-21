@@ -1,5 +1,4 @@
-public native fn print[T](v: T);
-
 fn main() {
 
 }
+public native fn print()

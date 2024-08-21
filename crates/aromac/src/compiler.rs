@@ -1,11 +1,14 @@
 //! Responsible with compiling aroma files into aroma object files
 
-use crate::compiler::compile_job::CompileJobHandle;
+use crate::compiler::compile_job::{CompileError, CompileJob, CompileJobHandle, CompileJobId, CompileJobStatus};
+use itertools::Itertools;
+use log::{debug, error, info, trace};
 use std::collections::{HashMap, HashSet};
-use std::io;
 use std::path::{Path, PathBuf};
+use std::{io, thread};
+use std::any::Any;
+use std::panic::{panic_any, resume_unwind};
 use thiserror::Error;
-
 mod compile_job;
 
 /// Responsible with compiling aroma files into aroma object files.
@@ -15,7 +18,6 @@ mod compile_job;
 pub struct AromaC {
     max_jobs: usize,
     output_directory: PathBuf,
-    compile_jobs: HashMap<PathBuf, CompileJobHandle>,
 }
 
 impl AromaC {
@@ -26,18 +28,73 @@ impl AromaC {
     }
 
     /// Compile a file at a given path
-    pub fn compile(&mut self, path: impl AsRef<Path>) -> Result<PathBuf, AromaCError> {
+    #[inline]
+    pub fn compile(&mut self, path: impl AsRef<Path>) -> Result<(), AromaCError> {
         self.compile_all([path])
-            .map(|set| set.into_iter().next().expect("should contain one"))
     }
 
     /// Compile a file at a given path
-    pub fn compile_all<I>(&mut self, paths: I) -> Result<HashSet<PathBuf>, AromaCError>
+    pub fn compile_all<I>(&mut self, paths: I) -> Result<(), AromaCError>
     where
         I: IntoIterator<Item: AsRef<Path>>,
     {
-        let outputs = HashSet::new();
-        Ok(outputs)
+        let paths = paths.into_iter().map(|p| p.as_ref().to_path_buf()).collect::<HashSet<_>>();
+        thread::scope(|scope| {
+            let mut jobs = HashMap::new();
+            for path in &paths {
+                let job = CompileJob::start(scope, &*path);
+                jobs.insert(job.id(), job);
+            }
+
+            let mut errors = vec![];
+            while !jobs.is_empty() {
+                let mut completed = HashSet::<CompileJobId>::new();
+                for job in jobs.values() {
+                    let status = job.status().read();
+                    trace!("job {:?} status: {:?}", job.id(), status);
+                    match *status {
+                        CompileJobStatus::Failed(ref f) => {
+                            error!("job {:?} failed: {f}", job.id());
+                            completed.insert(job.id());
+                        }
+                        CompileJobStatus::Dead | CompileJobStatus::Done => {
+                            completed.insert(job.id());
+                        }
+                        _ => {}
+                    }
+
+                    if job.is_finished() {
+                        info!("job {:?} thread finished", job.id());
+                        completed.insert(job.id());
+                    }
+                }
+                for completed_job in completed {
+                    let j = jobs.remove(&completed_job).unwrap();
+                    if let Some(error) = j.take_error() {
+                        errors.push(AromaCError::from(error));
+                    }
+                    if let Err(e) = j.join() {
+                        match e.downcast::<CompileError>() {
+                            Ok(compile_error) => {
+                                errors.push(AromaCError::from(*compile_error));
+                            }
+                            Err(e) => {
+                                resume_unwind(e);
+                            }
+                        }
+                    }
+
+                }
+            }
+            if errors.is_empty() {
+                Ok(())
+            } else {
+                Err(errors)
+            }
+        }).map_err(|e| AromaCError::Errors(e.into_iter().map(|s| s.into()).collect()))?;
+
+
+        Ok(())
     }
 }
 
@@ -45,6 +102,16 @@ impl AromaC {
 pub enum AromaCError {
     #[error(transparent)]
     Io(#[from] io::Error),
+    #[error(transparent)]
+    CompileError(CompileError<'static>),
+    #[error("{}", .0.iter().join("\n"))]
+    Errors(Vec<AromaCError>)
+}
+
+impl<'scope> From<CompileError<'scope>> for AromaCError {
+    fn from(value: CompileError<'scope>) -> Self {
+        AromaCError::CompileError(value.leak())
+    }
 }
 
 /// Builder for creating a [AromaC] instance.
@@ -86,7 +153,6 @@ impl AromaCBuilder {
         Ok(AromaC {
             max_jobs: self.jobs,
             output_directory: self.output_directory,
-            compile_jobs: Default::default(),
         })
     }
 }

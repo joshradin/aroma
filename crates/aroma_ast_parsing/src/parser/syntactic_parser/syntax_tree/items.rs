@@ -219,21 +219,21 @@ fn parse_item<'p, R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<'p, It
         .ok_or_else(|| parser.error(ErrorKind::UnexpectedEof, None))?;
     let item = match lookahead.kind() {
         TokenKind::Abstract | TokenKind::Class => {
-            let class = parse_class(vis, None, parser)?;
+            let class = parse_class(vis, None, parser).map_err(|e| e.cut())?;
             Item::Class(class)
         }
         TokenKind::Interface => {
             todo!("parsing interface")
         }
         TokenKind::Fn => {
-            let func = parse_function(vis, parser)?;
+            let func = parse_function(vis, parser).map_err(|e| e.cut())?;
             Item::Func(func)
         }
         _other => {
             return Err(parser.error(
-                ErrorKind::expected_token(["abstract", "class", "interface", "fm"], lookahead),
+                ErrorKind::expected_token(["abstract", "class", "interface", "fn"], lookahead),
                 None,
-            ));
+            ).cut());
         }
     };
     Ok(item)
