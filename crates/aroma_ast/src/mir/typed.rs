@@ -10,7 +10,7 @@ pub trait Typed<T, E = TypeError> {
 /// Gets a type reference that's mutable
 pub trait TypedMut<T, E = TypeError> : Typed<T, E> {
     /// Gets the type
-    fn get_type_mut(&self) -> &mut TypeState<T, E>;
+    fn get_type_mut(&mut self) -> &mut TypeState<T, E>;
 
     /// Set the type for this object
     fn set_type(&mut self, ty: T) {

@@ -540,7 +540,7 @@ mod tests {
             assert_eq!(consumed_token.span(), Span::new(path, 0, 3));
             let token = parser.peek().unwrap().unwrap();
             assert_eq!(token.kind(), &TokenKind::Identifier("x".to_string()));
-            assert_eq!(token.span(), Span::new(path, 3, 1));
+            assert_eq!(token.span(), Span::new(path, 4, 1));
         });
     }
 
