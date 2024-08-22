@@ -2,7 +2,7 @@ use crate::field::Field;
 use crate::generic::{GenericDeclaration, GenericParameterBound, GenericParameterBounds};
 use crate::method::Method;
 use crate::vis::{Vis, Visibility};
-use aroma_common::nom_helpers::identifier_parser;
+use aroma_common::nom_helpers::recognize_identifier;
 use itertools::Itertools;
 use nom::character::complete::char;
 use nom::combinator::{all_consuming, map, opt, recognize};
@@ -210,7 +210,7 @@ impl ClassInst {
 }
 
 pub fn class_inst_parser<'a, E: ParseError<&'a str>>(v: &'a str) -> IResult<&str, ClassInst, E> {
-    let fqi = recognize(separated_list1(char('.'), identifier_parser()));
+    let fqi = recognize(separated_list1(char('.'), recognize_identifier));
     map(
         tuple((
             fqi,

@@ -137,6 +137,7 @@ pub enum TokenKind {
     Null,
     Final,
     Throws,
+    Constructor,
 }
 
 /// A stream of tokens

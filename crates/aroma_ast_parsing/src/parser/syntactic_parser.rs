@@ -1,6 +1,6 @@
 use crate::lexer::Lexer;
 use aroma_ast::id::Id;
-use aroma_ast::spanned::Spanned;
+use aroma_ast::spanned::{Span, Spanned};
 use aroma_ast::token::{ToTokens, Token, TokenKind};
 use std::any::type_name;
 use std::backtrace::Backtrace;
@@ -77,6 +77,7 @@ struct StateFrame<'p> {
     used: VecDeque<Token<'p>>,
     ignore_nl_prev: bool,
     non_terminals_prev: Vec<&'static str>,
+    last_span_prev: Option<Span<'p>>
 }
 
 /// Err enum used to represent recoverable and non-recoverable errors
@@ -149,6 +150,7 @@ impl<'p> From<SyntaxError<'p>> for Err<SyntaxError<'p>> {
 pub struct SyntacticParser<'p, R: Read> {
     lexer: Lexer<'p, R>,
     state: State<'p>,
+    last_span: Option<Span<'p>>,
     frames: Vec<StateFrame<'p>>,
     non_terminals: Vec<&'static str>,
     ignore_nl: bool,
@@ -160,6 +162,7 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
         Self {
             lexer,
             state: Default::default(),
+            last_span: None,
             frames: vec![],
             non_terminals: vec![],
             ignore_nl: true,
@@ -219,7 +222,7 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
         }
         trace!("starting consume, state={:?}", self.state);
         let swapped = std::mem::replace(&mut self.state, State::Poisoned);
-        match swapped {
+        let token = match swapped {
             State::Uninit => {
                 unreachable!("next_token() should init parser")
             }
@@ -252,7 +255,11 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
                 Ok(None)
             }
             State::Poisoned => Err(self.error(ErrorKind::ParserPoisoned, None)),
+        }?;
+        if let Some(token) = &token {
+            self.last_span = Some(token.span());
         }
+        Ok(token)
     }
 
     fn state_frame_mut(&mut self) -> Option<&mut StateFrame<'p>> {
@@ -263,6 +270,7 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
         let mut frame = StateFrame::default();
         frame.ignore_nl_prev = self.ignore_nl;
         frame.non_terminals_prev = self.non_terminals.clone();
+        frame.last_span_prev = self.last_span;
         self.frames.push(frame)
     }
 
@@ -326,38 +334,43 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
         match result {
             Ok(ok) => Ok(Some(ok)),
             Err(Err::Error(e)) => {
-                let state = std::mem::replace(&mut self.state, State::Poisoned);
-                trace!(
-                    "({}) error occurred while state={state:?} -> {e:?}",
-                    self.frames.len()
-                );
-                let mut v = pop.used;
-                let next_state = match state {
-                    State::Buffered(buffered) => {
-                        v.extend(buffered);
-                        State::Buffered(v)
-                    }
-                    State::Lookahead(tok) if v.is_empty() => State::Lookahead(tok),
-                    State::Lookahead(tok) => {
-                        v.push_back(tok);
-                        State::Buffered(v)
-                    }
-                    State::Eof if v.is_empty() => State::Eof,
-                    State::Eof => State::Buffered(v),
-                    state => panic!("unhandled state: {state:?}"),
-                };
-                self.state = next_state;
-                trace!(
-                    "({}) after backtrack state={:?}",
-                    self.frames.len(),
-                    self.state
-                );
-                self.ignore_nl = pop.ignore_nl_prev;
-                self.non_terminals = pop.non_terminals_prev;
+                self.apply_frame(pop, e);
                 Ok(None)
             }
             Err(Err::Failure(e)) => Err(e),
         }
+    }
+
+    fn apply_frame<E: std::error::Error>(&mut self, pop: StateFrame<'p>, e: E) {
+        let state = std::mem::replace(&mut self.state, State::Poisoned);
+        trace!(
+                    "({}) error occurred while state={state:?} -> {e:?}",
+                    self.frames.len()
+                );
+        let mut v = pop.used;
+        let next_state = match state {
+            State::Buffered(buffered) => {
+                v.extend(buffered);
+                State::Buffered(v)
+            }
+            State::Lookahead(tok) if v.is_empty() => State::Lookahead(tok),
+            State::Lookahead(tok) => {
+                v.push_back(tok);
+                State::Buffered(v)
+            }
+            State::Eof if v.is_empty() => State::Eof,
+            State::Eof => State::Buffered(v),
+            state => panic!("unhandled state: {state:?}"),
+        };
+        self.state = next_state;
+        trace!(
+                    "({}) after backtrack state={:?}",
+                    self.frames.len(),
+                    self.state
+                );
+        self.ignore_nl = pop.ignore_nl_prev;
+        self.non_terminals = pop.non_terminals_prev;
+        self.last_span = pop.last_span_prev;
     }
 
     /// Sets the parser into a given ignore state.
@@ -418,8 +431,22 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
     {
         let span = match &self.state {
             State::Lookahead(t) => Some(t.span()),
+            State::Buffered(vec) => vec.front().map(|t| t.span()),
             _ => None,
-        };
+        }.or(self.last_span.map(|s| s.end()));
+        Err::Error(SyntaxError::new(
+            error.into(),
+            span,
+            cause,
+            self.non_terminals.clone(),
+        ))
+    }
+
+    fn error_with_span<E1, E2>(&self, error: E1, cause: E2, span: Span<'p>) -> Err<SyntaxError<'p>>
+    where
+        E1: Into<ErrorKind<'p>>,
+        E2: Into<Option<SyntaxError<'p>>>,
+    {
         Err::Error(SyntaxError::new(
             error.into(),
             span,

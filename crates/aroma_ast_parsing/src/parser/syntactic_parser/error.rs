@@ -1,5 +1,5 @@
 use crate::lexer::LexingError;
-use aroma_ast::spanned::Span;
+use aroma_ast::spanned::{LineReader, Span};
 use aroma_ast::token::Token;
 use std::fmt::{Display, Formatter};
 use std::io;
@@ -30,19 +30,33 @@ impl<'p> SyntaxError<'p> {
             // line_col: Cell::new(None),
         }
     }
-
-    fn get_line_col(&self) -> Option<(usize, usize)> {
-        self.location.and_then(|l| l.get_line_col().ok())
-    }
 }
 
 impl Display for SyntaxError<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "syntax error: {}", self.kind)?;
         if let Some(location) = &self.location {
-            write!(f, "  -> {}", location.file().to_string_lossy())?;
-            if let Some((line, col)) = self.get_line_col() {
-                write!(f, ":{line}:{col}")?;
+            write!(f, "  -> {}", std::fs::canonicalize(location.file()).unwrap_or(location.file().to_path_buf()).to_string_lossy())?;
+            let (lines, base_line) = LineReader::new(2, 2)
+                .lines(location)
+                .map_err(|_| std::fmt::Error)?;
+            let col = lines
+                .iter()
+                .find(|line| line.line == base_line)
+                .expect("base line should always be present")
+                .col;
+            writeln!(f, ":{base_line}:{col}")?;
+            let width = lines.iter().map(|line| line.line).max().unwrap_or(0) / 10 + 1;
+            for line in &lines {
+                writeln!(f, "{:width$} | {}", line.line, line.src.trim_end())?;
+                if line.line == base_line {
+                    let col = line.col;
+                    if location.len() > 0 {
+                        writeln!(f, "{}{}{}", " ".repeat(width + 3), " ".repeat(col), "~".repeat(location.len()))?;
+                    } else {
+                        writeln!(f, "{}{}^", " ".repeat(width + 3), "-".repeat(col))?;
+                    }
+                }
             }
             writeln!(f)?;
         }

@@ -2,24 +2,23 @@
 
 use std::fs::File;
 use std::io;
-use std::io::{BufRead, Read};
+use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 use std::str::Utf8Error;
-
-use crate::lexer::nom_buf_reader::{BufReader, Parse, ParseError};
+use nom::combinator::complete;
 use crate::lexer::token_parsing::parse_token;
 use aroma_ast::spanned::Span;
 use aroma_ast::token::{Token, TokenKind};
 use nom::Finish;
 use thiserror::Error;
 
-mod nom_buf_reader;
 mod token_parsing;
 
 /// Responsible with converting a [Read] obj into a token stream
 #[derive(Debug)]
 pub struct Lexer<'p, R> {
     path: &'p Path,
+    buffer: Vec<u8>,
     reader: BufReader<R>,
     offset: usize,
 }
@@ -32,28 +31,54 @@ impl<'p> Lexer<'p, File> {
     }
 }
 
-impl<'p, R: io::Read> Lexer<'p, R> {
+impl<'p, R: Read> Lexer<'p, R> {
     /// Creates a new lexer
     pub fn new(path: &'p Path, reader: R) -> io::Result<Self> {
         Ok(Self {
             path,
+            buffer: vec![],
             reader: BufReader::new(reader),
             offset: 0,
         })
     }
 
     fn next_token(&mut self) -> LexResult<Option<Token<'p>>> {
-        self.reader.fill_buf()?;
-        match self.reader.parse(parse_token) {
-            Ok((_, TokenKind::Eof)) => Ok(None),
-            Ok((len, token_kind)) => {
-                let offset = self.offset;
-                self.offset += len;
-                let span = Span::new(self.path, offset, len);
-                Ok(Some(Token::new(span, token_kind)))
-            }
-            Err(e) => Err(e.into()),
+        if self.buffer.is_empty() {
+            self.buffer = vec![0; 1];
+            let read = self.reader.read(&mut self.buffer)?;
+            self.buffer = self.buffer.drain(..read).collect();
         }
+        while !self.buffer.is_empty() {
+            let as_str = std::str::from_utf8(&self.buffer)?;
+            match parse_token(as_str) {
+                Ok((rest, (_, _, _, TokenKind::Eof))) => return Ok(None),
+                Ok((rest, (l, len, r, token_kind))) => {
+                    let offset = self.offset + l;
+                    self.offset += l + len + r;
+                    let span = Span::new(self.path, offset, len);
+                    self.buffer = Vec::from(rest);
+                    return Ok(Some(Token::new(span, token_kind)))
+                }
+                Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
+                    todo!()
+                }
+                Err(nom::Err::Incomplete(needed)) => {
+                    todo!()
+                }
+            }
+        }
+        Ok(None)
+
+        // match self.reader.li.parse(parse_token) {
+        //     Ok((_, _, _, TokenKind::Eof)) => Ok(None),
+        //     Ok((l, len, r, token_kind)) => {
+        //         let offset = self.offset + l;
+        //         self.offset += l + len + r;
+        //         let span = Span::new(self.path, offset, len);
+        //         Ok(Some(Token::new(span, token_kind)))
+        //     }
+        //     Err(e) => Err(e.into()),
+        // }
     }
 }
 
@@ -85,10 +110,6 @@ pub enum LexingError {
     IoError(#[from] io::Error),
     #[error(transparent)]
     Utf8Error(#[from] Utf8Error),
-    #[error(transparent)]
-    NomError(#[from] ParseError<nom::error::Error<String>>),
-    #[error(transparent)]
-    VerboseNomError(#[from] ParseError<nom::error::VerboseError<String>>),
 }
 
 #[cfg(test)]

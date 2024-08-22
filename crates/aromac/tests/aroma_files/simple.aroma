@@ -1,4 +1,14 @@
+public class Box[T] {
+    private data: T
+    private alive: Bool
+
+    public constructor(data: T) throws InvalidDataException {
+    }
+
+    public
+}
+
 fn main() {
 
 }
-public native fn print()
+

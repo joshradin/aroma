@@ -1,50 +1,48 @@
 use std::str::FromStr;
 
 use aroma_ast::token::TokenKind;
-use aroma_common::nom_helpers::identifier_parser;
+use aroma_common::nom_helpers::recognize_identifier;
 use nom::branch::alt;
 use nom::bytes::complete::{is_not, tag, take_till, take_until, take_while_m_n};
-use nom::character::complete::{
-    alpha1, anychar, char, digit1, hex_digit1, multispace1, newline, satisfy, space1,
-};
+use nom::character::complete::{alpha1, char, digit1, hex_digit1, multispace1, newline, space1};
 use nom::character::is_newline;
 use nom::combinator::{
     all_consuming, consumed, cut, eof, map, map_opt, map_parser, map_res, peek, recognize, rest,
     value, verify,
 };
-use nom::error::{context, Error, ErrorKind, FromExternalError, VerboseError};
+use nom::error::{context, ErrorKind, FromExternalError, VerboseError};
 use nom::multi::{fold_many0, many0, many1};
 use nom::number::complete::recognize_float;
-use nom::sequence::{delimited, preceded, terminated};
+use nom::sequence::{delimited, preceded, terminated, tuple};
 use nom::{IResult, Parser};
 
-type Result<'a, O, E = &'a [u8]> = IResult<&'a [u8], O, VerboseError<E>>;
+type Result<'a, O, E = &'a str> = IResult<&'a str, O, VerboseError<E>>;
 
-pub fn parse_token(src: &[u8]) -> Result<(usize, TokenKind), String> {
+pub fn parse_token(src: &str) -> Result<(usize, usize, usize, TokenKind), String> {
     let mut main_parser = context(
         "token",
         map(
-            delimited(
-                parse_insignificant,
+            tuple((
+                consumed(parse_insignificant),
                 consumed(_parse_token),
-                parse_insignificant,
-            ),
-            |(consumed, token)| (consumed.len(), token),
+                consumed(parse_insignificant),
+            )),
+            |((l, _), (consumed, token), (r, _))| (l.len(), consumed.len(), r.len(), token),
         ),
     );
     (main_parser)(src).map_err(|e| e.map(map_error))
 }
 
-fn map_error(e: VerboseError<&[u8]>) -> VerboseError<String> {
+fn map_error(e: VerboseError<&str>) -> VerboseError<String> {
     let VerboseError { errors } = e;
     let errors = errors
         .into_iter()
-        .map(|(bytes, kind)| (String::from_utf8_lossy(bytes).as_ref().to_owned(), kind))
+        .map(|(bytes, kind)| (bytes.to_string(), kind))
         .collect();
     VerboseError { errors }
 }
 
-fn _parse_token(src: &[u8]) -> Result<TokenKind> {
+fn _parse_token(src: &str) -> Result<TokenKind> {
     alt((
         parse_eof,
         parse_word,
@@ -55,11 +53,11 @@ fn _parse_token(src: &[u8]) -> Result<TokenKind> {
     ))(src)
 }
 
-fn parse_eof(src: &[u8]) -> Result<TokenKind> {
+fn parse_eof(src: &str) -> Result<TokenKind> {
     context("eof", value(TokenKind::Eof, eof))(src)
 }
 
-fn parse_operator(src: &[u8]) -> Result<TokenKind> {
+fn parse_operator(src: &str) -> Result<TokenKind> {
     context(
         "operator",
         alt((
@@ -104,7 +102,7 @@ fn parse_operator(src: &[u8]) -> Result<TokenKind> {
     )(src)
 }
 
-fn parse_word(src: &[u8]) -> Result<TokenKind, &[u8]> {
+fn parse_word(src: &str) -> Result<TokenKind> {
     context(
         "word",
         preceded(
@@ -116,20 +114,22 @@ fn parse_word(src: &[u8]) -> Result<TokenKind, &[u8]> {
     )(src)
 }
 
-fn parse_keyword(src: &[u8]) -> Result<TokenKind> {
+fn parse_keyword(src: &str) -> Result<TokenKind> {
     context(
         "keyword",
         alt((
-            value(TokenKind::If, tag("if")),
-            value(TokenKind::Else, tag("else")),
-            value(TokenKind::While, tag("while")),
-            value(TokenKind::For, tag("for")),
-            value(TokenKind::Const, tag("const")),
-            value(TokenKind::Let, tag("let")),
-            value(TokenKind::Class, tag("class")),
-            value(TokenKind::Interface, tag("interface")),
-            value(TokenKind::Abstract, tag("abstract")),
-            value(TokenKind::Fn, tag("fn")),
+            alt((
+                value(TokenKind::If, tag("if")),
+                value(TokenKind::Else, tag("else")),
+                value(TokenKind::While, tag("while")),
+                value(TokenKind::For, tag("for")),
+                value(TokenKind::Const, tag("const")),
+                value(TokenKind::Let, tag("let")),
+                value(TokenKind::Class, tag("class")),
+                value(TokenKind::Interface, tag("interface")),
+                value(TokenKind::Abstract, tag("abstract")),
+                value(TokenKind::Fn, tag("fn")),
+            )),
             alt((
                 value(TokenKind::Public, tag("public")),
                 value(TokenKind::Private, tag("private")),
@@ -142,33 +142,30 @@ fn parse_keyword(src: &[u8]) -> Result<TokenKind> {
                 value(TokenKind::Try, tag("try")),
                 value(TokenKind::Catch, tag("catch")),
                 value(TokenKind::Match, tag("match")),
-                alt((
-                    value(TokenKind::Return, tag("return")),
-                    value(TokenKind::Loop, tag("loop")),
-                    value(TokenKind::Break, tag("break")),
-                    value(TokenKind::Continue, tag("continue")),
-                    value(TokenKind::Extends, tag("extends")),
-                    value(TokenKind::Implements, tag("implements")),
-                    value(TokenKind::Boolean(true), tag("true")),
-                    value(TokenKind::Boolean(false), tag("false")),
-                    value(TokenKind::Null, tag("null")),
-                    value(TokenKind::Final, tag("final")),
-                    value(TokenKind::Throws, tag("throws")),
-                )),
             )),
+            alt((
+                value(TokenKind::Return, tag("return")),
+                value(TokenKind::Loop, tag("loop")),
+                value(TokenKind::Break, tag("break")),
+                value(TokenKind::Continue, tag("continue")),
+                value(TokenKind::Extends, tag("extends")),
+                value(TokenKind::Implements, tag("implements")),
+                value(TokenKind::Boolean(true), tag("true")),
+                value(TokenKind::Boolean(false), tag("false")),
+                value(TokenKind::Null, tag("null")),
+                value(TokenKind::Final, tag("final")),
+                value(TokenKind::Throws, tag("throws")),
+            )),
+            alt((value(TokenKind::Constructor, tag("constructor")),)),
         )),
     )(src)
 }
 
-fn recognize_identifier(src: &[u8]) -> Result<&[u8]> {
-    identifier_parser()(src)
-}
-
-fn parse_identifier(src: &[u8]) -> Result<TokenKind> {
-    let id_parser = identifier_parser();
+fn parse_identifier(src: &str) -> Result<TokenKind> {
+    let id_parser = recognize_identifier;
     context(
         "identifier",
-        map(id_parser, |id: &[u8]| {
+        map(id_parser, |id: &str| {
             TokenKind::Identifier(
                 String::from_utf8(Vec::from(id)).expect("only [0-0a-zA-Z] should be here"),
             )
@@ -176,12 +173,12 @@ fn parse_identifier(src: &[u8]) -> Result<TokenKind> {
     )(src)
 }
 
-fn parse_newline(src: &[u8]) -> Result<TokenKind> {
+fn parse_newline(src: &str) -> Result<TokenKind> {
     // doesn't use newline because we don't want incomplete on missing newline
     context("newline", value(TokenKind::Nl, char('\n')))(src)
 }
 
-fn parse_punctuation(src: &[u8]) -> Result<TokenKind> {
+fn parse_punctuation(src: &str) -> Result<TokenKind> {
     context(
         "punctuation",
         alt((
@@ -194,7 +191,7 @@ fn parse_punctuation(src: &[u8]) -> Result<TokenKind> {
     )(src)
 }
 
-fn parse_literal(src: &[u8]) -> Result<TokenKind> {
+fn parse_literal(src: &str) -> Result<TokenKind> {
     context(
         "literal",
         alt((
@@ -207,57 +204,45 @@ fn parse_literal(src: &[u8]) -> Result<TokenKind> {
     )(src)
 }
 
-fn parse_hexadecimal_value(input: &[u8]) -> Result<i64> {
+fn parse_hexadecimal_value(input: &str) -> Result<i64> {
     map_res(
         preceded(
             alt((tag("0x"), tag("0X"))),
             cut(recognize(many1(terminated(hex_digit1, many0(char('_')))))),
         ),
-        |out: &[u8]| {
-            std::str::from_utf8(out)
+        |out: &str| {
+            i64::from_str_radix(out, 16)
                 .map_err(|e| VerboseError::from_external_error(input, ErrorKind::Verify, e))
-                .and_then(|s| {
-                    i64::from_str_radix(s, 16)
-                        .map_err(|e| VerboseError::from_external_error(input, ErrorKind::Verify, e))
-                })
         },
     )(input)
 }
 
-fn parse_integer_value(input: &[u8]) -> Result<i64> {
+fn parse_integer_value(input: &str) -> Result<i64> {
     map_res(
         recognize(many1(terminated(digit1, many0(char('_'))))),
-        |out: &[u8]| {
-            std::str::from_utf8(out)
-                .map_err(|s| VerboseError::from_external_error(input, ErrorKind::Verify, s))
-                .and_then(|s| {
-                    i64::from_str(s)
-                        .map_err(|e| VerboseError::from_external_error(input, ErrorKind::Verify, e))
-                })
+        |out: &str| {
+            i64::from_str(out)
+                .map_err(|e| VerboseError::from_external_error(input, ErrorKind::Verify, e))
         },
     )(input)
 }
 
-fn parse_floating_point_value(input: &[u8]) -> Result<f64> {
-    map_res(recognize_float, |out: &[u8]| {
-        std::str::from_utf8(out)
-            .map_err(|s| VerboseError::from_external_error(input, ErrorKind::Verify, s))
-            .and_then(|s| {
-                if s.contains(".") || s.contains("e") {
-                    f64::from_str(s)
-                        .map_err(|e| VerboseError::from_external_error(input, ErrorKind::Verify, s))
-                } else {
-                    Err(VerboseError::from_external_error(
-                        input,
-                        ErrorKind::Verify,
-                        s,
-                    ))
-                }
-            })
+fn parse_floating_point_value(input: &str) -> Result<f64> {
+    map_res(recognize_float, |s: &str| {
+        if s.contains(".") || s.contains("e") {
+            f64::from_str(s)
+                .map_err(|e| VerboseError::from_external_error(input, ErrorKind::Verify, s))
+        } else {
+            Err(VerboseError::from_external_error(
+                input,
+                ErrorKind::Verify,
+                s,
+            ))
+        }
     })(input)
 }
 
-fn parse_boolean(input: &[u8]) -> Result<bool> {
+fn parse_boolean(input: &str) -> Result<bool> {
     alt((value(true, tag("true")), value(false, tag("false"))))(input)
 }
 
@@ -268,15 +253,15 @@ enum StringFragment<'a> {
     EscapedWs,
 }
 
-fn parse_literal_str(input: &[u8]) -> Result<&str> {
-    let not_quoted = map_res(is_not("\"\\"), |s: &[u8]| std::str::from_utf8(s));
+fn parse_literal_str(input: &str) -> Result<&str> {
+    let not_quoted = is_not("\"\\");
     verify(not_quoted, |s: &str| !s.is_empty())(input)
 }
 
-fn parse_unicode(input: &[u8]) -> Result<std::primitive::char> {
+fn parse_unicode(input: &str) -> Result<std::primitive::char> {
     // `take_while_m_n` parses between `m` and `n` bytes (inclusive) that match
     // a predicate. `parse_hex` here parses between 1 and 6 hexadecimal numerals.
-    let parse_hex = take_while_m_n(1, 6, |c| char::from(c).is_ascii_hexdigit());
+    let parse_hex = take_while_m_n::<_, &str, _>(1, 6, |c| char::from(c).is_ascii_hexdigit());
 
     // `preceded` takes a prefix parser, and if it succeeds, returns the result
     // of the body parser. In this case, it parses u{XXXX}.
@@ -291,10 +276,7 @@ fn parse_unicode(input: &[u8]) -> Result<std::primitive::char> {
     // `map_res` takes the result of a parser and applies a function that returns
     // a Result. In this case we take the hex bytes from parse_hex and attempt to
     // convert them to a u32.
-    let parse_u32 = map_res(
-        map_res(parse_delimited_hex, |s| std::str::from_utf8(s)),
-        move |hex| u32::from_str_radix(hex, 16),
-    );
+    let parse_u32 = map_res(parse_delimited_hex, move |hex| u32::from_str_radix(hex, 16));
 
     // map_opt is like map_res, but it takes an Option instead of a Result. If
     // the function returns None, map_opt returns an error. In this case, because
@@ -302,7 +284,7 @@ fn parse_unicode(input: &[u8]) -> Result<std::primitive::char> {
     // convert to char with from_u32.
     map_opt(parse_u32, std::char::from_u32).parse(input)
 }
-fn parse_escaped_char(input: &[u8]) -> Result<std::primitive::char> {
+fn parse_escaped_char(input: &str) -> Result<std::primitive::char> {
     preceded(
         char('\\'),
         // `alt` tries each parser in sequence, returning the result of
@@ -326,11 +308,11 @@ fn parse_escaped_char(input: &[u8]) -> Result<std::primitive::char> {
     .parse(input)
 }
 
-fn parse_escaped_whitespace(input: &[u8]) -> Result<&[u8]> {
+fn parse_escaped_whitespace(input: &str) -> Result<&str> {
     preceded(char('\\'), multispace1)(input)
 }
 
-fn parse_string_fragment(input: &[u8]) -> Result<StringFragment> {
+fn parse_string_fragment(input: &str) -> Result<StringFragment> {
     alt((
         map(parse_literal_str, StringFragment::Literal),
         map(parse_escaped_char, StringFragment::EscapedChar),
@@ -338,7 +320,7 @@ fn parse_string_fragment(input: &[u8]) -> Result<StringFragment> {
     ))(input)
 }
 
-fn parse_string_value(input: &[u8]) -> Result<String> {
+fn parse_string_value(input: &str) -> Result<String> {
     let build_string = fold_many0(
         parse_string_fragment,
         String::new,
@@ -356,7 +338,7 @@ fn parse_string_value(input: &[u8]) -> Result<String> {
     delimited(char('"'), cut(build_string), char('"'))(input)
 }
 
-fn parse_insignificant(src: &[u8]) -> Result<()> {
+fn parse_insignificant(src: &str) -> Result<()> {
     context(
         "insignificant",
         map(
@@ -370,7 +352,11 @@ fn parse_insignificant(src: &[u8]) -> Result<()> {
                     ),
                     context(
                         "line comment",
-                        recognize(delimited(tag("//"), take_till(|s| is_newline(s)), newline)),
+                        recognize(delimited(
+                            tag("//"),
+                            take_till(|s| is_newline(s as u8)),
+                            newline,
+                        )),
                     ),
                     context("line comment", recognize(preceded(tag("//"), rest))),
                 )))),

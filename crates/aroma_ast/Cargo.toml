@@ -16,3 +16,4 @@ aroma_ast_derive = { version = "0.0.0", path = "../aroma_ast_derive", optional =
 aroma_types = { version = "0.0.0", path = "../aroma_types"}
 itertools = { workspace = true }
 thiserror = "1.0.63"
+log = "0.4.22"

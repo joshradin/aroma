@@ -5,8 +5,12 @@ use crate::parser::expr::{remove_nl, Expr};
 use crate::parser::singletons::{Abstract, Class, Private, Protected, Public};
 use crate::parser::statement::StatementBlock;
 use crate::parser::syntactic_parser::syntax_tree::helpers::End;
-use crate::parser::{cut, map, multi0, seperated_list1, singletons::*, CouldParse, ErrorKind, Parsable, Punctuated1, Result, SyntacticParser, SyntaxError};
-use aroma_ast::token::{ToTokens, TokenKind};
+use crate::parser::{
+    cut, map, multi0, seperated_list1, singletons::*, CouldParse, ErrorKind, Parsable, Punctuated1,
+    Result, SyntacticParser, SyntaxError,
+};
+use aroma_ast::spanned::Spanned;
+use aroma_ast::token::{ToTokens, Token, TokenKind};
 use log::{debug, info, trace};
 use std::io::Read;
 
@@ -166,7 +170,7 @@ pub struct FnThrows<'p> {
 pub enum ClassMember<'p> {
     Method(ItemFn<'p>),
     AbstractMethod(ItemAbstractFn<'p>),
-    Field(),
+    Field(ClassField<'p>),
     Constructor(),
     Class(ItemClass<'p>),
 }
@@ -186,8 +190,6 @@ pub enum Item<'p> {
     Func(ItemFn<'p>),
 }
 
-
-
 impl<'p> Parsable<'p> for Item<'p> {
     type Err = SyntaxError<'p>;
 
@@ -199,24 +201,35 @@ impl<'p> Parsable<'p> for Item<'p> {
 /// Highest level of parsing, the translation unit consists of items
 #[derive(Debug, ToTokens)]
 pub struct TranslationUnit<'p> {
-    pub items: Vec<Item<'p>>
+    pub items: Vec<Item<'p>>,
 }
 
 impl<'p> Parsable<'p> for TranslationUnit<'p> {
     type Err = SyntaxError<'p>;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> std::result::Result<Self, crate::parser::Err<Self::Err>> {
+    fn parse<R: Read>(
+        parser: &mut SyntacticParser<'p, R>,
+    ) -> std::result::Result<Self, crate::parser::Err<Self::Err>> {
         parser.parse(map(multi0(Item::parse), |items| TranslationUnit { items }))
     }
 }
 
 fn parse_item<'p, R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<'p, Item<'p>> {
+    parser.parse(remove_nl)?;
     let vis = parser.parse_opt::<Visibility>()?;
+    parser.parse(remove_nl)?;
+    let lookahead = match parser.peek()?.cloned() {
+        None => {
+            let err = parser.error(ErrorKind::UnexpectedEof, None);
+            return if vis.is_some() {
+                Err(err.cut())
+            } else {
+                Err(err)
+            };
+        }
+        Some(tok) => tok,
+    };
 
-    let lookahead = parser
-        .peek()?
-        .cloned()
-        .ok_or_else(|| parser.error(ErrorKind::UnexpectedEof, None))?;
     let item = match lookahead.kind() {
         TokenKind::Abstract | TokenKind::Class => {
             let class = parse_class(vis, None, parser).map_err(|e| e.cut())?;
@@ -230,9 +243,11 @@ fn parse_item<'p, R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<'p, It
             Item::Func(func)
         }
         _other => {
-            return Err(parser.error(
+            let span = lookahead.span();
+            return Err(parser.error_with_span(
                 ErrorKind::expected_token(["abstract", "class", "interface", "fn"], lookahead),
                 None,
+                span,
             ).cut());
         }
     };
@@ -328,7 +343,6 @@ fn parse_class_members<'p, R: Read>(
             let visibility = parser.parse_opt::<Visibility>()?;
             let is_static = parser.parse_opt::<Static>()?;
             let member = parse_class_member(owner, visibility, is_static, parser)?;
-            info!("member: {member:?}");
             members.push(member);
             Ok(())
         })?;
@@ -348,16 +362,50 @@ fn parse_class_member<'p, R: Read>(
     parser: &mut SyntacticParser<'p, R>,
 ) -> Result<'p, ClassMember<'p>> {
     let lookahead = parser.peek()?.cloned().ok_or_else(|| {
-        parser.error(ErrorKind::expected_token(["fn", "class", "id"], None), None)
+        parser.error(ErrorKind::expected_token(["fn", "class", "id", "final"], None), None)
     })?;
     match lookahead.kind() {
+        TokenKind::Identifier(_) | TokenKind::Final => {
+            parse_field(owner, visibility, is_static, parser)
+        }
         TokenKind::Fn | TokenKind::Abstract => parse_method(owner, visibility, is_static, parser),
         _ => Err(parser.error(
-            ErrorKind::expected_token(["fn", "class", "id"], lookahead),
+            ErrorKind::expected_token(["fn", "class", "id", "constructor"], lookahead),
             None,
         )),
     }
 }
+
+
+fn parse_field<'p, R: Read>(
+    owner: &VarId<'p>,
+    visibility: Option<Visibility<'p>>,
+    is_static: Option<Static<'p>>,
+    parser: &mut SyntacticParser<'p, R>,
+) -> Result<'p, ClassMember<'p>> {
+    let final_tok = parser.parse_opt::<Final>()?;
+    let binding = parser.parse(cut(Binding::parse))?;
+    let default_value = if let Some(assign) = parser.parse_opt::<Assign>()? {
+        let value = parser.parse(cut(Expr::parse))?;
+        Some(ClassFieldDefaultValue {
+            assign,
+            value,
+        })
+    } else {
+        None
+    };
+
+    let class_field = ClassField {
+        vis: visibility,
+        static_tok: is_static,
+        final_tok,
+        binding,
+        default_value,
+    };
+
+    Ok(ClassMember::Field(class_field))
+}
+
 
 fn parse_method<'p, R: Read>(
     owner: &VarId<'p>,

@@ -1,18 +1,19 @@
 use aroma_ast::id::Id;
-use std::collections::HashSet;
-use std::error::Error;
-use std::fmt::{Display, Formatter};
-use std::num::NonZeroUsize;
-use std::path::Path;
-use std::sync::{Arc};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::mpsc::{sync_channel, Receiver};
-use std::thread::{Scope, ScopedJoinHandle};
-use log::{debug, error};
-use parking_lot::RwLock;
 use aroma_ast_parsing::parse_file;
 use aroma_ast_parsing::parser::items::TranslationUnit;
 use aroma_ast_parsing::parser::SyntaxError;
+use log::{debug, error, info};
+use parking_lot::RwLock;
+use std::collections::HashSet;
+use std::error::Error;
+use std::fmt::{Display, Formatter};
+use std::marker::PhantomData;
+use std::num::NonZeroUsize;
+use std::path::Path;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::mpsc::{sync_channel, Receiver};
+use std::sync::Arc;
+use std::thread::{Scope, ScopedJoinHandle};
 
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Copy, Clone)]
 pub struct CompileJobId(NonZeroUsize);
@@ -20,23 +21,30 @@ pub struct CompileJobId(NonZeroUsize);
 static COMPILE_JOB_ID: AtomicUsize = AtomicUsize::new(1);
 
 #[derive(Debug)]
-pub struct CompileJob<'a> {
+pub struct CompileJob<'p> {
     id: CompileJobId,
-    status: Arc<RwLock<CompileJobStatus<'a>>>,
-    receiver: Receiver<CompileJobCommand>
+    status: Arc<RwLock<CompileJobStatus<'p>>>,
+    receiver: Receiver<CompileJobCommand>,
 }
 
-impl<'scope> CompileJob<'scope> {
-
+impl<'env> CompileJob<'env> {
     /// Start a compile job
-    pub fn start<'env : 'scope>(scope: &'scope Scope<'scope, 'env>, path: &'scope Path) -> CompileJobHandle<'scope> {
+    pub fn start<'scope>(
+        scope: &'scope Scope<'scope, 'env>,
+        path: &'env Path,
+    ) -> CompileJobHandle<'scope, 'env>
+    where
+        'env: 'scope,
+    {
         let status = Arc::new(RwLock::new(CompileJobStatus::NotStarted));
-        let id = CompileJobId(NonZeroUsize::new(COMPILE_JOB_ID.fetch_add(1, Ordering::SeqCst)).unwrap());
+        let id =
+            CompileJobId(NonZeroUsize::new(COMPILE_JOB_ID.fetch_add(1, Ordering::SeqCst)).unwrap());
         let (join_handle, tx) = {
             let status = status.clone();
             let (tx, rx) = sync_channel::<CompileJobCommand>(0);
 
             let handle = scope.spawn(move || {
+                let path = path;
                 let mut job = CompileJob::new(id, status, rx);
                 match job.run(path) {
                     Ok(()) => {
@@ -56,11 +64,19 @@ impl<'scope> CompileJob<'scope> {
         }
     }
 
-    fn new(id: CompileJobId, status: Arc<RwLock<CompileJobStatus<'scope>>>, receiver: Receiver<CompileJobCommand>) -> Self {
-        Self { id, status, receiver }
+    fn new(
+        id: CompileJobId,
+        status: Arc<RwLock<CompileJobStatus<'env>>>,
+        receiver: Receiver<CompileJobCommand>,
+    ) -> Self {
+        Self {
+            id,
+            status,
+            receiver,
+        }
     }
 
-    fn run(&mut self, path: &'scope Path) -> Result<(), CompileError<'scope>> {
+    fn run(&mut self, path: &'env Path) -> Result<(), CompileError<'env>> {
         *self.status.write() = CompileJobStatus::Parsing;
         let u = parse_file(path)?;
         debug!("compiled {:?} to {} units", path, u.items.len());
@@ -68,7 +84,10 @@ impl<'scope> CompileJob<'scope> {
         loop {
             let finished = {
                 let guard = self.status.read();
-                matches!(&*guard, CompileJobStatus::Done | CompileJobStatus::Dead | CompileJobStatus::Failed(_))
+                matches!(
+                    &*guard,
+                    CompileJobStatus::Done | CompileJobStatus::Dead | CompileJobStatus::Failed(_)
+                )
             };
             if finished {
                 break;
@@ -77,17 +96,17 @@ impl<'scope> CompileJob<'scope> {
             *self.status.write() = pass;
         }
 
-
         Ok(())
     }
 
-    fn pass(&mut self) -> Result<CompileJobStatus<'scope>, CompileError<'scope>> {
+    fn pass(&mut self) -> Result<CompileJobStatus<'env>, CompileError<'env>> {
         let status = {
             let mut guard = self.status.write();
             std::mem::replace(&mut *guard, CompileJobStatus::Processing)
         };
         match status {
-            CompileJobStatus::Parsed(TranslationUnit) => {
+            CompileJobStatus::Parsed(translation_unit) => {
+                info!("items: {translation_unit:#?}");
                 todo!()
             }
             state => {
@@ -95,20 +114,16 @@ impl<'scope> CompileJob<'scope> {
             }
         }
     }
-
-
 }
-
-
 
 #[derive(Debug)]
-pub struct CompileJobHandle<'env> {
+pub struct CompileJobHandle<'scope, 'env : 'scope> {
     id: CompileJobId,
     status: Arc<RwLock<CompileJobStatus<'env>>>,
-    join_handle: ScopedJoinHandle<'env, ()>
+    join_handle: ScopedJoinHandle<'scope, ()>,
 }
 
-impl<'env> CompileJobHandle<'env> {
+impl<'scope, 'env : 'scope> CompileJobHandle<'scope, 'env> {
     pub fn id(&self) -> CompileJobId {
         self.id
     }
@@ -124,11 +139,13 @@ impl<'env> CompileJobHandle<'env> {
     pub fn take_error(&self) -> Option<CompileError<'env>> {
         let mut guard = self.status.write();
         if matches!(*guard, CompileJobStatus::Failed(_)) {
-            let CompileJobStatus::Failed(e) = std::mem::replace(&mut *guard, CompileJobStatus::Dead) else {
+            let CompileJobStatus::Failed(e) =
+                std::mem::replace(&mut *guard, CompileJobStatus::Dead)
+            else {
                 unreachable!()
             };
             Some(e)
-        } else{
+        } else {
             None
         }
     }
@@ -149,7 +166,6 @@ pub enum CompileJobStatus<'env> {
     Failed(CompileError<'env>),
     Done,
     Dead,
-
 }
 
 #[derive(Debug)]
@@ -162,22 +178,7 @@ pub enum CompileJobCommand {
 #[derive(Debug)]
 pub enum CompileError<'env> {
     Syntax(SyntaxError<'env>),
-    UndefinedIdentifiers(Vec<Id<'env>>)
-}
-
-impl<'env> CompileError<'env> {
-    pub fn leak(self) -> CompileError<'static> {
-        match self {
-            CompileError::Syntax(s) => {todo!()}
-            CompileError::UndefinedIdentifiers(id) => {
-                CompileError::UndefinedIdentifiers(
-                    id.into_iter()
-                        .map(|id| id.leak())
-                        .collect()
-                )
-            }
-        }
-    }
+    UndefinedIdentifiers(Vec<Id<'env>>),
 }
 
 impl<'env> From<SyntaxError<'env>> for CompileError<'env> {
@@ -189,7 +190,7 @@ impl<'env> From<SyntaxError<'env>> for CompileError<'env> {
 impl Display for CompileError<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            CompileError::Syntax(s) => { s.fmt(f)}
+            CompileError::Syntax(s) => s.fmt(f),
             CompileError::UndefinedIdentifiers(ids) => {
                 write!(f, "Undefined identifiers: {ids:?}")
             }
@@ -197,5 +198,4 @@ impl Display for CompileError<'_> {
     }
 }
 
-impl Error for CompileError<'_> {
-}
+impl Error for CompileError<'_> {}

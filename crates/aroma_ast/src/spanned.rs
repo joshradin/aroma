@@ -1,9 +1,10 @@
 //! A trait that can provide the [Span] of the complete context of an ir node
 
-use std::cell::{Cell, LazyCell};
 use std::io;
+use std::io::ErrorKind;
 use std::panic::Location;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use log::debug;
 
 /// A trait that can provide the [Span] of the complete context of an ir node
 ///
@@ -19,7 +20,6 @@ pub struct Span<'p> {
     path: &'p Path,
     offset: usize,
     len: usize,
-    // line_and_col: Cell<(usize, usize)>
 }
 
 impl<'p> Span<'p> {
@@ -96,6 +96,34 @@ impl<'p> Span<'p> {
         Ok((line, col))
     }
 
+    /// Gets the full, original line this span is from
+    pub fn get_string_line_col(&self) -> io::Result<(String, usize, usize)> {
+        let mut line_n = 1usize;
+        let mut col = 0usize;
+        let mut offset = 0usize;
+        let string = std::fs::read_to_string(self.file())?;
+        let mut line = vec![];
+        for char in string.chars() {
+            if char == '\n' {
+                if offset < self.offset {
+                    col = 0;
+                    line_n += 1;
+                    line = vec![];
+                } else {
+                    line.push(char);
+                    break;
+                }
+            } else {
+                if offset < self.offset {
+                    col += 1;
+                }
+                line.push(char);
+            }
+            offset += char.len_utf8();
+        }
+        Ok((String::from_iter(line), line_n, col))
+    }
+
     /// Gets the file this pan is from
     #[inline]
     pub const fn file(&self) -> &'p Path {
@@ -131,6 +159,87 @@ impl<'p> Spanned<'p> for Span<'p> {
     fn span(&self) -> Span<'p> {
         *self
     }
+}
+
+/// A line reader struct that's responsible for getting lines from a span
+#[derive(Debug, Default)]
+pub struct LineReader {
+    before: usize,
+    after: usize,
+}
+
+impl LineReader {
+    /// Creates a new line reader that gets `before` number of lines before a span and `after` number
+    /// of lines after.
+    pub fn new(before: usize, after: usize) -> Self {
+        Self { before, after }
+    }
+
+    /// Gets the lines for a given span, plus the base line index
+    pub fn lines(&self, span: &Span<'_>) -> io::Result<(Vec<Line>, usize)>{
+        let string = std::fs::read_to_string(span.file())?;
+
+        let expected_line_count = 1 + self.before + self.after;
+        let mut line_n = 1usize;
+        let mut span_start_line = None;
+        let mut col = 0usize;
+        let mut offset = 0usize;
+        let mut lines = vec![];
+        let mut current_line = vec![];
+        for char in string.chars() {
+            if offset == span.offset {
+                span_start_line = Some(line_n);
+            }
+            if char == '\n' {
+                if offset < span.offset || lines.len() < expected_line_count {
+                    let line = Line {
+                        line: line_n,
+                        col: if offset >= span.offset { col } else { 0 },
+                        byte_offset: offset,
+                        src: String::from_iter(current_line),
+                    };
+                    lines.push(line);
+                    col = 0;
+                    line_n += 1;
+                    current_line = vec![];
+                } else {
+                    current_line.push(char);
+                    break;
+                }
+            } else {
+                if offset < span.offset {
+                    col += 1;
+                }
+                current_line.push(char);
+            }
+            offset += char.len_utf8();
+        }
+
+        if current_line.len() > 0 {
+            let line = Line {
+                line: line_n,
+                col,
+                byte_offset: offset,
+                src: String::from_iter(current_line),
+            };
+            lines.push(line);
+        }
+        let base_line = span_start_line.ok_or_else(|| io::Error::new(ErrorKind::UnexpectedEof, "offset out of bounds"))?;
+        let range = base_line.saturating_sub(self.before)..=base_line.saturating_add(self.after);
+        lines.retain(|line| {
+            range.contains(&line.line)
+        });
+
+        Ok((lines, base_line))
+    }
+}
+
+#[derive(Debug)]
+pub struct Line {
+    pub line: usize,
+    pub col: usize,
+    pub byte_offset: usize,
+    pub src: String,
 }
 
 #[cfg(test)]

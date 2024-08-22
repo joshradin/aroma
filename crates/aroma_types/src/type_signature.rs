@@ -2,7 +2,7 @@
 
 use crate::class::{class_inst_parser, ClassInst, ClassRef};
 use crate::generic::GenericParameterBound;
-use aroma_common::nom_helpers::identifier_parser;
+use aroma_common::nom_helpers::recognize_identifier;
 use itertools::Itertools;
 use nom::branch::alt;
 use nom::bytes::complete::is_not;
@@ -125,7 +125,7 @@ impl From<ClassInst> for TypeSignature {
 }
 
 fn parse_class_ts(input: &str) -> IResult<&str, TypeSignature, VerboseError<&str>> {
-    let fqi = recognize(separated_list1(char('.'), identifier_parser()));
+    let fqi = recognize(separated_list1(char('.'), recognize_identifier));
     map(
         tuple((
             fqi,

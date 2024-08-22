@@ -7,6 +7,7 @@ use aroma_ast::token::ToTokens;
 use aroma_ast::token::Token;
 use aroma_ast::token::TokenKind;
 use aroma_ast::token::TokenStream;
+use aroma_ast::spanned::Spanned;
 use std::io::Read;
 
 /// A variable id, an Id with a signle id
@@ -75,8 +76,18 @@ macro_rules! token_singleton {
                 if let Some(tok) = parser.consume_if(|token| matches!(token.kind(),  $($pat)*))? {
                     Ok($ty { token: tok })
                 } else {
-                    let kind = ErrorKind::expected_token([stringify!($ty)], parser.consume()?);
-                    Err(parser.error(kind, None))
+                    let tok = parser.consume()?;
+                    let span = tok.as_ref().map(|t| t.span());
+                    let kind = ErrorKind::expected_token([stringify!($ty)], tok);
+                    match span {
+                        Some(span) => {
+                             Err(parser.error_with_span(kind, None, span))
+                        }
+                        None => {
+                             Err(parser.error(kind, None))
+                        }
+                    }
+
                 }
             }
         }

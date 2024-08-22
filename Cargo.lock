@@ -121,6 +121,7 @@ dependencies = [
  "aroma_ast_derive",
  "aroma_types",
  "itertools",
+ "log",
  "thiserror",
 ]
 

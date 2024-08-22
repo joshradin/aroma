@@ -1,6 +1,7 @@
-use aromac::AromaC;
-use log::info;
+use aromac::{AromaC, AromaCError};
+use log::{error, info};
 use std::path::PathBuf;
+use eyre::eyre;
 use test_log::test;
 
 mod common;
@@ -16,7 +17,12 @@ fn test_compile_single_file() -> eyre::Result<()> {
 
     let file = PathBuf::from("tests").join("aroma_files").join("simple.aroma");
 
-    aroma_c.compile(file)?;
+    let c= match aroma_c.compile(&*file) {
+        Ok(ok) => {}
+        Err(e) => {
+            return Err(eyre!("{e}"))
+        }
+    };
 
     Ok(())
 }
