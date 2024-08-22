@@ -12,4 +12,4 @@ pub static PRINT: ObjNative = native!(
 );
 
 /// A slice of all native functions that will be registered into the VM.
-pub static NATIVES: &[&'static ObjNative] = &[&PRINT];
+pub static NATIVES: &[&ObjNative] = &[&PRINT];

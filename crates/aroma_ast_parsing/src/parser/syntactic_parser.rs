@@ -3,12 +3,10 @@ use aroma_ast::id::Id;
 use aroma_ast::spanned::{Span, Spanned};
 use aroma_ast::token::{ToTokens, Token, TokenKind};
 use std::any::type_name;
-use std::backtrace::Backtrace;
 use std::collections::VecDeque;
-use std::fmt::{Debug, Display, Formatter, Pointer};
+use std::fmt::{Debug, Display, Formatter};
 use std::fs::File;
 use std::io::Read;
-use std::panic::Location;
 use std::path::Path;
 use std::result;
 
@@ -16,10 +14,10 @@ pub mod error;
 pub mod syntax_tree;
 
 use crate::parser::expr::remove_nl;
-use crate::parser::singletons::{Comma, Dot, VarId};
-use crate::parser::{map, seperated_list1, Constant, ConstantKind, Punctuated1};
+use crate::parser::singletons::{Dot, VarId};
+use crate::parser::{map, Punctuated1};
 pub use error::*;
-use log::{error, trace};
+use log::trace;
 
 /// Parser for syntax tree items
 pub trait Parser<'p, R: Read, O, E = SyntaxError<'p>>: Clone
@@ -203,7 +201,7 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
     /// peak the current lookahead
     fn peek(&mut self) -> Result<'p, Option<&Token<'p>>> {
         if matches!(self.state, State::Uninit) {
-            let _ = self.next_token()?;
+            self.next_token()?;
         }
         match &self.state {
             State::Lookahead(tok) => Ok(Some(tok)),
@@ -218,7 +216,7 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
 
     fn consume(&mut self) -> Result<'p, Option<Token<'p>>> {
         if matches!(self.state, State::Uninit) {
-            let _ = self.next_token()?;
+            self.next_token()?;
         }
         trace!("starting consume, state={:?}", self.state);
         let swapped = std::mem::replace(&mut self.state, State::Poisoned);
@@ -299,7 +297,7 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
             parser.non_terminal(),
             self.state
         );
-        if let Ok(_) = &r {
+        if r.is_ok() {
             self.non_terminals.pop();
         }
         r
@@ -479,7 +477,7 @@ impl<'p> Parsable<'p> for Id<'p> {
         });
         parser
             .try_parse(parts)
-            .map_err(|e| Err::Error(e))
+            .map_err(Err::Error)
             .and_then(|id| id.ok_or_else(|| parser.error(ErrorKind::UnexpectedEof, None)))
     }
 }

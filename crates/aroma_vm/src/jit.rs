@@ -1,10 +1,8 @@
 //! Used for creating just in time compiled sources for the avm
 
-use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Formatter};
 
-use cranelift::codegen::ir::stackslot::StackSize;
 use cranelift::prelude::types::{F32, F64, I32, I64, I8, R64};
 use cranelift::prelude::*;
 use cranelift_jit::{JITBuilder, JITModule};
@@ -369,11 +367,11 @@ impl<'a> IrTranslator<'a> {
                 );
 
                 if !self.visited.contains(ir_then_block) {
-                    self.visited.insert(ir_then_block.clone());
+                    self.visited.insert(*ir_then_block);
                     self.translate_ir_block(then_block, &func.blocks()[ir_then_block], func)?;
                 }
                 if !self.visited.contains(ir_else_block) {
-                    self.visited.insert(ir_else_block.clone());
+                    self.visited.insert(*ir_else_block);
                     self.translate_ir_block(else_block, &func.blocks()[ir_else_block], func)?;
                 }
             }
@@ -393,7 +391,7 @@ impl<'a> IrTranslator<'a> {
 
                 self.builder.ins().jump(next_block, &block_params);
                 if !self.visited.contains(ir_block) {
-                    self.visited.insert(ir_block.clone());
+                    self.visited.insert(*ir_block);
                     self.translate_ir_block(next_block, &func.blocks()[ir_block], func)?;
                 }
             }
@@ -527,8 +525,8 @@ fn declare_variable(
 ) -> Variable {
     let var_idx = *index;
     let var = Variable::new(var_idx);
-    if !variables.contains_key(&var_idx) {
-        variables.insert(var_idx, var);
+    if let std::collections::hash_map::Entry::Vacant(e) = variables.entry(var_idx) {
+        e.insert(var);
         builder.declare_var(var, JIT::get_abi_type(ty).unwrap());
         *index += 1;
     }

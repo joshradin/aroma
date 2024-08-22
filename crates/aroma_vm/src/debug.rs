@@ -37,7 +37,7 @@ impl Disassembler {
         for (idx, chunk) in func.chunks().iter().enumerate() {
             self.disassemble_chunk_to(
                 chunk,
-                &*format!("{} chunk {idx}", func.name()),
+                &format!("{} chunk {idx}", func.name()),
                 &mut buffer,
             )?;
         }
@@ -83,7 +83,7 @@ fn format_constant<W: Write>(
     chunk: &Chunk,
     idx: u8,
     constant: &Constant,
-    mut w: &mut W,
+    w: &mut W,
 ) -> io::Result<()> {
     write!(w, "#{idx}: ")?;
     match constant {
@@ -196,7 +196,7 @@ impl<W: Write> ChunkVisitor for DisassemblerVisitor<'_, W> {
         )?;
         let constant_idx = self.chunk.code()[offset + 1];
         write!(self.w, "{:<16} #{constant_idx:<5} // ", opcode.as_ref())?;
-        format_constant(&self.chunk, constant_idx, constant, &mut self.w)?;
+        format_constant(self.chunk, constant_idx, constant, &mut self.w)?;
         writeln!(self.w)?;
         Ok(())
     }
@@ -233,7 +233,7 @@ impl<W: Write> ChunkVisitor for DisassemblerVisitor<'_, W> {
         ChunkVisitorFunctions::visit_closure_instruction(self, offset, opcode, idx, constant)?;
         let constant_idx = self.chunk.code()[offset + 1];
         write!(self.w, "{:<16} #{constant_idx:<5} // ", opcode.as_ref())?;
-        format_constant(&self.chunk, constant_idx, constant, &mut self.w)?;
+        format_constant(self.chunk, constant_idx, constant, &mut self.w)?;
         writeln!(self.w)?;
         Ok(())
     }

@@ -1,4 +1,4 @@
-use aroma_types::class::{AsClassRef, ClassInst};
+use aroma_types::class::ClassInst;
 use aroma_types::hierarchy::intrinsics::{I32_CLASS_NAME, I64_CLASS_NAME};
 use aroma_types::hierarchy::ClassHierarchy;
 use std::collections::HashMap;

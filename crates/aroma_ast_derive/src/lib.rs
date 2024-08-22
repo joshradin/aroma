@@ -101,7 +101,6 @@ pub fn derive_to_tokens(tokens: TokenStream) -> TokenStream {
                     }
                     Fields::Unnamed(unnamed) => {
                         let bindings = (0..unnamed.unnamed.len())
-                            .into_iter()
                             .map(|i| format_ident!("__self_{i}"))
                             .collect::<Vec<_>>();
                         let len = bindings.len();

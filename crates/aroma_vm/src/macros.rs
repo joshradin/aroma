@@ -130,7 +130,7 @@ macro_rules! bytecode {
         }
     ) => {
         {
-            use $crate::{__export::chunk::*, types::Value};
+            use $crate::__export::chunk::*;
             use std::collections::HashMap;
             let mut byte_idx = 0_i16;
             let mut chunk = Chunk::new();
@@ -215,7 +215,7 @@ macro_rules! function {
 #[cfg_attr(feature = "macros", macro_export)]
 macro_rules! native {
     (fn $name:ident($($param:ident: $param_ty:ty),* $(,)?) $block:block) => {{
-        use crate::types::Value;
+        use $crate::types::Value;
         use crate::vm::error::VmError;
 
         fn $name($($param: $param_ty),*) -> Result<(), VmError>{
@@ -277,7 +277,6 @@ macro_rules! native {
     };
 }
 
-use aroma_bytecode::chunk::Chunk;
 #[cfg(not(feature = "macros"))]
 pub(crate) use {
     _instruction_to_bytecode, _literal_to_constant, bytecode, function, native, require_type,

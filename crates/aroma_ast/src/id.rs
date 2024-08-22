@@ -19,7 +19,7 @@ impl<'p> Id<'p> {
                 accum.push(internal);
                 Some(accum)
             })
-            .map(|vec| Id(vec))
+            .map(Id)
     }
 
     /// Tries to create an [Id] from an iterator of tokens.

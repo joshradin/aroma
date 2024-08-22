@@ -16,10 +16,10 @@ pub static CLASS_CLASS: LazyLock<Class> = LazyLock::new(class);
 pub static OBJECT_CLASS: LazyLock<Class> = LazyLock::new(object);
 pub static ARRAY_CLASS: LazyLock<Class> = LazyLock::new(array);
 /// The base class name
-pub static BASE_CLASS_NAME: &'static str = "aroma.system.Object";
+pub static BASE_CLASS_NAME: &str = "aroma.system.Object";
 /// Class class name
-pub static CLASS_CLASS_NAME: &'static str = "aroma.system.Class";
-pub static ARRAY_CLASS_NAME: &'static str = "aroma.system.Array";
+pub static CLASS_CLASS_NAME: &str = "aroma.system.Class";
+pub static ARRAY_CLASS_NAME: &str = "aroma.system.Array";
 
 /// Gets the class representation of a given type
 pub fn primitive_to_class<T: PrimitiveAsClass>() -> &'static Class {
@@ -69,7 +69,9 @@ primitive_as_class!(i64 => "aroma.primitive.Long");
 primitive_as_class!(String => "aroma.lang.String");
 
 fn class() -> Class {
-    let cls = Class::new(
+    
+
+    Class::new(
         Vis::Public,
         ClassKind::Concrete,
         CLASS_CLASS_NAME,
@@ -89,13 +91,13 @@ fn class() -> Class {
             [],
             [],
         )],
-    );
-
-    cls
+    )
 }
 
 fn object() -> Class {
-    let cls = Class::new(
+    
+
+    Class::new(
         Vis::Public,
         ClassKind::Concrete,
         BASE_CLASS_NAME,
@@ -111,13 +113,13 @@ fn object() -> Class {
             ),
         ],
         [],
-    );
-
-    cls
+    )
 }
 
 fn array() -> Class {
-    let cls = Class::new(
+    
+
+    Class::new(
         Vis::Public,
         ClassKind::Concrete,
         ARRAY_CLASS_NAME,
@@ -129,7 +131,5 @@ fn array() -> Class {
         [],
         [],
         [],
-    );
-
-    cls
+    )
 }

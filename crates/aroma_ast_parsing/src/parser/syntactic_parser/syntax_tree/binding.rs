@@ -12,7 +12,6 @@ use aroma_ast::token::{ToTokens, TokenKind};
 use aroma_types::class::{ClassInst, ClassRef};
 use aroma_types::generic::GenericParameterBound;
 use aroma_types::type_signature::TypeSignature;
-use log::debug;
 use std::io::Read;
 
 /// A binding between an id to a type

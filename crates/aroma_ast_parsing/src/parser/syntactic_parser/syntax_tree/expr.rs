@@ -1,11 +1,11 @@
 use crate::parser::singletons::*;
-use crate::parser::statement::{StatementLet, StatementList};
+use crate::parser::statement::StatementList;
 use crate::parser::syntactic_parser::{CouldParse, Parsable};
 use crate::parser::{
-    map, multi0, Constant, Err, ErrorKind, Punctuated0, Punctuated1, SyntacticParser, SyntaxError,
+    Constant, Err, ErrorKind, Punctuated0, Punctuated1, SyntacticParser, SyntaxError,
 };
 use aroma_ast::id::Id;
-use aroma_ast::token::{ToTokens, TokenKind, TokenStream};
+use aroma_ast::token::{ToTokens, TokenKind};
 use std::io::Read;
 
 #[derive(Debug, ToTokens)]

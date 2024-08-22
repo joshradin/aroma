@@ -41,7 +41,7 @@ impl Debug for Token<'_> {
 
 impl<'p> Spanned<'p> for Token<'p> {
     fn span(&self) -> Span<'p> {
-        self.span.clone()
+        self.span
     }
 }
 
@@ -154,6 +154,12 @@ impl<'a: 'p, 'p> Iterator for TokenStream<'a, 'p> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.0.next()
+    }
+}
+
+impl<'p> Default for TokenStream<'p, 'p> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

@@ -46,7 +46,7 @@ use crate::types::function::ObjFunction;"#
     Ok(())
 }
 
-static TYPES: &[(&'static str, &'static str)] = &[
+static TYPES: &[(&str, &str)] = &[
     ("Type::Long", "i64"),
     ("Type::Int", "i32"),
     ("Type::Byte", "i8"),

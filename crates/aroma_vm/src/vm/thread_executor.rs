@@ -1,9 +1,6 @@
-use std::cell::{Ref, RefCell, RefMut};
+use std::cell::RefCell;
 use std::collections::BTreeMap;
-use std::io::BufWriter;
 use std::num::NonZero;
-use std::ops::Neg;
-use std::rc::Rc;
 use std::sync::atomic::{AtomicIsize, Ordering};
 use std::sync::Arc;
 use std::thread;
@@ -14,7 +11,6 @@ use itertools::Itertools;
 use log::{debug, trace};
 use parking_lot::Mutex;
 
-use crate::debug::Disassembler;
 use crate::types::function::ObjFunction;
 use crate::types::Value;
 use crate::vm::error::VmError;
@@ -194,10 +190,8 @@ impl ThreadExecutor {
                         if let Some(last) = last {
                             self.push(last);
                         }
-                    } else {
-                        if let Some(Value::Int(i)) = last {
-                            return Ok(ThreadResult::Done(i));
-                        }
+                    } else if let Some(Value::Int(i)) = last {
+                        return Ok(ThreadResult::Done(i));
                     }
                 }
                 OpCode::Negate => {
@@ -371,7 +365,7 @@ impl ThreadExecutor {
                     #[cfg(feature = "debug_trace_execution")] {
                         trace!("calling compiled {} at {:p}", function.name(), jit);
                     }
-                    if let Some(ret_value) = crate::jit::abi::call_jit(&*stack, &*function, jit) {
+                    if let Some(ret_value) = crate::jit::abi::call_jit(&stack, &function, jit) {
                         self.push(ret_value);
                     }
                 } else {
@@ -491,7 +485,7 @@ impl ThreadExecutor {
         };
 
         let constant_idx = self.read_byte()?;
-        let mut constant: Constant = get_constant(constant_idx);
+        let constant: Constant = get_constant(constant_idx);
         match constant {
             Constant::FunctionId(id) => match get_constant(id) {
                 Constant::Utf8(utf8) => {

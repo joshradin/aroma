@@ -1,14 +1,12 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
-use std::ops::{Deref, Index};
-use std::slice::from_ref;
+use std::collections::{BTreeSet, HashMap};
+use std::ops::Index;
 
 use itertools::Itertools;
 use log::trace;
-use petgraph::adj::NodeIndices;
 use petgraph::prelude::*;
-use rangemap::{RangeMap, RangeSet};
+use rangemap::RangeMap;
 
-use aroma_bytecode::chunk::{last_opcode_index, IntoOpcodeIterator, OpCode};
+use aroma_bytecode::chunk::{IntoOpcodeIterator, OpCode};
 
 /// A graph of
 #[derive(Debug, Default)]
@@ -112,13 +110,11 @@ pub fn get_offset_graph(bytecode: &[u8]) -> OffsetGraph {
                 }
                 _ => {}
             }
-        } else {
-            if let Some(last) = visited.range(start_offset + 1..).next().copied() {
-                let end_offset = last;
-                trace!("found range {:x?} ", start_offset..end_offset);
-                blocks.insert(start_offset..end_offset, cnt);
-                cnt += 1;
-            }
+        } else if let Some(last) = visited.range(start_offset + 1..).next().copied() {
+            let end_offset = last;
+            trace!("found range {:x?} ", start_offset..end_offset);
+            blocks.insert(start_offset..end_offset, cnt);
+            cnt += 1;
         }
         trace!("stack: {stack:x?}");
     }

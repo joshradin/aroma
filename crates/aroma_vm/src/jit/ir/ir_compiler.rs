@@ -5,14 +5,12 @@ use log::trace;
 use petgraph::data::Build;
 use petgraph::graph::NodeIndex;
 use rangemap::RangeMap;
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
-use std::convert::Infallible;
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use crate::debug::Disassembler;
 use crate::jit::ir::ir_builder::{Block, IrBuilder, IrFunction};
-use crate::jit::ir::ir_compiler::offset_graph::{get_offset_graph, OffsetGraph, OffsetRange};
+use crate::jit::ir::ir_compiler::offset_graph::{get_offset_graph, OffsetGraph};
 use crate::jit::ir::ir_op::{IrValue, IrVariable, IrVariableFactory};
 use crate::types::function::ObjFunction;
 use crate::types::{Type, Value};
@@ -255,7 +253,6 @@ impl IrCompiler {
                 OpCode::JumpIfFalse => {
                     let cond = value_stack
                         .last()
-                        .clone()
                         .ok_or_else(|| CompileIrError::NoValueAvailable)?;
                     let jump_offset = u16::from_be_bytes(bytes.try_into().unwrap());
                     let to_offset = offset_range.from + offset + 3 + jump_offset as usize;
@@ -363,7 +360,7 @@ impl IrCompiler {
 fn linearize(chunks: &[Arc<Chunk>]) -> (Vec<u8>, RangeMap<usize, usize>) {
     let mut bytes = vec![];
     let mut range_map = RangeMap::new();
-    let mut offset = 0;
+    let offset = 0;
     for (idx, chunk) in chunks.iter().enumerate() {
         let len = chunk.code().len();
         range_map.insert(offset..(offset + len), idx);

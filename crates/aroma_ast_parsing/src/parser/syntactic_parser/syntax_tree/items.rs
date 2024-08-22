@@ -10,8 +10,8 @@ use crate::parser::{
     Result, SyntacticParser, SyntaxError,
 };
 use aroma_ast::spanned::Spanned;
-use aroma_ast::token::{ToTokens, Token, TokenKind};
-use log::{debug, info, trace};
+use aroma_ast::token::{ToTokens, TokenKind};
+use log::{debug, trace};
 use std::io::Read;
 
 #[derive(Debug, ToTokens)]

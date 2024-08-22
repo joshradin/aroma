@@ -39,6 +39,12 @@ macro_rules! token_singleton {
             token: Token<'p>,
         }
 
+        impl<'p> Default for $ty<'p> {
+            fn default() -> Self {
+                Self::new()
+            }
+        }
+
         impl<'p> $ty<'p> {
             #[track_caller]
             pub fn new() -> Self {

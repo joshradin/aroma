@@ -1,10 +1,7 @@
 //! The type hierarchy for type querying
 
 use crate::class::{AsClassRef, Class, ClassInst, ClassRef};
-use crate::field::Field;
-use crate::generic::{GenericDeclaration, GenericParameterBound, GenericParameterBounds};
-use crate::method::{Method, Parameter};
-use crate::vis::Visibility;
+use crate::generic::{GenericParameterBound, GenericParameterBounds};
 use intrinsics::*;
 use itertools::Itertools;
 use parking_lot::RwLock;
@@ -21,6 +18,12 @@ pub struct ClassHierarchy {
     class_ref_map: HashMap<ClassRef, (NodeIndex, Class)>,
     base_class: ClassRef,
     instantiated: RwLock<HashSet<ClassInst>>,
+}
+
+impl Default for ClassHierarchy {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ClassHierarchy {
@@ -179,7 +182,7 @@ impl ClassHierarchy {
     fn add_to_instantiated_set(&self, instantiated: &ClassInst) {
         let mut all_instantiated = self.instantiated.write();
         all_instantiated.insert(instantiated.clone());
-        if let Ok(result) = self.get_all_in_inheritance_tree(&instantiated) {
+        if let Ok(result) = self.get_all_in_inheritance_tree(instantiated) {
             for parents in result {
                 all_instantiated.insert(parents);
             }
@@ -208,8 +211,8 @@ impl ClassHierarchy {
             for path in &paths {
                 let mut ptr = class;
                 let mut good = true;
-                'path: for inst in &*path {
-                    for (path, ptr) in inst.generics().iter().zip(ptr.generics().clone()) {
+                'path: for inst in path {
+                    for (path, ptr) in inst.generics().iter().zip(ptr.generics()) {
                         let ptr_type = ptr.bound_class_instance();
                         print!("checking if {} assignable to {}... ", ptr_type, path);
                         match path {
@@ -329,7 +332,7 @@ impl ClassHierarchy {
         let mut paths: Vec<Vec<ClassInst>> =
             petgraph::algo::all_simple_paths(&self.graph, class_idx, parent_idx, 0, None).fold(
                 Vec::new(),
-                |mut accum, mut s: VecDeque<NodeIndex>| {
+                |mut accum, s: VecDeque<NodeIndex>| {
                     let mut path = vec![];
                     for i in 1..s.len() {
                         let from_idx = s[i - 1];
@@ -356,7 +359,7 @@ impl ClassHierarchy {
     pub fn get_all_in_inheritance_tree(&self, class: &ClassInst) -> Result<Vec<ClassInst>> {
         let target = ClassInst::new(self.base_class.clone());
         self.get_inheritance_paths(class, &target)
-            .map(|s| s.iter().cloned().flatten().collect())
+            .map(|s| s.iter().flatten().cloned().collect())
     }
 
     /// Gets an iterator over all the classes in this hierarchy in no particular order.
@@ -439,7 +442,7 @@ mod tests {
     fn test_all_classes_covariant_with_base_class() {
         let hierarchy = ClassHierarchy::new();
         println!("hierarchy: {:#?}", hierarchy);
-        let ref base_class = hierarchy
+        let base_class = &hierarchy
             .instantiate_default(&hierarchy.base_class().get_ref())
             .unwrap();
         for cls in hierarchy.classes() {

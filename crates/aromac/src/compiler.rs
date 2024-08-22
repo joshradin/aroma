@@ -1,15 +1,12 @@
 //! Responsible with compiling aroma files into aroma object files
 
-use crate::compiler::compile_job::{CompileError, CompileJob, CompileJobHandle, CompileJobId, CompileJobStatus};
+use crate::compiler::compile_job::{CompileError, CompileJob, CompileJobId, CompileJobStatus};
 use itertools::Itertools;
-use log::{debug, error, info, trace};
-use std::any::Any;
+use log::{error, info};
 use std::collections::{HashMap, HashSet};
-use std::panic::{panic_any, resume_unwind};
+use std::panic::resume_unwind;
 use std::path::{Path, PathBuf};
 use std::{io, thread};
-use std::sync::Arc;
-use parking_lot::RwLock;
 use thiserror::Error;
 mod compile_job;
 
@@ -45,7 +42,7 @@ impl AromaC {
             let mut errors: Vec<AromaCError<'p>> = Default::default();
             let mut jobs = HashMap::new();
             for path in paths {
-                let job = CompileJob::start(scope, &*path);
+                let job = CompileJob::start(scope, path);
                 jobs.insert(job.id(), job);
             }
             while !jobs.is_empty() {
@@ -137,7 +134,7 @@ impl AromaCBuilder {
     }
 
     /// Builds an [AromaC] instance from this builder
-    pub fn build(mut self) -> Result<AromaC, BuildAromaCError> {
+    pub fn build(self) -> Result<AromaC, BuildAromaCError> {
         if self.jobs == 0 {
             return Err(BuildAromaCError::ZeroJobs);
         }

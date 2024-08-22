@@ -16,13 +16,13 @@ mod tests {
 
     #[test]
     fn test_create_class() {
-        let mut hierarchy = ClassHierarchy::new();
+        let hierarchy = ClassHierarchy::new();
         println!("hierarchy: {:#?}", hierarchy.classes().collect::<Vec<_>>());
     }
 
     #[test]
     fn test_instantiate_concrete_class() {
-        let mut hierarchy = ClassHierarchy::new();
+        let hierarchy = ClassHierarchy::new();
         let inst = hierarchy
             .instantiate(&*OBJECT_CLASS, [])
             .expect("could not instantiate");

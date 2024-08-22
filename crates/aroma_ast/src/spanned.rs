@@ -4,7 +4,6 @@ use std::io;
 use std::io::ErrorKind;
 use std::panic::Location;
 use std::path::Path;
-use log::debug;
 
 /// A trait that can provide the [Span] of the complete context of an ir node
 ///
@@ -215,7 +214,7 @@ impl LineReader {
             offset += char.len_utf8();
         }
 
-        if current_line.len() > 0 {
+        if !current_line.is_empty() {
             let line = Line {
                 line: line_n,
                 col,

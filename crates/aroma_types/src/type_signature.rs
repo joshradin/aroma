@@ -1,13 +1,11 @@
 //! Type signatures
 
-use crate::class::{class_inst_parser, ClassInst, ClassRef};
+use crate::class::{ClassInst, ClassRef};
 use crate::generic::GenericParameterBound;
-use aroma_common::nom_helpers::recognize_identifier;
 use itertools::Itertools;
 use nom::branch::alt;
-use nom::bytes::complete::is_not;
 use nom::character::complete::char;
-use nom::combinator::{all_consuming, cut, map, map_res, opt, recognize, value};
+use nom::combinator::{all_consuming, cut, map, opt, recognize, value};
 use nom::error::{context, VerboseError};
 use nom::multi::{separated_list0, separated_list1};
 use nom::sequence::{delimited, preceded, tuple};
@@ -15,6 +13,7 @@ use nom::{Finish, IResult};
 use std::error::Error as StdError;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
+use aroma_common::nom_helpers::recognize_identifier;
 
 /// A type signature
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]

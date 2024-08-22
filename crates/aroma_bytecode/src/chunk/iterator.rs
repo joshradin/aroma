@@ -10,7 +10,7 @@ impl<'a> Iterator for OpcodeIterator<'a> {
     type Item = (usize, OpCode, &'a [u8]);
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.src.len() == 0 {
+        if self.src.is_empty() {
             return None;
         }
         let opcode = OpCode::try_from(self.src[0]).expect("source is not bytecode");

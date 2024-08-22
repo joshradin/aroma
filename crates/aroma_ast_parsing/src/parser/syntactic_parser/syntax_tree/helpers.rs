@@ -135,7 +135,7 @@ where
     }
 }
 
-pub fn cut<'p, P, R, O, E>(mut parser: P) -> impl Parser<'p, R, O, E>
+pub fn cut<'p, P, R, O, E>(parser: P) -> impl Parser<'p, R, O, E>
 where
     P: Parser<'p, R, O, E> + Clone,
     R: Read,
@@ -150,7 +150,7 @@ where
 }
 
 /// Runs the same parser over and over until failure
-pub fn multi0<'p, P, R, O, E>(mut parser: P) -> impl Parser<'p, R, Vec<O>, E>
+pub fn multi0<'p, P, R, O, E>(parser: P) -> impl Parser<'p, R, Vec<O>, E>
 where
     P: Parser<'p, R, O, E> + Clone,
     R: Read,
@@ -169,7 +169,7 @@ where
 }
 
 /// Runs the same parser over and over until failure, requiring at least one successful parse
-pub fn multi1<'p, P, R, O, E>(mut parser: P) -> impl Parser<'p, R, Vec<O>, E>
+pub fn multi1<'p, P, R, O, E>(parser: P) -> impl Parser<'p, R, Vec<O>, E>
 where
     P: Parser<'p, R, O, E> + Clone,
     R: Read,
@@ -191,8 +191,8 @@ where
 
 /// Runs the same parser over and over with the given delimiter until failure, requiring at least one successful parse
 pub fn seperated_list0<'p, P, G, R, O1, O2, E>(
-    mut sep: G,
-    mut e: P,
+    sep: G,
+    e: P,
 ) -> impl Parser<'p, R, Vec<(O1, Option<O2>)>, E>
 where
     P: Parser<'p, R, O1, E> + Clone,
@@ -225,8 +225,8 @@ where
 }
 /// Runs the same parser over and over with the given delimiter until failure, requiring at least one successful parse
 pub fn seperated_list1<'p, P, G, R, O1, O2, E>(
-    mut sep: G,
-    mut e: P,
+    sep: G,
+    e: P,
 ) -> impl Parser<'p, R, Vec<(O1, Option<O2>)>, E>
 where
     P: Parser<'p, R, O1, E> + Clone,
@@ -254,7 +254,7 @@ where
 }
 
 /// Runs the same parser over and over until failure
-pub fn map<'p, P, R, O, O2, E, F>(mut parser: P, map: F) -> impl Parser<'p, R, O2, E>
+pub fn map<'p, P, R, O, O2, E, F>(parser: P, map: F) -> impl Parser<'p, R, O2, E>
 where
     P: Parser<'p, R, O, E> + Clone,
     R: Read,
@@ -278,7 +278,6 @@ impl<'p> CouldParse<'p> for End<'p> {
     fn could_parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<bool, Err<Self::Err>> {
         Ok(parser
             .peek()?
-            .clone()
             .map(|i| matches!(i.kind(), TokenKind::Nl | TokenKind::SemiColon))
             .unwrap_or(false))
     }

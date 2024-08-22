@@ -10,6 +10,12 @@ pub struct Bindings<'p> {
     scopes: Vec<Scope<'p>>,
 }
 
+impl<'p> Default for Bindings<'p> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<'p> Bindings<'p> {
     /// creates a new bindings
     pub fn new() -> Self {
@@ -83,7 +89,7 @@ impl<'p> Bindings<'p> {
 
     /// Insert a value into the bindings
     pub fn insert(&mut self, id: Id<'p>, value: TypeSignature) {
-        let mut scope = self
+        let scope = self
             .scopes
             .last_mut()
             .expect("scopes should never be empty");

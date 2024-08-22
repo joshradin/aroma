@@ -3,7 +3,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use aroma_vm::jit::JIT;
-use aroma_vm::types::function::ObjFunction;
 use aroma_vm::vm::{AromaVm, StaticFunctionTable};
 use aroma_vm::{examples, function};
 

@@ -48,7 +48,7 @@ impl ObjFunction {
     ) -> Self {
         Self {
             name: name.as_ref().to_string(),
-            chunks: Vec::from_iter(chunks.into_iter().map(|c| Arc::new(c))),
+            chunks: Vec::from_iter(chunks.into_iter().map(Arc::new)),
             chunk_idx: None,
             params_ty: Vec::from(params).into_boxed_slice(),
             return_ty: ret_type.cloned(),
@@ -85,7 +85,7 @@ impl ObjFunction {
 
     /// The parameter types
     pub fn params_ty(&self) -> &[Type] {
-        &*self.params_ty
+        &self.params_ty
     }
 
     /// the return types
@@ -191,7 +191,7 @@ impl ObjNative {
     }
 
     pub fn call(&self, values: &[Value]) -> Result<Option<Value>, VmError> {
-        (&self.native)(values)
+        (self.native)(values)
     }
 }
 
@@ -224,7 +224,7 @@ impl FnSignature {
     }
 
     pub fn ret(&self) -> Option<&Type> {
-        self.output.as_ref().map(|s| &**s)
+        self.output.as_deref()
     }
 }
 

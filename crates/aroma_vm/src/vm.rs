@@ -14,7 +14,7 @@ use parking_lot::{Mutex, RwLock};
 use error::VmError;
 
 #[cfg(feature = "jit")]
-use crate::jit::{JITConfig, JitResult, JIT};
+use crate::jit::{JITConfig, JIT};
 use crate::types::function::{ObjFunction, ObjNative};
 use crate::types::Value;
 use crate::vm::natives::NATIVES;
@@ -54,6 +54,12 @@ pub struct AromaVm {
     #[cfg(feature = "jit")]
     jit: Arc<Mutex<JIT>>,
     config: AromaVmConfig,
+}
+
+impl Default for AromaVm {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl AromaVm {
@@ -169,7 +175,7 @@ impl AromaVm {
                         drop(guard);
                         debug!(target: "aroma_vm::jit" ,"Starting JIT on {}", func.name());
                         let mut jit = jit.lock();
-                        match jit.compile(&*func) {
+                        match jit.compile(&func) {
                             Ok(ptr) => {
                                 debug!(target: "aroma_vm::jit", "created JIT compilation for {:?}", ptr);
                                 func.set_jit(NonNull::new(ptr as *mut u8).unwrap())
@@ -200,7 +206,8 @@ impl AromaVm {
             .clone();
 
         let i = function.chunk_idx().unwrap();
-        let handle = ThreadExecutor::start(
+        
+        ThreadExecutor::start(
             function,
             id,
             self.chunks.clone(),
@@ -210,8 +217,7 @@ impl AromaVm {
             result_mutex,
             self.functions.clone(),
             self.natives.clone(),
-        );
-        handle
+        )
     }
 
     fn get_thread_result(

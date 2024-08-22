@@ -7,7 +7,7 @@ use nom::combinator::recognize;
 use nom::error::ParseError;
 use nom::multi::many0_count;
 use nom::sequence::pair;
-use nom::{IResult, InputLength, InputTake, InputTakeAtPosition, Offset, Parser, Slice};
+use nom::IResult;
 
 
 pub fn recognize_identifier<'a, E : ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, &'a str, E>

@@ -1,7 +1,6 @@
 //! A chunk of data
 
 use std::fmt::{Debug, Display, Formatter};
-use std::ops::{Deref, Index, IndexMut};
 
 pub use constant::*;
 pub use iterator::*;
@@ -39,10 +38,16 @@ impl Display for Chunk {
         write!(
             f,
             "{}",
-            self.code().iter().fold(String::new(), |mut buf, next| {
+            self.code().iter().fold(String::new(), |buf, next| {
                 format!("{buf}{}", format!("{next:x}"))
             })
         )
+    }
+}
+
+impl Default for Chunk {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -149,7 +154,7 @@ impl Chunk {
             .unwrap_or_else(|| &mut [])
     }
     fn buffer_mut(&mut self) -> Option<&mut [u8]> {
-        self.code.as_mut().map(|s| &mut **s)
+        self.code.as_deref_mut()
     }
 
     fn grow_capacity(&mut self, old_capacity: usize) {
@@ -174,7 +179,7 @@ impl Chunk {
 
 /// Gets the index of the last opcode in this slice of bytecode
 pub fn last_opcode_index(bytecode: &[u8]) -> Option<usize> {
-    if bytecode.len() == 0 {
+    if bytecode.is_empty() {
         return None;
     }
     let mut index = 0;
@@ -213,7 +218,7 @@ mod tests {
         let mut chunk = Chunk::new();
         chunk.write_all(b"Hello, world!", 1);
         assert_eq!(chunk.len(), 13);
-        assert_eq!(&chunk.code()[..], b"Hello, world!");
+        assert_eq!(chunk.code(), b"Hello, world!");
         println!("{chunk:}")
     }
 }

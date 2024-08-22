@@ -113,7 +113,7 @@ fn parse_word(src: &str) -> Result<TokenKind> {
         ),
     )(src)
 }
-fn all_consuming_tag<'a>(src: &'a str) -> impl FnMut(&str) -> Result<&str> + 'a {
+fn all_consuming_tag(src: &str) -> impl FnMut(&str) -> Result<&str> + '_ {
     move |i| all_consuming(tag(src))(i)
 }
 fn parse_keyword(src: &str) -> Result<TokenKind> {
@@ -197,11 +197,11 @@ fn parse_literal(src: &str) -> Result<TokenKind> {
     context(
         "literal",
         alt((
-            map(parse_boolean, |b| TokenKind::Boolean(b)),
-            map(parse_hexadecimal_value, |hex| TokenKind::Integer(hex)),
-            map(parse_floating_point_value, |float| TokenKind::Float(float)),
-            map(parse_integer_value, |hex| TokenKind::Integer(hex)),
-            map(parse_string_value, |string| TokenKind::String(string)),
+            map(parse_boolean, TokenKind::Boolean),
+            map(parse_hexadecimal_value, TokenKind::Integer),
+            map(parse_floating_point_value, TokenKind::Float),
+            map(parse_integer_value, TokenKind::Integer),
+            map(parse_string_value, TokenKind::String),
         )),
     )(src)
 }
@@ -263,7 +263,7 @@ fn parse_literal_str(input: &str) -> Result<&str> {
 fn parse_unicode(input: &str) -> Result<std::primitive::char> {
     // `take_while_m_n` parses between `m` and `n` bytes (inclusive) that match
     // a predicate. `parse_hex` here parses between 1 and 6 hexadecimal numerals.
-    let parse_hex = take_while_m_n::<_, &str, _>(1, 6, |c| char::from(c).is_ascii_hexdigit());
+    let parse_hex = take_while_m_n::<_, &str, _>(1, 6, |c| c.is_ascii_hexdigit());
 
     // `preceded` takes a prefix parser, and if it succeeds, returns the result
     // of the body parser. In this case, it parses u{XXXX}.
