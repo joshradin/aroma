@@ -7,12 +7,12 @@ use nom::bytes::complete::{is_not, tag, take_till, take_until, take_while_m_n};
 use nom::character::complete::{alpha1, char, digit1, hex_digit1, multispace1, newline, space1};
 use nom::character::is_newline;
 use nom::combinator::{
-    all_consuming, consumed, cut, eof, map, map_opt, map_parser, map_res, peek, recognize, rest,
-    value, verify,
+    all_consuming, consumed, cut, eof, map, map_opt, map_parser, map_res, peek,
+    recognize, rest, value, verify,
 };
 use nom::error::{context, ErrorKind, FromExternalError, VerboseError};
 use nom::multi::{fold_many0, many0, many1};
-use nom::number::complete::recognize_float;
+use nom::number::streaming::recognize_float;
 use nom::sequence::{delimited, preceded, terminated, tuple};
 use nom::{IResult, Parser};
 
@@ -108,55 +108,57 @@ fn parse_word(src: &str) -> Result<TokenKind> {
         preceded(
             peek(alpha1),
             cut(map_parser(recognize_identifier, |p| {
-                alt((all_consuming(parse_keyword), parse_identifier))(p)
+                alt((parse_keyword, parse_identifier))(p)
             })),
         ),
     )(src)
 }
-
+fn all_consuming_tag<'a>(src: &'a str) -> impl FnMut(&str) -> Result<&str> + 'a {
+    move |i| all_consuming(tag(src))(i)
+}
 fn parse_keyword(src: &str) -> Result<TokenKind> {
     context(
         "keyword",
         alt((
             alt((
-                value(TokenKind::If, tag("if")),
-                value(TokenKind::Else, tag("else")),
-                value(TokenKind::While, tag("while")),
-                value(TokenKind::For, tag("for")),
-                value(TokenKind::Const, tag("const")),
-                value(TokenKind::Let, tag("let")),
-                value(TokenKind::Class, tag("class")),
-                value(TokenKind::Interface, tag("interface")),
-                value(TokenKind::Abstract, tag("abstract")),
-                value(TokenKind::Fn, tag("fn")),
+                value(TokenKind::If, all_consuming_tag("if")),
+                value(TokenKind::Else, all_consuming_tag("else")),
+                value(TokenKind::While, all_consuming_tag("while")),
+                value(TokenKind::For, all_consuming_tag("for")),
+                value(TokenKind::Const, all_consuming_tag("const")),
+                value(TokenKind::Let, all_consuming_tag("let")),
+                value(TokenKind::Class, all_consuming_tag("class")),
+                value(TokenKind::Interface, all_consuming_tag("interface")),
+                value(TokenKind::Abstract, all_consuming_tag("abstract")),
+                value(TokenKind::Fn, all_consuming_tag("fn")),
             )),
             alt((
-                value(TokenKind::Public, tag("public")),
-                value(TokenKind::Private, tag("private")),
-                value(TokenKind::Protected, tag("protected")),
-                value(TokenKind::In, tag("in")),
-                value(TokenKind::Out, tag("out")),
-                value(TokenKind::Namespace, tag("namespace")),
-                value(TokenKind::Native, tag("native")),
-                value(TokenKind::Static, tag("static")),
-                value(TokenKind::Try, tag("try")),
-                value(TokenKind::Catch, tag("catch")),
-                value(TokenKind::Match, tag("match")),
+                value(TokenKind::Public, all_consuming_tag("public")),
+                value(TokenKind::Private, all_consuming_tag("private")),
+                value(TokenKind::Protected, all_consuming_tag("protected")),
+                value(TokenKind::In, all_consuming_tag("in")),
+                value(TokenKind::Out, all_consuming_tag("out")),
+                value(TokenKind::Namespace, all_consuming_tag("namespace")),
+                value(TokenKind::Native, all_consuming_tag("native")),
+                value(TokenKind::Static, all_consuming_tag("static")),
+                value(TokenKind::Try, all_consuming_tag("try")),
+                value(TokenKind::Catch, all_consuming_tag("catch")),
+                value(TokenKind::Match, all_consuming_tag("match")),
             )),
             alt((
-                value(TokenKind::Return, tag("return")),
-                value(TokenKind::Loop, tag("loop")),
-                value(TokenKind::Break, tag("break")),
-                value(TokenKind::Continue, tag("continue")),
-                value(TokenKind::Extends, tag("extends")),
-                value(TokenKind::Implements, tag("implements")),
-                value(TokenKind::Boolean(true), tag("true")),
-                value(TokenKind::Boolean(false), tag("false")),
-                value(TokenKind::Null, tag("null")),
-                value(TokenKind::Final, tag("final")),
-                value(TokenKind::Throws, tag("throws")),
+                value(TokenKind::Return, all_consuming_tag("return")),
+                value(TokenKind::Loop, all_consuming_tag("loop")),
+                value(TokenKind::Break, all_consuming_tag("break")),
+                value(TokenKind::Continue, all_consuming_tag("continue")),
+                value(TokenKind::Extends, all_consuming_tag("extends")),
+                value(TokenKind::Implements, all_consuming_tag("implements")),
+                value(TokenKind::Boolean(true), all_consuming_tag("true")),
+                value(TokenKind::Boolean(false), all_consuming_tag("false")),
+                value(TokenKind::Null, all_consuming_tag("null")),
+                value(TokenKind::Final, all_consuming_tag("final")),
+                value(TokenKind::Throws, all_consuming_tag("throws")),
             )),
-            alt((value(TokenKind::Constructor, tag("constructor")),)),
+            alt((value(TokenKind::Constructor, all_consuming_tag("constructor")),)),
         )),
     )(src)
 }
@@ -374,17 +376,29 @@ mod tests {
 
     #[test]
     fn test_insignificant() {
-        let (rest, ()) = all_consuming(parse_insignificant)(b"/* hello */")
+        let (rest, ()) = all_consuming(parse_insignificant)("/* hello */")
             .finish()
             .unwrap_or_else(|e| panic!("{}", map_error(e)));
-        assert_eq!(rest, &[], "should be empty but got {rest:?}");
-        let (rest, ()) = all_consuming(parse_insignificant)(b"// whats her name?\n")
+        assert_eq!(rest, "", "should be empty but got {rest:?}");
+        let (rest, ()) = all_consuming(parse_insignificant)("// whats her name?\n")
             .finish()
             .unwrap_or_else(|e| panic!("{}", map_error(e)));
-        assert_eq!(rest, &[], "should be empty but got {rest:?}");
-        let (rest, ()) = all_consuming(parse_insignificant)(b"// whats his name?\n// blah")
+        assert_eq!(rest, "", "should be empty but got {rest:?}");
+        let (rest, ()) = all_consuming(parse_insignificant)("// whats his name?\n// blah")
             .finish()
             .unwrap_or_else(|e| panic!("{}", map_error(e)));
-        assert_eq!(rest, &[], "should be empty but got {rest:?}");
+        assert_eq!(rest, "", "should be empty but got {rest:?}");
+    }
+
+    #[test]
+    fn test_parse_keyword() {
+        let (rest, TokenKind::Class) =
+            all_consuming(parse_word)("class").expect("could not parser")
+        else {
+            panic!()
+        };
+        let (rest, TokenKind::Constructor ) = all_consuming(parse_word)("constructor").expect("could not parser")  else {
+            panic!()
+        };
     }
 }

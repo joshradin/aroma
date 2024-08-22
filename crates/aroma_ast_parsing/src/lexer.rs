@@ -1,15 +1,15 @@
 //! Responsible with converting a [io::Read] obj into a token stream
 
+use crate::lexer::token_parsing::parse_token;
+use aroma_ast::spanned::Span;
+use aroma_ast::token::{Token, TokenKind};
+use nom::{Finish, Needed};
 use std::fs::File;
 use std::io;
 use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 use std::str::Utf8Error;
-use nom::combinator::complete;
-use crate::lexer::token_parsing::parse_token;
-use aroma_ast::spanned::Span;
-use aroma_ast::token::{Token, TokenKind};
-use nom::Finish;
+use nom::error::VerboseError;
 use thiserror::Error;
 
 mod token_parsing;
@@ -44,7 +44,7 @@ impl<'p, R: Read> Lexer<'p, R> {
 
     fn next_token(&mut self) -> LexResult<Option<Token<'p>>> {
         if self.buffer.is_empty() {
-            self.buffer = vec![0; 1];
+            self.buffer = vec![0; 4096];
             let read = self.reader.read(&mut self.buffer)?;
             self.buffer = self.buffer.drain(..read).collect();
         }
@@ -57,14 +57,24 @@ impl<'p, R: Read> Lexer<'p, R> {
                     self.offset += l + len + r;
                     let span = Span::new(self.path, offset, len);
                     self.buffer = Vec::from(rest);
-                    return Ok(Some(Token::new(span, token_kind)))
+                    return Ok(Some(Token::new(span, token_kind)));
                 }
                 Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
-                    todo!()
+                    return Err(e.into())
                 }
-                Err(nom::Err::Incomplete(needed)) => {
-                    todo!()
-                }
+                Err(nom::Err::Incomplete(needed)) => match needed {
+                    Needed::Unknown => {
+                        let len = (self.buffer.len() * 2).min(8);
+                        let mut buffer = vec![0_u8; len];
+                        let read = self.reader.read(&mut self.buffer)?;
+                        self.buffer.extend(buffer.drain(..read));
+                    }
+                    Needed::Size(size) => {
+                        let mut buffer = vec![0_u8; size.get()];
+                        let read = self.reader.read(&mut buffer)?;
+                        self.buffer.extend(buffer.drain(..read));
+                    }
+                },
             }
         }
         Ok(None)
@@ -110,6 +120,8 @@ pub enum LexingError {
     IoError(#[from] io::Error),
     #[error(transparent)]
     Utf8Error(#[from] Utf8Error),
+    #[error(transparent)]
+    NomError(#[from] VerboseError<String>)
 }
 
 #[cfg(test)]

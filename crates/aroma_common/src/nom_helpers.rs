@@ -8,7 +8,7 @@ use nom::error::ParseError;
 use nom::multi::many0_count;
 use nom::sequence::pair;
 use nom::{AsChar, IResult, InputLength, InputTake, InputTakeAtPosition, Offset, Parser, Slice};
-use std::ops::{RangeFrom, RangeTo};
+
 
 pub fn recognize_identifier<'a, E : ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, &'a str, E>
 {
