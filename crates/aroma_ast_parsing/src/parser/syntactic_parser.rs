@@ -11,7 +11,7 @@ use std::path::Path;
 use std::result;
 
 pub mod error;
-pub mod syntax_tree;
+pub mod hir;
 
 use crate::parser::expr::remove_nl;
 use crate::parser::singletons::{Dot, VarId};
@@ -503,13 +503,13 @@ impl<'p, R: Read> From<Lexer<'p, R>> for SyntacticParser<'p, R> {
 mod tests {
     use super::*;
     use crate::parser::singletons::Class;
-    use crate::parser::syntactic_parser::syntax_tree::expr::Expr;
+    use crate::parser::syntactic_parser::hir::expr::Expr;
     use crate::parser::cut;
     use aroma_ast::spanned::{Span, Spanned};
     use aroma_ast::token::{ToTokens, TokenKind};
     use std::io::Write as _;
     use tempfile::NamedTempFile;
-    use crate::parser::syntactic_parser::syntax_tree::constants::ConstantKind;
+    use crate::parser::constants::{Constant, ConstantKind};
 
     pub fn test_parser<F>(s: &str, callback: F)
     where

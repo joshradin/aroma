@@ -15,6 +15,7 @@ nom.workspace = true
 thiserror.workspace = true
 log.workspace = true
 aroma_visitor_gen = { version = "0.0.0", path = "../aroma_visitor_gen" }
+derive-visitor = "0.4.0"
 [dev-dependencies]
 tempfile = { workspace = true }
 test-log.workspace = true

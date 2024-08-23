@@ -7,7 +7,7 @@ use crate::parser::{
 use aroma_ast::id::Id;
 use aroma_ast::token::{ToTokens, TokenKind};
 use std::io::Read;
-use crate::parser::syntactic_parser::syntax_tree::constants::Constant;
+use crate::parser::syntactic_parser::hir::constants::Constant;
 
 #[derive(Debug, ToTokens)]
 pub struct ExprUnary<'p> {

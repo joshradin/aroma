@@ -24,7 +24,7 @@ impl<'p> SyntaxTreeVisitor for IdCreator<'p> {
 
     fn visit_namespace_declaration(&mut self, nd: &NamespaceDeclaration) -> Result<(), Self::Err> {
         let id = &nd.id;
-        self.namespace = Some(id.clone());
+        // self.namespace = Some(id.clone());
         Ok(())
     }
 }

@@ -4,7 +4,7 @@ use crate::parser::binding::{Binding, FnParameters, Type};
 use crate::parser::expr::{remove_nl, Expr};
 use crate::parser::singletons::{Abstract, Class, Private, Protected, Public};
 use crate::parser::statement::StatementBlock;
-use crate::parser::syntactic_parser::syntax_tree::helpers::End;
+use crate::parser::syntactic_parser::hir::helpers::End;
 use crate::parser::{
     cut, map, multi0, seperated_list1, singletons::*, CouldParse, ErrorKind, Parsable, Punctuated1,
     Result, SyntacticParser, SyntaxError,
@@ -14,6 +14,7 @@ use aroma_ast::spanned::Spanned;
 use aroma_ast::token::{ToTokens, TokenKind};
 use log::{debug, trace};
 use std::io::Read;
+use derive_visitor::Drive;
 
 #[derive(Debug, ToTokens)]
 pub enum Visibility<'p> {
@@ -75,10 +76,12 @@ pub struct GenericDeclaration<'p> {
 }
 
 /// A class declaration
-#[derive(Debug, ToTokens)]
+#[derive(Debug, ToTokens, Drive)]
 pub struct ItemClass<'p> {
     pub vis: Option<Visibility<'p>>,
+    #[drive(skip)]
     pub abstract_tok: Option<Abstract<'p>>,
+    #[drive(skip)]
     pub class: Class<'p>,
     pub id: VarId<'p>,
     pub generics: Option<GenericDeclarations<'p>>,
@@ -88,21 +91,23 @@ pub struct ItemClass<'p> {
 }
 
 /// Class extends clause
-#[derive(Debug, ToTokens)]
+#[derive(Debug, ToTokens, Drive)]
 pub struct ClassExtends<'p> {
+    #[drive(skip)]
     pub extends: Extends<'p>,
     pub extended: Type<'p>,
 }
 
 /// Class extends clause
-#[derive(Debug, ToTokens)]
+#[derive(Debug, ToTokens, Drive)]
 pub struct ClassImplements<'p> {
+    #[drive(skip)]
     pub implements: Implements<'p>,
     pub types: Punctuated1<Type<'p>, Comma<'p>>,
 }
 
 /// Class field
-#[derive(Debug, ToTokens)]
+#[derive(Debug, ToTokens, Drive)]
 pub struct ClassField<'p> {
     pub vis: Option<Visibility<'p>>,
     pub static_tok: Option<Static<'p>>,
@@ -196,7 +201,7 @@ pub struct ClassMembers<'p> {
 }
 
 /// An item (interface, class, function) declaration, along with its visibility
-#[derive(Debug, ToTokens)]
+#[derive(Debug, ToTokens, Drive)]
 pub enum Item<'p> {
     Class(ItemClass<'p>),
     Func(ItemFn<'p>),
@@ -211,7 +216,7 @@ impl<'p> Parsable<'p> for Item<'p> {
 }
 
 /// Declares the current namespace
-#[derive(Debug, ToTokens)]
+#[derive(Debug, ToTokens, Drive)]
 pub struct NamespaceDeclaration<'p> {
     pub namespace: Namespace<'p>,
     pub id: Id<'p>,
@@ -219,7 +224,7 @@ pub struct NamespaceDeclaration<'p> {
 }
 
 /// Highest level of parsing, the translation unit consists of items
-#[derive(Debug, ToTokens)]
+#[derive(Debug, ToTokens, Drive)]
 pub struct TranslationUnit<'p> {
     pub namespace_declaration: Option<NamespaceDeclaration<'p>>,
     pub items: Vec<Item<'p>>,

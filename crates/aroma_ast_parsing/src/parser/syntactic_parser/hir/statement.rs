@@ -3,7 +3,7 @@
 use crate::parser::binding::OptTypeBinding;
 use crate::parser::expr::{remove_nl, Expr};
 use crate::parser::singletons::*;
-use crate::parser::syntactic_parser::syntax_tree::helpers::End;
+use crate::parser::syntactic_parser::hir::helpers::End;
 use crate::parser::{cut, multi1, CouldParse, ErrorKind, Parsable, SyntacticParser, SyntaxError};
 use aroma_ast::token::{ToTokens, TokenKind};
 use std::io::Read;
