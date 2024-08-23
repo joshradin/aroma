@@ -42,7 +42,7 @@ impl<'p, R: Read> Lexer<'p, R> {
         })
     }
 
-    fn next_token(&mut self) -> LexResult<Option<Token<'p>>> {
+    fn next_token(&mut self) -> LexResult<Option<Token>> {
         if self.buffer.is_empty() {
             self.buffer = vec![0; 4096];
             let read = self.reader.read(&mut self.buffer)?;
@@ -91,7 +91,7 @@ impl<'p, R: Read> Lexer<'p, R> {
 }
 
 impl<'p, R: Read> Iterator for Lexer<'p, R> {
-    type Item = Result<Token<'p>, LexingError>;
+    type Item = Result<Token, LexingError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.next_token() {

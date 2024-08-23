@@ -1,9 +1,10 @@
 use super::SyntacticParser;
 use crate::parser::singletons::{Nl, SemiC};
-use crate::parser::{CouldParse, Err, ErrorKind, Parsable, Parser, SyntaxError};
+use crate::parser::{CouldParse, Err, ErrorKind, Parsable, Parser, SyntaxError, SyntaxResult};
 use aroma_ast::token::TokenStream;
 use aroma_ast::token::{ToTokens, TokenKind};
 use std::io::Read;
+use std::result;
 
 #[derive(Debug)]
 pub struct Punctuated1<T, P> {
@@ -16,12 +17,12 @@ impl<T, P> Default for Punctuated1<T, P> {
     }
 }
 
-impl<'p, T, P> ToTokens<'p> for Punctuated1<T, P>
+impl<'p, T, P> ToTokens for Punctuated1<T, P>
 where
-    T: ToTokens<'p>,
-    P: ToTokens<'p>,
+    T: ToTokens,
+    P: ToTokens,
 {
-    fn to_tokens(&self) -> TokenStream<'p, 'p> {
+    fn to_tokens(&self) -> TokenStream {
         self.punctuated
             .iter()
             .flat_map(|(item, punc)| {
@@ -44,15 +45,15 @@ impl<T, P> TryFrom<Vec<(T, Option<P>)>> for Punctuated1<T, P> {
     }
 }
 
-impl<'p, T, P> Parsable<'p> for Punctuated1<T, P>
+impl<'p, T, P> Parsable for Punctuated1<T, P>
 where
-    T: Parsable<'p>,
-    P: Parsable<'p> + CouldParse<'p>,
+    T: Parsable,
+    P: Parsable + CouldParse,
     T::Err: From<P::Err>,
 {
     type Err = T::Err;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<Self, Err<Self::Err>> {
+    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> Result<Self, Err<T::Err>> {
         let mut vec = vec![];
         loop {
             let v = T::parse(parser)?;
@@ -93,12 +94,12 @@ impl<T, P> From<Vec<(T, Option<P>)>> for Punctuated0<T, P> {
     }
 }
 
-impl<'p, T, P> ToTokens<'p> for Punctuated0<T, P>
+impl<'p, T, P> ToTokens for Punctuated0<T, P>
 where
-    T: ToTokens<'p>,
-    P: ToTokens<'p>,
+    T: ToTokens,
+    P: ToTokens,
 {
-    fn to_tokens(&self) -> TokenStream<'p, 'p> {
+    fn to_tokens(&self) -> TokenStream {
         self.punctuated
             .iter()
             .flat_map(|(item, punc)| {
@@ -109,15 +110,15 @@ where
     }
 }
 
-impl<'p, T, P> Parsable<'p> for Punctuated0<T, P>
+impl<'p, T, P> Parsable for Punctuated0<T, P>
 where
-    T: Parsable<'p> + CouldParse<'p>,
-    P: Parsable<'p> + CouldParse<'p>,
+    T: Parsable + CouldParse,
+    P: Parsable + CouldParse,
     T::Err: From<P::Err>,
 {
     type Err = T::Err;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<Self, Err<Self::Err>> {
+    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> Result<Self, Err<T::Err>> {
         let mut vec = vec![];
         if T::could_parse(parser).map_err(|e| e.convert())? {
             loop {
@@ -135,13 +136,13 @@ where
     }
 }
 
-pub fn cut<'p, P, R, O, E>(parser: P) -> impl Parser<'p, R, O, E>
+pub fn cut<'p, P, R, O, E>(parser: P) -> impl Parser<R, O, E>
 where
-    P: Parser<'p, R, O, E> + Clone,
+    P: Parser<R, O, E> + Clone,
     R: Read,
     E: std::error::Error,
 {
-    move |syn_parser: &mut SyntacticParser<'p, R>| -> Result<O, Err<E>> {
+    move |syn_parser: &mut SyntacticParser<R>| -> Result<O, Err<E>> {
         syn_parser.parse(parser.clone()).map_err(|e| match e {
             Err::Error(e) => Err::Failure(e),
             e => e,
@@ -150,13 +151,13 @@ where
 }
 
 /// Runs the same parser over and over until failure
-pub fn multi0<'p, P, R, O, E>(parser: P) -> impl Parser<'p, R, Vec<O>, E>
+pub fn multi0<'p, P, R, O, E>(parser: P) -> impl Parser<R, Vec<O>, E>
 where
-    P: Parser<'p, R, O, E> + Clone,
+    P: Parser<R, O, E> + Clone,
     R: Read,
     E: std::error::Error,
 {
-    move |syn_parser: &mut SyntacticParser<'p, R>| -> Result<Vec<O>, Err<E>> {
+    move |syn_parser: &mut SyntacticParser<R>| -> Result<Vec<O>, Err<E>> {
         let mut r = vec![];
         while let Some(parsed) = syn_parser
             .try_parse(parser.clone())
@@ -169,13 +170,13 @@ where
 }
 
 /// Runs the same parser over and over until failure, requiring at least one successful parse
-pub fn multi1<'p, P, R, O, E>(parser: P) -> impl Parser<'p, R, Vec<O>, E>
+pub fn multi1<'p, P, R, O, E>(parser: P) -> impl Parser<R, Vec<O>, E>
 where
-    P: Parser<'p, R, O, E> + Clone,
+    P: Parser<R, O, E> + Clone,
     R: Read,
     E: std::error::Error,
 {
-    move |syn_parser: &mut SyntacticParser<'p, R>| -> Result<Vec<O>, Err<E>> {
+    move |syn_parser: &mut SyntacticParser<R>| -> Result<Vec<O>, Err<E>> {
         let mut r = vec![];
         let item = syn_parser.parse(parser.clone())?;
         r.push(item);
@@ -193,14 +194,14 @@ where
 pub fn seperated_list0<'p, P, G, R, O1, O2, E>(
     sep: G,
     e: P,
-) -> impl Parser<'p, R, Vec<(O1, Option<O2>)>, E>
+) -> impl Parser<R, Vec<(O1, Option<O2>)>, E>
 where
-    P: Parser<'p, R, O1, E> + Clone,
-    G: Parser<'p, R, O2, E> + Clone,
+    P: Parser<R, O1, E> + Clone,
+    G: Parser<R, O2, E> + Clone,
     R: Read,
     E: std::error::Error,
 {
-    move |syn_parser: &mut SyntacticParser<'p, R>| -> Result<Vec<(O1, Option<O2>)>, Err<E>> {
+    move |syn_parser: &mut SyntacticParser<R>| -> Result<Vec<(O1, Option<O2>)>, Err<E>> {
         let mut r = vec![];
         let Some(item) = syn_parser
             .try_parse(e.clone())
@@ -227,14 +228,14 @@ where
 pub fn seperated_list1<'p, P, G, R, O1, O2, E>(
     sep: G,
     e: P,
-) -> impl Parser<'p, R, Vec<(O1, Option<O2>)>, E>
+) -> impl Parser<R, Vec<(O1, Option<O2>)>, E>
 where
-    P: Parser<'p, R, O1, E> + Clone,
-    G: Parser<'p, R, O2, E> + Clone,
+    P: Parser<R, O1, E> + Clone,
+    G: Parser<R, O2, E> + Clone,
     R: Read,
     E: std::error::Error,
 {
-    move |syn_parser: &mut SyntacticParser<'p, R>| -> Result<Vec<(O1, Option<O2>)>, Err<E>> {
+    move |syn_parser: &mut SyntacticParser<'_, R>| -> Result<Vec<(O1, Option<O2>)>, Err<E>> {
         let mut r = vec![];
         let item = syn_parser.parse(e.clone())?;
         r.push((item, None));
@@ -254,14 +255,14 @@ where
 }
 
 /// Runs the same parser over and over until failure
-pub fn map<'p, P, R, O, O2, E, F>(parser: P, map: F) -> impl Parser<'p, R, O2, E>
+pub fn map<'p, P, R, O, O2, E, F>(parser: P, map: F) -> impl Parser<R, O2, E>
 where
-    P: Parser<'p, R, O, E> + Clone,
+    P: Parser<R, O, E> + Clone,
     R: Read,
     F: FnMut(O) -> O2 + Clone,
     E: std::error::Error,
 {
-    move |syn_parser: &mut SyntacticParser<'p, R>| -> Result<O2, Err<E>> {
+    move |syn_parser: &mut SyntacticParser<R>| -> Result<O2, Err<E>> {
         let parsed = syn_parser.parse(parser.clone())?;
         Ok(map.clone()(parsed))
     }
@@ -269,13 +270,13 @@ where
 
 /// End of statement
 #[derive(Debug, ToTokens)]
-pub enum End<'p> {
-    SemiC(SemiC<'p>),
-    Nl(Nl<'p>),
+pub enum End {
+    SemiC(SemiC),
+    Nl(Nl),
 }
 
-impl<'p> CouldParse<'p> for End<'p> {
-    fn could_parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<bool, Err<Self::Err>> {
+impl CouldParse for End {
+    fn could_parse<R: Read>(parser: &mut SyntacticParser<R>) -> Result<bool, Err<Self::Err>> {
         Ok(parser
             .peek()?
             .map(|i| matches!(i.kind(), TokenKind::Nl | TokenKind::SemiColon))
@@ -283,12 +284,12 @@ impl<'p> CouldParse<'p> for End<'p> {
     }
 }
 
-impl<'p> Parsable<'p> for End<'p> {
-    type Err = SyntaxError<'p>;
+impl Parsable for End {
+    type Err = SyntaxError;
 
     fn parse<R: Read>(
-        parser: &mut SyntacticParser<'p, R>,
-    ) -> Result<Self, crate::parser::Err<Self::Err>> {
+        parser: &mut SyntacticParser<'_, R>,
+    ) -> SyntaxResult<Self> {
         let p = parser
             .consume()?
             .ok_or_else(|| parser.error(ErrorKind::UnexpectedEof, None))?;

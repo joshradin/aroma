@@ -6,19 +6,19 @@ use std::io;
 
 /// Represents an error occurring during parsing
 #[derive(Debug, thiserror::Error)]
-pub struct SyntaxError<'p> {
-    pub location: Option<Span<'p>>,
-    pub kind: ErrorKind<'p>,
+pub struct SyntaxError {
+    pub location: Option<Span>,
+    pub kind: ErrorKind,
     pub cause: Option<Box<Self>>,
     pub non_terminal_stack: Option<Vec<&'static str>>,
     // line_col: Cell<Option<(usize, usize)>>,
 }
 
-impl<'p> SyntaxError<'p> {
+impl SyntaxError {
     /// Creates a new error
     pub fn new(
-        kind: ErrorKind<'p>,
-        location: impl Into<Option<Span<'p>>>,
+        kind: ErrorKind,
+        location: impl Into<Option<Span>>,
         cause: impl Into<Option<Self>>,
         non_terminals: impl Into<Option<Vec<&'static str>>>,
     ) -> Self {
@@ -32,7 +32,7 @@ impl<'p> SyntaxError<'p> {
     }
 }
 
-impl Display for SyntaxError<'_> {
+impl Display for SyntaxError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "syntax error: {}", self.kind)?;
         if let Some(location) = &self.location {
@@ -86,9 +86,9 @@ impl Display for SyntaxError<'_> {
     }
 }
 
-impl<'p, E> From<E> for SyntaxError<'p>
+impl<'p, E> From<E> for SyntaxError
 where
-    E: Into<ErrorKind<'p>>,
+    E: Into<ErrorKind>,
 {
     fn from(value: E) -> Self {
         Self {
@@ -103,13 +103,13 @@ where
 
 /// [SyntaxError] kind
 #[derive(Debug, thiserror::Error)]
-pub enum ErrorKind<'p> {
+pub enum ErrorKind {
     #[error("illegal statement: {reason}")]
     IllegalStatement { reason: String },
     #[error("Expected a token of kinds {0:?}, got {1:?}")]
-    ExpectedToken(Vec<String>, Option<Token<'p>>),
+    ExpectedToken(Vec<String>, Option<Token>),
     #[error("Unexpected token: {0:?}")]
-    UnexpectedToken(Token<'p>),
+    UnexpectedToken(Token),
     #[error("unexpected EOF")]
     UnexpectedEof,
     #[error("attempting to continue parsing but parser was poisoned")]
@@ -124,7 +124,7 @@ pub enum ErrorKind<'p> {
     ConstructorsCanNotBeStatic,
 }
 
-impl<'p> ErrorKind<'p> {
+impl ErrorKind {
     pub fn illegal_statement(reason: impl AsRef<str>) -> Self {
         Self::IllegalStatement {
             reason: reason.as_ref().to_string(),
@@ -133,7 +133,7 @@ impl<'p> ErrorKind<'p> {
 
     pub fn expected_token(
         token_kinds: impl IntoIterator<Item = impl AsRef<str>>,
-        found: impl Into<Option<Token<'p>>>,
+        found: impl Into<Option<Token>>,
     ) -> Self {
         Self::ExpectedToken(
             token_kinds
@@ -145,10 +145,10 @@ impl<'p> ErrorKind<'p> {
     }
 }
 
-impl From<&'static str> for ErrorKind<'_> {
+impl From<&'static str> for ErrorKind {
     fn from(value: &'static str) -> Self {
         todo!()
     }
 }
 
-pub type Result<'p, T = ()> = std::result::Result<T, super::Err<SyntaxError<'p>>>;
+pub type SyntaxResult<T = ()> = std::result::Result<T, super::Err<SyntaxError>>;

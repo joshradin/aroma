@@ -31,18 +31,18 @@ impl AromaC {
 
     /// Compile a file at a given path
     #[inline]
-    pub fn compile<'p>(&mut self, path: &'p Path) -> Result<(), AromaCError<'p>> {
+    pub fn compile(&mut self, path: &Path) -> Result<(), AromaCError> {
         self.compile_all([path])
     }
 
     /// Compile a file at a given path
-    pub fn compile_all<'p, I>(&mut self, paths: I) -> Result<(), AromaCError<'p>>
+    pub fn compile_all<'p, I>(&mut self, paths: I) -> Result<(), AromaCError>
     where
         I: IntoIterator<Item = &'p Path>,
     {
         let paths = paths.into_iter().collect::<HashSet<&'p Path>>();
         let mut errors = thread::scope::<'p, _, _>(|scope| {
-            let mut errors: Vec<AromaCError<'p>> = Default::default();
+            let mut errors: Vec<AromaCError> = Default::default();
             let mut jobs = HashMap::new();
             for path in paths {
                 let job = CompileJob::start(scope, path);

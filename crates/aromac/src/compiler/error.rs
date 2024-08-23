@@ -5,21 +5,21 @@ use std::sync::mpsc::SendError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum AromaCError<'p> {
+pub enum AromaCError {
     #[error(transparent)]
     Io(#[from] io::Error),
     #[error(transparent)]
-    CompileError(CompileError<'p>),
+    CompileError(CompileError),
     #[error(transparent)]
     CompileJobLost(#[from] SendError<CompileJobCommand>),
     #[error("{}", .0.iter().join("\n"))]
-    Errors(Vec<AromaCError<'p>>),
+    Errors(Vec<AromaCError>),
 }
 
-impl<'p> From<CompileError<'p>> for AromaCError<'p> {
-    fn from(value: CompileError<'p>) -> Self {
+impl From<CompileError> for AromaCError {
+    fn from(value: CompileError) -> Self {
         Self::CompileError(value)
     }
 }
 
-pub type Result<'a, T> = std::result::Result<T, AromaCError<'a>>;
+pub type Result<'a, T> = std::result::Result<T, AromaCError>;

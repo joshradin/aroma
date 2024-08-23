@@ -7,26 +7,26 @@ use crate::parser::statement::StatementBlock;
 use crate::parser::syntactic_parser::hir::helpers::End;
 use crate::parser::{
     cut, map, multi0, seperated_list1, singletons::*, CouldParse, ErrorKind, Parsable, Punctuated1,
-    Result, SyntacticParser, SyntaxError,
+    SyntaxResult, SyntacticParser, SyntaxError,
 };
 use aroma_ast::id::Id;
 use aroma_ast::spanned::Spanned;
 use aroma_ast::token::{ToTokens, TokenKind};
 use log::{debug, trace};
 use std::io::Read;
-use derive_visitor::Drive;
+use std::result;
 
 #[derive(Debug, ToTokens)]
-pub enum Visibility<'p> {
-    Public(Public<'p>),
-    Protected(Protected<'p>),
-    Private(Private<'p>),
+pub enum Visibility {
+    Public(Public),
+    Protected(Protected),
+    Private(Private),
 }
 
-impl<'p> Parsable<'p> for Visibility<'p> {
-    type Err = SyntaxError<'p>;
+impl Parsable for Visibility {
+    type Err = SyntaxError;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<'p, Self> {
+    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Self> {
         let next = parser
             .peek()?
             .cloned()
@@ -47,8 +47,8 @@ impl<'p> Parsable<'p> for Visibility<'p> {
     }
 }
 
-impl<'p> CouldParse<'p> for Visibility<'p> {
-    fn could_parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<'p, bool> {
+impl CouldParse for Visibility {
+    fn could_parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<bool> {
         Ok(parser
             .peek()?
             .map(|opt| {
@@ -63,179 +63,175 @@ impl<'p> CouldParse<'p> for Visibility<'p> {
 
 /// Generic declarations
 #[derive(Debug, ToTokens)]
-pub struct GenericDeclarations<'p> {
-    pub lbracket: LBracket<'p>,
-    pub bounds: Punctuated1<GenericDeclaration<'p>, Comma<'p>>,
-    pub rbracket: RBracket<'p>,
+pub struct GenericDeclarations {
+    pub lbracket: LBracket,
+    pub bounds: Punctuated1<GenericDeclaration, Comma>,
+    pub rbracket: RBracket,
 }
 /// A generic declaration
 #[derive(Debug, ToTokens)]
-pub struct GenericDeclaration<'p> {
-    pub id: VarId<'p>,
-    pub bound: Option<Type<'p>>,
+pub struct GenericDeclaration {
+    pub id: VarId,
+    pub bound: Option<Type>,
 }
 
 /// A class declaration
-#[derive(Debug, ToTokens, Drive)]
-pub struct ItemClass<'p> {
-    pub vis: Option<Visibility<'p>>,
-    #[drive(skip)]
-    pub abstract_tok: Option<Abstract<'p>>,
-    #[drive(skip)]
-    pub class: Class<'p>,
-    pub id: VarId<'p>,
-    pub generics: Option<GenericDeclarations<'p>>,
-    pub extends: Option<ClassExtends<'p>>,
-    pub implements: Option<ClassImplements<'p>>,
-    pub members: ClassMembers<'p>,
+#[derive(Debug, ToTokens)]
+pub struct ItemClass {
+    pub vis: Option<Visibility>,
+    pub abstract_tok: Option<Abstract>,
+    pub class: Class,
+    pub id: VarId,
+    pub generics: Option<GenericDeclarations>,
+    pub extends: Option<ClassExtends>,
+    pub implements: Option<ClassImplements>,
+    pub members: ClassMembers,
 }
 
 /// Class extends clause
-#[derive(Debug, ToTokens, Drive)]
-pub struct ClassExtends<'p> {
-    #[drive(skip)]
-    pub extends: Extends<'p>,
-    pub extended: Type<'p>,
+#[derive(Debug, ToTokens)]
+pub struct ClassExtends {
+    pub extends: Extends,
+    pub extended: Type,
 }
 
 /// Class extends clause
-#[derive(Debug, ToTokens, Drive)]
-pub struct ClassImplements<'p> {
-    #[drive(skip)]
-    pub implements: Implements<'p>,
-    pub types: Punctuated1<Type<'p>, Comma<'p>>,
+#[derive(Debug, ToTokens)]
+pub struct ClassImplements {
+    pub implements: Implements,
+    pub types: Punctuated1<Type, Comma>,
 }
 
 /// Class field
-#[derive(Debug, ToTokens, Drive)]
-pub struct ClassField<'p> {
-    pub vis: Option<Visibility<'p>>,
-    pub static_tok: Option<Static<'p>>,
-    pub final_tok: Option<Final<'p>>,
-    pub binding: Binding<'p>,
-    pub default_value: Option<ClassFieldDefaultValue<'p>>,
+#[derive(Debug, ToTokens)]
+pub struct ClassField {
+    pub vis: Option<Visibility>,
+    pub static_tok: Option<Static>,
+    pub final_tok: Option<Final>,
+    pub binding: Binding,
+    pub default_value: Option<ClassFieldDefaultValue>,
 }
 
 /// Class constructor
 #[derive(Debug, ToTokens)]
-pub struct ClassConstructor<'p> {
-    pub vis: Option<Visibility<'p>>,
-    pub constructor: Constructor<'p>,
-    pub generics: Option<GenericDeclarations<'p>>,
-    pub parameters: FnParameters<'p>,
-    pub fn_throws: Option<FnThrows<'p>>,
-    pub body: FnBody<'p>,
+pub struct ClassConstructor {
+    pub vis: Option<Visibility>,
+    pub constructor: Constructor,
+    pub generics: Option<GenericDeclarations>,
+    pub parameters: FnParameters,
+    pub fn_throws: Option<FnThrows>,
+    pub body: FnBody,
 }
 
 /// Class field default value
 #[derive(Debug, ToTokens)]
-pub struct ClassFieldDefaultValue<'p> {
-    pub assign: Assign<'p>,
-    pub value: Expr<'p>,
+pub struct ClassFieldDefaultValue {
+    pub assign: Assign,
+    pub value: Expr,
 }
 
 /// A function declaration
 #[derive(Debug, ToTokens)]
-pub struct ItemFn<'p> {
-    pub vis: Option<Visibility<'p>>,
-    pub static_tok: Option<Static<'p>>,
-    pub fn_tok: Fn<'p>,
-    pub id: VarId<'p>,
-    pub generics: Option<GenericDeclarations<'p>>,
-    pub parameters: FnParameters<'p>,
-    pub fn_return: Option<FnReturn<'p>>,
-    pub fn_throws: Option<FnThrows<'p>>,
-    pub body: FnBody<'p>,
+pub struct ItemFn {
+    pub vis: Option<Visibility>,
+    pub static_tok: Option<Static>,
+    pub fn_tok: Fn,
+    pub id: VarId,
+    pub generics: Option<GenericDeclarations>,
+    pub parameters: FnParameters,
+    pub fn_return: Option<FnReturn>,
+    pub fn_throws: Option<FnThrows>,
+    pub body: FnBody,
 }
 
 /// Function body
 #[derive(Debug, ToTokens)]
-pub struct FnBody<'p> {
-    pub body: StatementBlock<'p>,
+pub struct FnBody {
+    pub body: StatementBlock,
 }
 
 /// An abstract function declaration
 #[derive(Debug, ToTokens)]
-pub struct ItemAbstractFn<'p> {
-    pub vis: Option<Visibility<'p>>,
-    pub abstract_tok: Abstract<'p>,
-    pub fn_tok: Fn<'p>,
-    pub id: VarId<'p>,
-    pub generics: Option<GenericDeclarations<'p>>,
-    pub parameters: FnParameters<'p>,
-    pub fn_return: Option<FnReturn<'p>>,
-    pub fn_throws: Option<FnThrows<'p>>,
-    pub end: End<'p>,
+pub struct ItemAbstractFn {
+    pub vis: Option<Visibility>,
+    pub abstract_tok: Abstract,
+    pub fn_tok: Fn,
+    pub id: VarId,
+    pub generics: Option<GenericDeclarations>,
+    pub parameters: FnParameters,
+    pub fn_return: Option<FnReturn>,
+    pub fn_throws: Option<FnThrows>,
+    pub end: End,
 }
 
 /// Return statement for a function
 #[derive(Debug, ToTokens)]
-pub struct FnReturn<'p> {
-    pub arrow: Arrow<'p>,
-    pub returns: Type<'p>,
+pub struct FnReturn {
+    pub arrow: Arrow,
+    pub returns: Type,
 }
 
 /// Throw clauses
 #[derive(Debug, ToTokens)]
-pub struct FnThrows<'p> {
-    pub throws: Throws<'p>,
-    pub types: Punctuated1<Type<'p>, Comma<'p>>,
+pub struct FnThrows {
+    pub throws: Throws,
+    pub types: Punctuated1<Type, Comma>,
 }
 
 /// Class member
 #[derive(Debug, ToTokens)]
-pub enum ClassMember<'p> {
-    Method(ItemFn<'p>),
-    AbstractMethod(ItemAbstractFn<'p>),
-    Field(ClassField<'p>),
-    Constructor(ClassConstructor<'p>),
-    Class(ItemClass<'p>),
+pub enum ClassMember {
+    Method(ItemFn),
+    AbstractMethod(ItemAbstractFn),
+    Field(ClassField),
+    Constructor(ClassConstructor),
+    Class(ItemClass),
 }
 
 /// All class members
 #[derive(Debug, ToTokens)]
-pub struct ClassMembers<'p> {
-    pub lcurly: LCurly<'p>,
-    pub members: Vec<ClassMember<'p>>,
-    pub rcurly: RCurly<'p>,
+pub struct ClassMembers {
+    pub lcurly: LCurly,
+    pub members: Vec<ClassMember>,
+    pub rcurly: RCurly,
 }
 
 /// An item (interface, class, function) declaration, along with its visibility
-#[derive(Debug, ToTokens, Drive)]
-pub enum Item<'p> {
-    Class(ItemClass<'p>),
-    Func(ItemFn<'p>),
+#[derive(Debug, ToTokens)]
+pub enum Item {
+    Class(ItemClass),
+    Func(ItemFn),
 }
 
-impl<'p> Parsable<'p> for Item<'p> {
-    type Err = SyntaxError<'p>;
+impl Parsable for Item {
+    type Err = SyntaxError;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<'p, Self> {
+    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Self> {
         parse_item(parser)
     }
 }
 
 /// Declares the current namespace
-#[derive(Debug, ToTokens, Drive)]
-pub struct NamespaceDeclaration<'p> {
-    pub namespace: Namespace<'p>,
-    pub id: Id<'p>,
-    pub end: End<'p>,
+#[derive(Debug, ToTokens)]
+pub struct NamespaceDeclaration {
+    pub namespace: Namespace,
+    pub id: Id,
+    pub end: End,
 }
 
 /// Highest level of parsing, the translation unit consists of items
-#[derive(Debug, ToTokens, Drive)]
-pub struct TranslationUnit<'p> {
-    pub namespace_declaration: Option<NamespaceDeclaration<'p>>,
-    pub items: Vec<Item<'p>>,
+#[derive(Debug, ToTokens)]
+pub struct TranslationUnit {
+    pub namespace_declaration: Option<NamespaceDeclaration>,
+    pub items: Vec<Item>,
 }
 
-impl<'p> Parsable<'p> for TranslationUnit<'p> {
-    type Err = SyntaxError<'p>;
+impl Parsable for TranslationUnit {
+    type Err = SyntaxError;
 
     fn parse<R: Read>(
-        parser: &mut SyntacticParser<'p, R>,
-    ) -> std::result::Result<Self, crate::parser::Err<Self::Err>> {
+        parser: &mut SyntacticParser<'_, R>,
+    ) -> SyntaxResult<Self> {
         parser.parse(remove_nl)?;
         let namespace_declaration = parser.with_ignore_nl(false, |parser| {
             if let Some(namespace) = parser.parse_opt::<Namespace>()? {
@@ -256,7 +252,7 @@ impl<'p> Parsable<'p> for TranslationUnit<'p> {
     }
 }
 
-fn parse_item<'p, R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<'p, Item<'p>> {
+fn parse_item<'p, R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Item> {
     parser.parse(remove_nl)?;
     let vis = parser.parse_opt::<Visibility>()?;
     parser.parse(remove_nl)?;
@@ -298,18 +294,18 @@ fn parse_item<'p, R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<'p, It
     Ok(item)
 }
 
-fn parse_class<'p, R: Read>(
-    visibility: Option<Visibility<'p>>,
-    static_tok: Option<Static<'p>>,
-    parser: &mut SyntacticParser<'p, R>,
-) -> Result<'p, ItemClass<'p>> {
+fn parse_class<R: Read>(
+    visibility: Option<Visibility>,
+    static_tok: Option<Static>,
+    parser: &mut SyntacticParser<'_, R>,
+) -> SyntaxResult<ItemClass> {
     let abstract_tok = parser.parse_opt::<Abstract>()?;
     let class = parser.parse(Class::parse)?;
     let id = parser.parse(VarId::parse)?;
     let generics = parse_generics(parser)?;
 
     let extends = if Extends::could_parse(parser)? {
-        Some(parser.parse(|p: &mut SyntacticParser<'p, R>| {
+        Some(parser.parse(|p: &mut SyntacticParser<'_, R>| {
             let extends = p.parse(Extends::parse)?;
             let ty = p.parse(Type::parse)?;
             Ok(ClassExtends {
@@ -321,7 +317,7 @@ fn parse_class<'p, R: Read>(
         None
     };
     let implements = if Implements::could_parse(parser)? {
-        Some(parser.parse(|p: &mut SyntacticParser<'p, R>| {
+        Some(parser.parse(|p: &mut SyntacticParser<'_, R>| {
             let implements = p.parse(Implements::parse)?;
             let ty = p.parse(Punctuated1::<Type, Comma>::parse)?;
             Ok(ClassImplements {
@@ -347,15 +343,15 @@ fn parse_class<'p, R: Read>(
 }
 
 fn parse_generics<'p, R: Read>(
-    parser: &mut SyntacticParser<'p, R>,
-) -> Result<'p, Option<GenericDeclarations<'p>>> {
+    parser: &mut SyntacticParser<'_, R>,
+) -> SyntaxResult<Option<GenericDeclarations>> {
     if LBracket::could_parse(parser)? {
-        let bounds = parser.parse(|p: &mut SyntacticParser<'p, R>| {
+        let bounds = parser.parse(|p: &mut SyntacticParser<'_, R>| {
             let lbracket = p.parse(LBracket::parse)?;
             let bounds = p
                 .parse(cut(seperated_list1(
                     Comma::parse,
-                    |p: &mut SyntacticParser<'p, R>| {
+                    |p: &mut SyntacticParser<'_, R>| {
                         let id = p.parse(VarId::parse)?;
                         let bound = p.parse_opt::<Type>()?;
                         Ok(GenericDeclaration { id, bound })
@@ -377,9 +373,9 @@ fn parse_generics<'p, R: Read>(
 }
 
 fn parse_class_members<'p, R: Read>(
-    owner: &VarId<'p>,
-    parser: &mut SyntacticParser<'p, R>,
-) -> Result<'p, ClassMembers<'p>> {
+    owner: &VarId,
+    parser: &mut SyntacticParser<'_, R>,
+) -> SyntaxResult<ClassMembers> {
     let lcurly = parser.parse(LCurly::parse)?;
     let mut members = vec![];
     while !RCurly::could_parse(parser)? {
@@ -399,12 +395,12 @@ fn parse_class_members<'p, R: Read>(
     })
 }
 
-fn parse_class_member<'p, R: Read>(
-    owner: &VarId<'p>,
-    visibility: Option<Visibility<'p>>,
-    is_static: Option<Static<'p>>,
-    parser: &mut SyntacticParser<'p, R>,
-) -> Result<'p, ClassMember<'p>> {
+fn parse_class_member<R: Read>(
+    owner: &VarId,
+    visibility: Option<Visibility>,
+    is_static: Option<Static>,
+    parser: &mut SyntacticParser<'_, R>,
+) -> SyntaxResult<ClassMember> {
     let lookahead = parser.peek()?.cloned().ok_or_else(|| {
         parser.error(
             ErrorKind::expected_token(["fn", "class", "id", "final"], None),
@@ -429,12 +425,12 @@ fn parse_class_member<'p, R: Read>(
     }
 }
 
-fn parse_field<'p, R: Read>(
-    owner: &VarId<'p>,
-    visibility: Option<Visibility<'p>>,
-    is_static: Option<Static<'p>>,
-    parser: &mut SyntacticParser<'p, R>,
-) -> Result<'p, ClassMember<'p>> {
+fn parse_field<R: Read>(
+    owner: &VarId,
+    visibility: Option<Visibility>,
+    is_static: Option<Static>,
+    parser: &mut SyntacticParser<'_, R>,
+) -> SyntaxResult<ClassMember> {
     let final_tok = parser.parse_opt::<Final>()?;
     let binding = parser.parse(cut(Binding::parse))?;
     let default_value = if let Some(assign) = parser.parse_opt::<Assign>()? {
@@ -455,12 +451,12 @@ fn parse_field<'p, R: Read>(
     Ok(ClassMember::Field(class_field))
 }
 
-fn parse_method<'p, R: Read>(
-    owner: &VarId<'p>,
-    visibility: Option<Visibility<'p>>,
-    is_static: Option<Static<'p>>,
-    parser: &mut SyntacticParser<'p, R>,
-) -> Result<'p, ClassMember<'p>> {
+fn parse_method<R: Read>(
+    owner: &VarId,
+    visibility: Option<Visibility>,
+    is_static: Option<Static>,
+    parser: &mut SyntacticParser<'_, R>,
+) -> SyntaxResult<ClassMember> {
     let abstract_tok = parser.parse_opt::<Abstract>()?;
     if abstract_tok.is_some() && is_static.is_some() {
         return Err(parser.error("Can not abstract static methods", None));
@@ -482,7 +478,7 @@ fn parse_method<'p, R: Read>(
     let fn_throws = if Throws::could_parse(parser)? {
         trace!("found throws token");
         let throws = parser.parse(Throws::parse)?;
-        let types = parser.parse(Punctuated1::<Type<'p>, Comma<'p>>::parse)?;
+        let types = parser.parse(Punctuated1::<Type, Comma>::parse)?;
         Some(FnThrows { throws, types })
     } else {
         None
@@ -523,16 +519,16 @@ fn parse_method<'p, R: Read>(
 }
 
 fn parse_constructor<'p, R: Read>(
-    owner: &VarId<'p>,
-    visibility: Option<Visibility<'p>>,
-    parser: &mut SyntacticParser<'p, R>,
-) -> Result<'p, ClassMember<'p>> {
+    owner: &VarId,
+    visibility: Option<Visibility>,
+    parser: &mut SyntacticParser<'_, R>,
+) -> SyntaxResult<ClassMember> {
     let constructor = parser.parse(Constructor::parse)?;
     let generics = parser.parse(parse_generics)?;
     let parameters = parser.parse(cut(FnParameters::parse))?;
     let fn_throws = if Throws::could_parse(parser)? {
         let throws = parser.parse(Throws::parse)?;
-        let types = parser.parse(Punctuated1::<Type<'p>, Comma<'p>>::parse)?;
+        let types = parser.parse(Punctuated1::<Type, Comma>::parse)?;
         Some(FnThrows { throws, types })
     } else {
         None
@@ -552,10 +548,10 @@ fn parse_constructor<'p, R: Read>(
     Ok(ClassMember::Constructor(class_constructor))
 }
 
-fn parse_function<'p, R: Read>(
-    visibility: Option<Visibility<'p>>,
-    parser: &mut SyntacticParser<'p, R>,
-) -> Result<'p, ItemFn<'p>> {
+fn parse_function<R: Read>(
+    visibility: Option<Visibility>,
+    parser: &mut SyntacticParser<'_, R>,
+) -> SyntaxResult<ItemFn> {
     let fn_tok = parser.parse(Fn::parse)?;
     let name = parser.parse(VarId::parse)?;
     let generics = parser.parse(parse_generics)?;
@@ -570,7 +566,7 @@ fn parse_function<'p, R: Read>(
 
     let fn_throws = if Throws::could_parse(parser)? {
         let throws = parser.parse(Throws::parse)?;
-        let types = parser.parse(Punctuated1::<Type<'p>, Comma<'p>>::parse)?;
+        let types = parser.parse(Punctuated1::<Type, Comma>::parse)?;
         Some(FnThrows { throws, types })
     } else {
         None

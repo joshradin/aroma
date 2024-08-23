@@ -6,17 +6,17 @@ use std::collections::HashMap;
 
 /// Contains all direct bindings between identifiers and it's type.
 #[derive(Debug)]
-pub struct Bindings<'p> {
-    scopes: Vec<Scope<'p>>,
+pub struct Bindings {
+    scopes: Vec<Scope>,
 }
 
-impl<'p> Default for Bindings<'p> {
+impl Default for Bindings {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<'p> Bindings<'p> {
+impl Bindings {
     /// creates a new bindings
     pub fn new() -> Self {
         let mut b = Self { scopes: vec![] };
@@ -25,7 +25,7 @@ impl<'p> Bindings<'p> {
     }
 
     /// Increases the current scope
-    pub fn new_scope(&mut self, namespace: impl Into<Option<Id<'p>>>) {
+    pub fn new_scope(&mut self, namespace: impl Into<Option<Id>>) {
         self.scopes.push(Scope {
             namespace: namespace.into(),
             bindings: Default::default(),
@@ -33,14 +33,14 @@ impl<'p> Bindings<'p> {
     }
 
     /// Pushes an existing
-    pub fn push_scope(&mut self, scope: Scope<'p>) {
+    pub fn push_scope(&mut self, scope: Scope) {
         self.scopes.push(scope)
     }
 
     /// Decreases the current scope, returning the scope that was created.
     ///
     /// Doesn't do anything if current at the global scope
-    pub fn pop_scope(&mut self) -> Option<Scope<'p>> {
+    pub fn pop_scope(&mut self) -> Option<Scope> {
         if self.scopes.len() > 1 {
             self.scopes.pop()
         } else {
@@ -49,11 +49,11 @@ impl<'p> Bindings<'p> {
     }
 
     /// Gets the global scope
-    pub fn globals(&self) -> &Scope<'p> {
+    pub fn globals(&self) -> &Scope {
         self.scopes.first().unwrap()
     }
     /// Gets the global scope
-    pub fn globals_mut(&mut self) -> &mut Scope<'p> {
+    pub fn globals_mut(&mut self) -> &mut Scope {
         self.scopes.first_mut().unwrap()
     }
 
@@ -72,7 +72,7 @@ impl<'p> Bindings<'p> {
     /// bindings.pop_scope();
     /// assert!(matches!(bindings.get(&Id::new_call_site(["t"]).unwrap()), None));
     /// ```
-    pub fn get(&self, id: &Id<'p>) -> Option<&TypeSignature> {
+    pub fn get(&self, id: &Id) -> Option<&TypeSignature> {
         for scope in self.scopes.iter().rev() {
             if let Some(sig) = scope.bindings.get(id) {
                 return Some(sig);
@@ -88,7 +88,7 @@ impl<'p> Bindings<'p> {
     }
 
     /// Insert a value into the bindings
-    pub fn insert(&mut self, id: Id<'p>, value: TypeSignature) {
+    pub fn insert(&mut self, id: Id, value: TypeSignature) {
         let scope = self
             .scopes
             .last_mut()
@@ -109,9 +109,9 @@ impl<'p> Bindings<'p> {
 /// let scope: Scope = bindings.pop_scope().unwrap();
 /// ```
 #[derive(Debug)]
-pub struct Scope<'p> {
-    namespace: Option<Id<'p>>,
-    bindings: HashMap<Id<'p>, TypeSignature>,
+pub struct Scope {
+    namespace: Option<Id>,
+    bindings: HashMap<Id, TypeSignature>,
 }
 
 #[cfg(test)]

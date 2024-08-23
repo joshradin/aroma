@@ -4,28 +4,30 @@ use std::io;
 use std::io::ErrorKind;
 use std::panic::Location;
 use std::path::Path;
+use std::sync::Arc;
 
 /// A trait that can provide the [Span] of the complete context of an ir node
 ///
 /// This is automatically implemented for all types that implemented [ToTokens] and
 /// [Span] itself.
-pub trait Spanned<'p> {
-    fn span(&self) -> Span<'p>;
+pub trait Spanned {
+    fn span(&self) -> Span;
 }
 
 /// The span, representing
-#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
-pub struct Span<'p> {
-    path: &'p Path,
+#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+pub struct Span {
+    path: Arc<Path>,
     offset: usize,
     len: usize,
+
 }
 
-impl<'p> Span<'p> {
+impl Span {
     /// Creates a new span
-    pub const fn new(path: &'p Path, start: usize, len: usize) -> Self {
+    pub fn new(path: &Path, start: usize, len: usize) -> Self {
         Self {
-            path,
+            path: Arc::from(path),
             offset: start,
             len,
         }
@@ -59,19 +61,11 @@ impl<'p> Span<'p> {
         Self::new(path, offset, 0)
     }
 
-    /// leaks this span, creating a permanent memory allocation.
-    pub fn leak(self) -> Span<'static> {
-        Span {
-            path: Box::leak(Box::from(self.path)),
-            offset: self.offset,
-            len: self.len,
-        }
-    }
 
     /// Gets a span directly after this span
-    pub const fn end(&self) -> Self {
+    pub fn end(&self) -> Self {
         Self {
-            path: self.path,
+            path: self.path.clone(),
             offset: self.offset + self.len,
             len: 0,
         }
@@ -125,8 +119,8 @@ impl<'p> Span<'p> {
 
     /// Gets the file this pan is from
     #[inline]
-    pub const fn file(&self) -> &'p Path {
-        self.path
+    pub fn file(&self) -> &Path {
+        &*self.path
     }
 
     /// Creates a span that encompasses both
@@ -138,7 +132,7 @@ impl<'p> Span<'p> {
             let max = (self.offset + self.len).max(other.offset + other.len);
             let len = max - min;
             Some(Self {
-                path: self.path,
+                path: self.path.clone(),
                 offset: min,
                 len,
             })
@@ -154,9 +148,9 @@ impl<'p> Span<'p> {
     }
 }
 
-impl<'p> Spanned<'p> for Span<'p> {
-    fn span(&self) -> Span<'p> {
-        *self
+impl Spanned for Span {
+    fn span(&self) -> Span {
+        self.clone()
     }
 }
 
@@ -175,7 +169,7 @@ impl LineReader {
     }
 
     /// Gets the lines for a given span, plus the base line index
-    pub fn lines(&self, span: &Span<'_>) -> io::Result<(Vec<Line>, usize)> {
+    pub fn lines(&self, span: &Span) -> io::Result<(Vec<Line>, usize)> {
         let string = std::fs::read_to_string(span.file())?;
 
         let expected_line_count = 1 + self.before + self.after;
@@ -249,7 +243,7 @@ mod tests {
     fn test_span_lifetime() {
         let path = PathBuf::from("test");
         let p = { Span::new(&path, 0, 0) };
-        assert_eq!(p.path, path);
+        assert_eq!(&*p.path, path);
         assert_eq!(p.offset, 0);
         assert_eq!(p.len, 0);
     }
@@ -258,7 +252,7 @@ mod tests {
     fn test_span_is_spanned() {
         let path = PathBuf::from("test");
         let p = { Span::new(&path, 0, 0).span() };
-        assert_eq!(p.path, path);
+        assert_eq!(&*p.path, path);
         assert_eq!(p.offset, 0);
         assert_eq!(p.len, 0);
     }
@@ -267,7 +261,7 @@ mod tests {
     fn test_span_end() {
         let path = PathBuf::from("test");
         let p = Span::new(&path, 0, 5).end();
-        assert_eq!(p.path, path);
+        assert_eq!(&*p.path, path);
         assert_eq!(p.offset, 5);
         assert_eq!(p.len, 0);
     }

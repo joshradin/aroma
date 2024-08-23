@@ -1,5 +1,6 @@
 //! A lexical token from a source file, along with streams for said token
 
+use std::collections::VecDeque;
 use crate::spanned::{Span, Spanned};
 #[cfg(feature = "derive")]
 pub use aroma_ast_derive::ToTokens;
@@ -8,14 +9,14 @@ use std::iter;
 
 /// A lexical token from a source file
 #[derive(Clone)]
-pub struct Token<'p> {
-    span: Span<'p>,
+pub struct Token {
+    span: Span,
     kind: TokenKind,
 }
 
-impl<'p> Token<'p> {
+impl Token {
     /// Creates a new token
-    pub fn new(span: Span<'p>, kind: TokenKind) -> Self {
+    pub fn new(span: Span, kind: TokenKind) -> Self {
         Self { span, kind }
     }
 
@@ -24,24 +25,18 @@ impl<'p> Token<'p> {
         &self.kind
     }
 
-    /// Leaks this token, making the associated span leak
-    pub fn leak(self) -> Token<'static> {
-        Token {
-            span: self.span.leak(),
-            kind: self.kind,
-        }
-    }
+
 }
 
-impl Debug for Token<'_> {
+impl Debug for Token {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         self.kind.fmt(f)
     }
 }
 
-impl<'p> Spanned<'p> for Token<'p> {
-    fn span(&self) -> Span<'p> {
-        self.span
+impl Spanned for Token {
+    fn span(&self) -> Span {
+        self.span.clone()
     }
 }
 
@@ -141,82 +136,77 @@ pub enum TokenKind {
 }
 
 /// A stream of tokens
-pub struct TokenStream<'a: 'p, 'p>(Box<dyn Iterator<Item = Token<'p>> + 'a>);
+pub struct TokenStream(VecDeque<Token>);
 
-impl<'p> FromIterator<Token<'p>> for TokenStream<'p, 'p> {
-    fn from_iter<T: IntoIterator<Item = Token<'p>>>(iter: T) -> Self {
-        Self::from_iter(iter.into_iter().collect::<Vec<_>>())
+impl FromIterator<Token> for TokenStream {
+    fn from_iter<T: IntoIterator<Item = Token>>(iter: T) -> Self {
+        Self(iter.into_iter().collect())
     }
 }
 
-impl<'a: 'p, 'p> Iterator for TokenStream<'a, 'p> {
-    type Item = Token<'p>;
+impl Iterator for TokenStream {
+    type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.0.next()
+        self.0.pop_front()
     }
 }
 
-impl<'p> Default for TokenStream<'p, 'p> {
+impl Default for TokenStream {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<'p> TokenStream<'p, 'p> {
+impl TokenStream {
     #[inline]
     pub fn new() -> Self {
         TokenStream::from_iter(iter::empty())
     }
 }
-impl<'a: 'p, 'p> TokenStream<'a, 'p> {
-    /// Create a token stream from an iterator
-    pub fn from_iter<T: IntoIterator<Item = Token<'p>, IntoIter: 'a>>(iter: T) -> Self {
-        Self(Box::new(iter.into_iter()))
-    }
-}
+
 
 /// A trait to convert something to an iterator of tokens
-pub trait ToTokens<'p> {
+pub trait ToTokens {
     /// Gets an iterator over tokens
-    fn to_tokens(&self) -> TokenStream<'p, 'p>;
+    fn to_tokens(&self) -> TokenStream;
 
-    fn to_token_tree(&self) -> TokenTree<'p> {
+    fn to_token_tree(&self) -> TokenTree {
         TokenTree::Leaf(Vec::from_iter(self.to_tokens()))
     }
 }
 
-impl<'p, T: ToTokens<'p>> Spanned<'p> for T {
-    fn span(&self) -> Span<'p> {
+impl<T: ToTokens> Spanned for T {
+    fn span(&self) -> Span {
         self.to_tokens()
-            .map::<Span<'p>, _>(|token| token.span())
+            .map::<Span, _>(|token| token.span())
             .reduce(|a, b| a.join(b).expect("could not join spans"))
             .expect("Spanned has no tokens despite implementing ToTokens")
     }
 }
-impl<'p, T: ToTokens<'p>> ToTokens<'p> for Option<T> {
-    fn to_tokens(&self) -> TokenStream<'p, 'p> {
+impl<T: ToTokens> ToTokens for Option<T> {
+    fn to_tokens(&self) -> TokenStream {
         match self {
             None => TokenStream::new(),
             Some(s) => s.to_tokens(),
         }
     }
 }
-impl<'p, T: ToTokens<'p>> ToTokens<'p> for Vec<T> {
-    fn to_tokens(&self) -> TokenStream<'p, 'p> {
+impl<T: ToTokens> ToTokens for Vec<T> {
+    fn to_tokens(&self) -> TokenStream {
         self.iter().flat_map(|t| t.to_tokens()).collect()
     }
 
-    fn to_token_tree(&self) -> TokenTree<'p> {
+    fn to_token_tree(&self) -> TokenTree {
         TokenTree::Node(self.iter().map(|t| t.to_token_tree()).collect())
     }
 }
 
 /// A way of representing tokens in a tree format
 #[derive(Debug)]
-pub enum TokenTree<'p> {
-    Leaf(Vec<Token<'p>>),
-    Node(Vec<TokenTree<'p>>),
+pub enum TokenTree {
+    Leaf(Vec<Token>),
+    Node(Vec<TokenTree>),
 }
 
 #[cfg(test)]

@@ -28,26 +28,24 @@ pub struct CompileJobId(NonZeroUsize);
 
 static COMPILE_JOB_ID: AtomicUsize = AtomicUsize::new(1);
 pub type Shared<T> = Arc<RwLock<T>>;
-pub type SharedJobStatus<'p> = Shared<CompileJobStatus<'p>>;
-pub type SharedBindings<'p> = Shared<Bindings<'p>>;
+pub type SharedJobStatus = Shared<CompileJobStatus>;
+pub type SharedBindings = Shared<Bindings>;
 
 #[derive(Debug)]
-pub struct CompileJob<'p> {
+pub struct CompileJob {
     id: CompileJobId,
-    status: SharedJobStatus<'p>,
-    bindings: SharedBindings<'p>,
-    state: Option<CompileJobState<'p>>,
+    status: SharedJobStatus,
+    bindings: SharedBindings,
+    state: Option<CompileJobState>,
     receiver: Receiver<CompileJobCommand>,
 }
 
-impl<'env> CompileJob<'env> {
+impl CompileJob {
     /// Start a compile job
     pub fn start<'scope>(
-        scope: &'scope Scope<'scope, 'env>,
-        path: &'env Path,
-    ) -> CompileJobHandle<'scope, 'env>
-    where
-        'env: 'scope,
+        scope: &'scope Scope<'scope, '_>,
+        path: &'scope Path,
+    ) -> CompileJobHandle<'scope>
     {
         let status = Arc::new(RwLock::new(CompileJobStatus::NotStarted));
         let bindings = SharedBindings::default();
@@ -83,8 +81,8 @@ impl<'env> CompileJob<'env> {
 
     fn new(
         id: CompileJobId,
-        status: SharedJobStatus<'env>,
-        bindings: SharedBindings<'env>,
+        status: SharedJobStatus,
+        bindings: SharedBindings,
         receiver: Receiver<CompileJobCommand>,
     ) -> Self {
         Self {
@@ -96,7 +94,7 @@ impl<'env> CompileJob<'env> {
         }
     }
 
-    fn run(&mut self, path: &'env Path) -> StdResult<(), CompileError<'env>> {
+    fn run(&mut self, path: &Path) -> StdResult<(), CompileError> {
         *self.status.write() = CompileJobStatus::Parsing;
         let u = parse_file(path)?;
         debug!("compiled {:?} to {} units", path, u.items.len());
@@ -128,7 +126,7 @@ impl<'env> CompileJob<'env> {
         Ok(())
     }
 
-    fn pass(&mut self) -> StdResult<(), CompileError<'env>> {
+    fn pass(&mut self) -> StdResult<(), CompileError> {
         if let Some(state) = self.state.take() {
             let next_state: Option<CompileJobState> = match state {
                 CompileJobState::Done => None,
@@ -156,24 +154,24 @@ impl<'env> CompileJob<'env> {
 }
 
 #[derive(Debug)]
-pub struct CompileJobHandle<'scope, 'env: 'scope> {
+pub struct CompileJobHandle<'scope> {
     id: CompileJobId,
-    status: SharedJobStatus<'env>,
-    bindings: SharedBindings<'env>,
+    status: SharedJobStatus,
+    bindings: SharedBindings,
     sender: SyncSender<CompileJobCommand>,
     join_handle: ScopedJoinHandle<'scope, ()>,
 }
 
-impl<'scope, 'env: 'scope> CompileJobHandle<'scope, 'env> {
+impl<'scope> CompileJobHandle<'scope> {
     pub fn id(&self) -> CompileJobId {
         self.id
     }
 
-    pub fn status(&self) -> &SharedJobStatus<'env> {
+    pub fn status(&self) -> &SharedJobStatus {
         &self.status
     }
 
-    pub fn bindings(&self) -> &SharedBindings<'env> {
+    pub fn bindings(&self) -> &SharedBindings {
         &self.bindings
     }
 
@@ -181,7 +179,7 @@ impl<'scope, 'env: 'scope> CompileJobHandle<'scope, 'env> {
         self.join_handle.is_finished()
     }
 
-    pub fn take_error(&self) -> Option<CompileError<'env>> {
+    pub fn take_error(&self) -> Option<CompileError> {
         let mut guard = self.status.write();
         if matches!(*guard, CompileJobStatus::Failed(_)) {
             let CompileJobStatus::Failed(e) =
@@ -206,28 +204,28 @@ impl<'scope, 'env: 'scope> CompileJobHandle<'scope, 'env> {
 
 /// Compile job status
 #[derive(Debug)]
-pub enum CompileJobStatus<'env> {
+pub enum CompileJobStatus {
     NotStarted,
     Parsing,
     Processing,
     Parsed,
     IdentifiersCreated,
-    WaitingForIdentifiers(HashSet<Id<'env>>),
-    Failed(CompileError<'env>),
+    WaitingForIdentifiers(HashSet<Id>),
+    Failed(CompileError),
     Done,
 }
 
 /// Compile job state
 #[derive(Debug)]
-enum CompileJobState<'env> {
-    Parsed(TranslationUnit<'env>),
-    IdentifiersCreated(TranslationUnit<'env>),
-    WaitingForIdentifiers(TranslationUnit<'env>, HashSet<Id<'env>>),
+enum CompileJobState {
+    Parsed(TranslationUnit),
+    IdentifiersCreated(TranslationUnit),
+    WaitingForIdentifiers(TranslationUnit, HashSet<Id>),
     Done,
 }
 
-impl<'env> CompileJobState<'env> {
-    fn status(&self) -> CompileJobStatus<'env> {
+impl CompileJobState {
+    fn status(&self) -> CompileJobStatus {
         use CompileJobStatus::*;
         match self {
             CompileJobState::Parsed(_) => Parsing,
@@ -246,21 +244,17 @@ pub enum CompileJobCommand {
 
 /// A compile error
 #[derive(Debug, thiserror::Error)]
-pub enum CompileError<'env> {
+pub enum CompileError {
     #[error(transparent)]
-    Syntax(SyntaxError<'env>),
+    Syntax(#[from] SyntaxError),
     #[error(transparent)]
     CreateIdentifier(#[from] CreateIdentifierError),
     #[error("undefined identifiers: {}", .0.iter().map(|id| id.to_string()).join(","))]
-    UndefinedIdentifiers(Vec<Id<'env>>),
+    UndefinedIdentifiers(Vec<Id>),
     #[error("no state")]
     NoState,
     #[error("job was cancelled")]
     Cancelled,
 }
 
-impl<'env> From<SyntaxError<'env>> for CompileError<'env> {
-    fn from(value: SyntaxError<'env>) -> Self {
-        Self::Syntax(value)
-    }
-}
+

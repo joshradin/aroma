@@ -20,18 +20,18 @@ pub use error::*;
 use log::trace;
 
 /// Parser for syntax tree items
-pub trait Parser<'p, R: Read, O, E = SyntaxError<'p>>: Clone
+pub trait Parser<R: Read, O, E = SyntaxError>: Clone
 where
     E: std::error::Error,
 {
     fn non_terminal(&self) -> &'static str;
-    fn parse(&mut self, parser: &mut SyntacticParser<'p, R>) -> result::Result<O, Err<E>>;
+    fn parse(&mut self, parser: &mut SyntacticParser<'_, R>) -> result::Result<O, Err<E>>;
 }
 
-impl<'p, R, O, E, F> Parser<'p, R, O, E> for F
+impl<R, O, E, F> Parser<R, O, E> for F
 where
     R: Read,
-    F: FnMut(&mut SyntacticParser<'p, R>) -> result::Result<O, Err<E>>,
+    F: FnMut(&mut SyntacticParser<'_, R>) -> result::Result<O, Err<E>>,
     F: Clone,
     E: std::error::Error,
 {
@@ -39,43 +39,43 @@ where
         type_name::<F>()
     }
 
-    fn parse(&mut self, parser: &mut SyntacticParser<'p, R>) -> result::Result<O, Err<E>> {
+    fn parse(&mut self, parser: &mut SyntacticParser<'_, R>) -> result::Result<O, Err<E>> {
         (self)(parser)
     }
 }
 
 /// Parse a syntax tree part
-pub trait Parsable<'p>: ToTokens<'p> + Sized {
+pub trait Parsable: ToTokens + Sized {
     type Err;
 
     /// Attempt to parse some syntax tree part
-    fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> result::Result<Self, Err<Self::Err>>;
+    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> result::Result<Self, Err<Self::Err>>;
 }
 
 /// A sub trait that determines if this type could be parsed without doing the parsing
-pub trait CouldParse<'p>: Parsable<'p> {
+pub trait CouldParse: Parsable {
     /// Attempt to parse some syntax tree part
     fn could_parse<R: Read>(
-        parser: &mut SyntacticParser<'p, R>,
+        parser: &mut SyntacticParser<'_, R>,
     ) -> result::Result<bool, Err<Self::Err>>;
 }
 
 #[derive(Debug, Default)]
-enum State<'p> {
+enum State {
     #[default]
     Uninit,
-    Lookahead(Token<'p>),
-    Buffered(VecDeque<Token<'p>>),
+    Lookahead(Token),
+    Buffered(VecDeque<Token>),
     Eof,
     Poisoned,
 }
 
 #[derive(Debug, Default)]
-struct StateFrame<'p> {
-    used: VecDeque<Token<'p>>,
+struct StateFrame {
+    used: VecDeque<Token>,
     ignore_nl_prev: bool,
     non_terminals_prev: Vec<&'static str>,
-    last_span_prev: Option<Span<'p>>,
+    last_span_prev: Option<Span>,
 }
 
 /// Err enum used to represent recoverable and non-recoverable errors
@@ -123,8 +123,8 @@ impl<E> Err<E> {
     }
 }
 
-impl<'p> From<SyntaxError<'p>> for Err<SyntaxError<'p>> {
-    fn from(value: SyntaxError<'p>) -> Self {
+impl From<SyntaxError> for Err<SyntaxError> {
+    fn from(value: SyntaxError) -> Self {
         Err::Error(value)
     }
 }
@@ -147,9 +147,9 @@ impl<'p> From<SyntaxError<'p>> for Err<SyntaxError<'p>> {
 #[derive(Debug)]
 pub struct SyntacticParser<'p, R: Read> {
     lexer: Lexer<'p, R>,
-    state: State<'p>,
-    last_span: Option<Span<'p>>,
-    frames: Vec<StateFrame<'p>>,
+    state: State,
+    last_span: Option<Span>,
+    frames: Vec<StateFrame>,
     non_terminals: Vec<&'static str>,
     ignore_nl: bool,
 }
@@ -167,7 +167,7 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
         }
     }
 
-    fn next_token(&mut self) -> Result<'p, ()> {
+    fn next_token(&mut self) -> SyntaxResult<()> {
         loop {
             match &self.state {
                 // nothing needs to be done to get the next token
@@ -199,7 +199,7 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
     }
 
     /// peak the current lookahead
-    fn peek(&mut self) -> Result<'p, Option<&Token<'p>>> {
+    fn peek(&mut self) -> SyntaxResult<Option<&Token>> {
         if matches!(self.state, State::Uninit) {
             self.next_token()?;
         }
@@ -214,7 +214,7 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
         }
     }
 
-    fn consume(&mut self) -> Result<'p, Option<Token<'p>>> {
+    fn consume(&mut self) -> SyntaxResult<Option<Token>> {
         if matches!(self.state, State::Uninit) {
             self.next_token()?;
         }
@@ -260,7 +260,7 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
         Ok(token)
     }
 
-    fn state_frame_mut(&mut self) -> Option<&mut StateFrame<'p>> {
+    fn state_frame_mut(&mut self) -> Option<&mut StateFrame> {
         self.frames.last_mut()
     }
 
@@ -268,17 +268,17 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
         let mut frame = StateFrame::default();
         frame.ignore_nl_prev = self.ignore_nl;
         frame.non_terminals_prev = self.non_terminals.clone();
-        frame.last_span_prev = self.last_span;
+        frame.last_span_prev = self.last_span.clone();
         self.frames.push(frame)
     }
 
-    fn pop_backtrack_frame(&mut self) -> Option<StateFrame<'p>> {
+    fn pop_backtrack_frame(&mut self) -> Option<StateFrame> {
         self.frames.pop()
     }
 
     /// Wrapper function for parsing an item
     #[inline]
-    pub fn parse<O, E, P: Parser<'p, R, O, E>>(
+    pub fn parse<O, E, P: Parser<R, O, E>>(
         &mut self,
         mut parser: P,
     ) -> result::Result<O, Err<E>>
@@ -304,7 +304,7 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
     }
 
     /// Wrapper function for parsing an optional item
-    pub fn parse_opt<P: Parsable<'p, Err: std::error::Error> + CouldParse<'p>>(
+    pub fn parse_opt<P: Parsable<Err: std::error::Error> + CouldParse>(
         &mut self,
     ) -> result::Result<Option<P>, Err<P::Err>> {
         if P::could_parse(self)? {
@@ -317,7 +317,7 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
     /// Tries to run a parser, backtracking if an errors occurs within the parser.
     ///
     /// returns `Ok(Some(parsed))` on success, `Ok(None)` on `Err::Error(_)` and `Err(e)` on `Err::Failure(e)`.
-    pub fn try_parse<O, E: std::error::Error, P: Parser<'p, R, O, E>>(
+    pub fn try_parse<O, E: std::error::Error, P: Parser<R, O, E>>(
         &mut self,
         mut parser: P,
     ) -> result::Result<Option<O>, E> {
@@ -339,7 +339,7 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
         }
     }
 
-    fn apply_frame<E: std::error::Error>(&mut self, pop: StateFrame<'p>, e: E) {
+    fn apply_frame<E: std::error::Error>(&mut self, pop: StateFrame, e: E) {
         let state = std::mem::replace(&mut self.state, State::Poisoned);
         trace!(
             "({}) error occurred while state={state:?} -> {e:?}",
@@ -372,7 +372,7 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
     }
 
     /// Sets the parser into a given ignore state.
-    pub fn set_ignore_nl(&mut self, state: bool) -> Result<'p> {
+    pub fn set_ignore_nl(&mut self, state: bool) -> SyntaxResult {
         if self.ignore_nl == state {
             return Ok(());
         }
@@ -390,11 +390,11 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
         Ok(())
     }
 
-    pub fn with_ignore_nl<F: FnOnce(&mut Self) -> Result<'p, O>, O>(
+    pub fn with_ignore_nl<F: FnOnce(&mut Self) -> SyntaxResult<O>, O>(
         &mut self,
         state: bool,
         func: F,
-    ) -> Result<'p, O> {
+    ) -> SyntaxResult<O> {
         let old_state = self.ignore_nl;
         self.set_ignore_nl(state)?;
         let ret = (func)(self);
@@ -403,9 +403,9 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
     }
 
     /// consumes if predicate matches
-    fn consume_if<F>(&mut self, predicate: F) -> Result<'p, Option<Token<'p>>>
+    fn consume_if<F>(&mut self, predicate: F) -> SyntaxResult<Option<Token>>
     where
-        F: FnOnce(&Token<'p>) -> bool,
+        F: FnOnce(&Token) -> bool,
     {
         let should_consume = {
             let peek = self.peek()?;
@@ -422,17 +422,17 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
         }
     }
 
-    fn error<E1, E2>(&self, error: E1, cause: E2) -> Err<SyntaxError<'p>>
+    fn error<E1, E2>(&self, error: E1, cause: E2) -> Err<SyntaxError>
     where
-        E1: Into<ErrorKind<'p>>,
-        E2: Into<Option<SyntaxError<'p>>>,
+        E1: Into<ErrorKind>,
+        E2: Into<Option<SyntaxError>>,
     {
         let span = match &self.state {
             State::Lookahead(t) => Some(t.span()),
             State::Buffered(vec) => vec.front().map(|t| t.span()),
             _ => None,
         }
-        .or(self.last_span.map(|s| s.end()));
+        .or(self.last_span.as_ref().cloned().map(|s| s.end()));
         Err::Error(SyntaxError::new(
             error.into(),
             span,
@@ -441,10 +441,10 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
         ))
     }
 
-    fn error_with_span<E1, E2>(&self, error: E1, cause: E2, span: Span<'p>) -> Err<SyntaxError<'p>>
+    fn error_with_span<E1, E2>(&self, error: E1, cause: E2, span: Span) -> Err<SyntaxError>
     where
-        E1: Into<ErrorKind<'p>>,
-        E2: Into<Option<SyntaxError<'p>>>,
+        E1: Into<ErrorKind>,
+        E2: Into<Option<SyntaxError>>,
     {
         Err::Error(SyntaxError::new(
             error.into(),
@@ -457,17 +457,17 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
 
 impl<'p> SyntacticParser<'p, File> {
     /// Creates a new parser for a given file
-    pub fn with_file(path: &'p Path) -> result::Result<Self, SyntaxError<'p>> {
+    pub fn with_file(path: &'p Path) -> result::Result<Self, SyntaxError> {
         let file = File::open(path)?;
         let lexer = Lexer::new(path, file)?;
         Ok(Self::new(lexer))
     }
 }
 
-impl<'p> Parsable<'p> for Id<'p> {
-    type Err = SyntaxError<'p>;
+impl Parsable for Id {
+    type Err = SyntaxError;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> result::Result<Self, Err<Self::Err>> {
+    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Self> {
         let parts = map(Punctuated1::<VarId, Dot>::parse, |ids| {
             Id::new(
                 ids.punctuated
@@ -482,10 +482,10 @@ impl<'p> Parsable<'p> for Id<'p> {
             .and_then(|id| id.ok_or_else(|| parser.error(ErrorKind::UnexpectedEof, None)))
     }
 }
-impl<'p> CouldParse<'p> for Id<'p> {
+impl CouldParse for Id {
     fn could_parse<R: Read>(
-        parser: &mut SyntacticParser<'p, R>,
-    ) -> std::result::Result<bool, Err<Self::Err>> {
+        parser: &mut SyntacticParser<R>,
+    ) -> SyntaxResult<bool> {
         Ok(parser
             .peek()?
             .map(|t| matches!(t.kind(), TokenKind::Identifier(_)))

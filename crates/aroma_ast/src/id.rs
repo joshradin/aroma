@@ -5,13 +5,13 @@ use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Id<'p>(Vec<IdInternal<'p>>);
+pub struct Id(Vec<IdInternal>);
 
-impl<'p> Id<'p> {
+impl Id {
     /// Tries to create an [Id] from an iterator of tokens.
     ///
     /// Returns `Some(Id)` if all tokens given are identifiers
-    pub fn new<I: IntoIterator<Item = Token<'p>>>(tokens: I) -> Option<Self> {
+    pub fn new<I: IntoIterator<Item = Token>>(tokens: I) -> Option<Self> {
         tokens
             .into_iter()
             .try_fold(vec![], |mut accum, next| {
@@ -79,7 +79,7 @@ impl<'p> Id<'p> {
         let mut inner = self.0.clone();
         let end = self.span().end();
         for id in &other.0 {
-            inner.push(IdInternal(Token::new(end, id.0.kind().clone())));
+            inner.push(IdInternal(Token::new(end.clone(), id.0.kind().clone())));
         }
         Self(inner)
     }
@@ -90,7 +90,7 @@ impl<'p> Id<'p> {
         let span = other.span();
         let start = Span::new(span.file(), span.offset(), 0);
         for id in &self.0 {
-            inner.push(IdInternal(Token::new(start, id.0.kind().clone())));
+            inner.push(IdInternal(Token::new(start.clone(), id.0.kind().clone())));
         }
         inner.extend(other.0.clone());
         Self(inner)
@@ -102,12 +102,8 @@ impl<'p> Id<'p> {
         self.concat(&Id::new_call_site([other]).unwrap())
     }
 
-    /// Leaks the contents
-    pub fn leak(self) -> Id<'static> {
-        Id(self.0.into_iter().map(|s| IdInternal(s.0.leak())).collect())
-    }
 }
-impl Debug for Id<'_> {
+impl Debug for Id {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -116,14 +112,14 @@ impl Debug for Id<'_> {
         )
     }
 }
-impl Display for Id<'_> {
+impl Display for Id {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0.iter().map(|t| t.to_string()).join("."))
     }
 }
 
-impl<'p> ToTokens<'p> for Id<'p> {
-    fn to_tokens(&self) -> TokenStream<'p, 'p> {
+impl ToTokens for Id {
+    fn to_tokens(&self) -> TokenStream {
         TokenStream::from_iter(
             self.0
                 .iter()
@@ -134,10 +130,10 @@ impl<'p> ToTokens<'p> for Id<'p> {
 }
 
 #[derive(Clone)]
-struct IdInternal<'p>(Token<'p>);
+struct IdInternal(Token);
 
-impl<'p> IdInternal<'p> {
-    fn new(token: Token<'p>) -> Option<Self> {
+impl IdInternal {
+    fn new(token: Token) -> Option<Self> {
         if let TokenKind::Identifier(_) = token.kind() {
             Some(IdInternal(token))
         } else {
@@ -145,17 +141,17 @@ impl<'p> IdInternal<'p> {
         }
     }
 }
-impl Debug for IdInternal<'_> {
+impl Debug for IdInternal {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_ref())
     }
 }
-impl Display for IdInternal<'_> {
+impl Display for IdInternal {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_ref())
     }
 }
-impl AsRef<str> for IdInternal<'_> {
+impl AsRef<str> for IdInternal {
     fn as_ref(&self) -> &str {
         let TokenKind::Identifier(s) = self.0.kind() else {
             unreachable!()
@@ -163,13 +159,13 @@ impl AsRef<str> for IdInternal<'_> {
         s.as_ref()
     }
 }
-impl PartialEq for IdInternal<'_> {
+impl PartialEq for IdInternal {
     fn eq(&self, other: &Self) -> bool {
         self.as_ref() == other.as_ref()
     }
 }
-impl Eq for IdInternal<'_> {}
-impl Hash for IdInternal<'_> {
+impl Eq for IdInternal {}
+impl Hash for IdInternal {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.as_ref().hash(state);
     }

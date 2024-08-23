@@ -26,8 +26,8 @@ pub fn derive_to_tokens(tokens: TokenStream) -> TokenStream {
 
             quote! (
                 #[automatically_derived]
-                impl <'p #(, #generics)*> aroma_ast::token::ToTokens<'p> for #ident <'p, #(, #generic_uses)*> {
-                    fn to_tokens(&self) -> aroma_ast::token::TokenStream<'p, 'p> {
+                impl <#(, #generics)*> aroma_ast::token::ToTokens for #ident <#(, #generic_uses)*> {
+                    fn to_tokens(&self) -> aroma_ast::token::TokenStream {
                         aroma_ast::token::TokenStream::from_iter(
                             [#(
                                 self.#fields.to_tokens()
@@ -37,7 +37,7 @@ pub fn derive_to_tokens(tokens: TokenStream) -> TokenStream {
                         )
                     }
 
-                    fn to_token_tree(&self) -> aroma_ast::token::TokenTree<'p> {
+                    fn to_token_tree(&self) -> aroma_ast::token::TokenTree {
                         aroma_ast::token::TokenTree::Node(Vec::from_iter(
                             [
                                 #(self.#fields.to_token_tree()),*
@@ -80,7 +80,7 @@ pub fn derive_to_tokens(tokens: TokenStream) -> TokenStream {
                             quote! {
                                 #ident::#id { #(#pats),* } => {
                                     aroma_ast::token::TokenStream::from_iter(
-                                        <[aroma_ast::token::TokenStream<'p, 'p>; #len]>::into_iter([#(
+                                        <[aroma_ast::token::TokenStream; #len]>::into_iter([#(
                                            #bindings.to_tokens()
                                         ),*]
                                         )
@@ -108,7 +108,7 @@ pub fn derive_to_tokens(tokens: TokenStream) -> TokenStream {
                             quote! {
                                 #ident::#id(#(#bindings),*) => {
                                     aroma_ast::token::TokenStream::from_iter(
-                                        <[aroma_ast::token::TokenStream<'p, 'p>; #len]>::into_iter([#(
+                                        <[aroma_ast::token::TokenStream; #len]>::into_iter([#(
                                            #bindings.to_tokens()
                                         ),*]
                                         )
@@ -143,14 +143,14 @@ pub fn derive_to_tokens(tokens: TokenStream) -> TokenStream {
 
             quote! (
                 #[automatically_derived]
-                impl <'p #(, #generics)*> aroma_ast::token::ToTokens<'p> for #ident <'p, #(, #generic_uses)*> {
-                    fn to_tokens(&self) -> aroma_ast::token::TokenStream<'p, 'p> {
+                impl <#(, #generics)*> aroma_ast::token::ToTokens for #ident <#(, #generic_uses)*> {
+                    fn to_tokens(&self) -> aroma_ast::token::TokenStream {
                         match self {
                             #(#to_token_matches)*
                         }
                     }
 
-                    fn to_token_tree(&self) -> aroma_ast::token::TokenTree<'p> {
+                    fn to_token_tree(&self) -> aroma_ast::token::TokenTree {
                         match self {
                             #(#to_token_tree_matches)*
                         }

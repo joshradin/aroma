@@ -4,28 +4,29 @@ use crate::parser::binding::OptTypeBinding;
 use crate::parser::expr::{remove_nl, Expr};
 use crate::parser::singletons::*;
 use crate::parser::syntactic_parser::hir::helpers::End;
-use crate::parser::{cut, multi1, CouldParse, ErrorKind, Parsable, SyntacticParser, SyntaxError};
+use crate::parser::{cut, multi1, CouldParse, ErrorKind, Parsable, SyntacticParser, SyntaxError, SyntaxResult};
 use aroma_ast::token::{ToTokens, TokenKind};
 use std::io::Read;
+use std::result;
 
 /// General statement types
 #[derive(Debug, ToTokens)]
-pub enum Statement<'p> {
-    Let(StatementLet<'p>),
-    Const(StatementConst<'p>),
-    Expr(StatementExpr<'p>),
-    Block(StatementBlock<'p>),
-    If(StatementIf<'p>),
-    While(StatementWhile<'p>),
-    Loop(StatementLoop<'p>),
-    Return(StatementReturn<'p>),
-    Break(StatementBreak<'p>),
-    Continue(StatementContinue<'p>),
-    Match(StatementMatch<'p>),
-    TryCatch(StatementTryCatch<'p>),
+pub enum Statement {
+    Let(StatementLet),
+    Const(StatementConst),
+    Expr(StatementExpr),
+    Block(StatementBlock),
+    If(StatementIf),
+    While(StatementWhile),
+    Loop(StatementLoop),
+    Return(StatementReturn),
+    Break(StatementBreak),
+    Continue(StatementContinue),
+    Match(StatementMatch),
+    TryCatch(StatementTryCatch),
 }
 
-impl Statement<'_> {
+impl Statement {
     /// If this is a binding statement or not.
     pub fn is_binding(&self) -> bool {
         matches!(self, Statement::Let(_) | Statement::Const(_))
@@ -40,43 +41,43 @@ impl Statement<'_> {
     }
 }
 
-impl<'p> Parsable<'p> for Statement<'p> {
-    type Err = SyntaxError<'p>;
+impl Parsable for Statement {
+    type Err = SyntaxError;
 
     fn parse<R: Read>(
-        parser: &mut SyntacticParser<'p, R>,
-    ) -> Result<Self, crate::parser::Err<Self::Err>> {
+        parser: &mut SyntacticParser<'_, R>,
+    ) -> SyntaxResult<Self> {
         parse_statement(parser)
     }
 }
 /// A list of statements
 #[derive(Debug, ToTokens)]
-pub struct StatementList<'p> {
-    pub statements: Vec<Statement<'p>>,
+pub struct StatementList {
+    pub statements: Vec<Statement>,
 }
-impl<'p> Parsable<'p> for StatementList<'p> {
-    type Err = SyntaxError<'p>;
+impl Parsable for StatementList {
+    type Err = SyntaxError;
 
     fn parse<R: Read>(
-        parser: &mut SyntacticParser<'p, R>,
-    ) -> Result<Self, crate::parser::Err<Self::Err>> {
+        parser: &mut SyntacticParser<'_, R>,
+    ) -> SyntaxResult<Self> {
         parse_statement_list(parser)
     }
 }
 /// A block of statements
 #[derive(Debug, ToTokens)]
-pub struct StatementBlock<'p> {
-    pub lcurly: LCurly<'p>,
-    pub list: StatementList<'p>,
-    pub rcurly: RCurly<'p>,
+pub struct StatementBlock {
+    pub lcurly: LCurly,
+    pub list: StatementList,
+    pub rcurly: RCurly,
 }
 
-impl<'p> Parsable<'p> for StatementBlock<'p> {
-    type Err = SyntaxError<'p>;
+impl Parsable for StatementBlock {
+    type Err = SyntaxError;
 
     fn parse<R: Read>(
-        parser: &mut SyntacticParser<'p, R>,
-    ) -> Result<Self, crate::parser::Err<Self::Err>> {
+        parser: &mut SyntacticParser<'_, R>,
+    ) -> SyntaxResult<Self> {
         let lcurly = parser.parse(LCurly::parse)?;
         let list = parser.parse(StatementList::parse)?;
         let rcurly = parser.parse(RCurly::parse)?;
@@ -89,121 +90,121 @@ impl<'p> Parsable<'p> for StatementBlock<'p> {
 }
 
 #[derive(Debug, ToTokens)]
-pub struct StatementLet<'p> {
-    pub let_tok: Let<'p>,
-    pub binding: OptTypeBinding<'p>,
-    pub assign: Assign<'p>,
-    pub expr: Expr<'p>,
-    pub end: End<'p>,
+pub struct StatementLet {
+    pub let_tok: Let,
+    pub binding: OptTypeBinding,
+    pub assign: Assign,
+    pub expr: Expr,
+    pub end: End,
 }
 
 #[derive(Debug, ToTokens)]
-pub struct StatementConst<'p> {
-    pub const_tok: Const<'p>,
-    pub binding: OptTypeBinding<'p>,
-    pub assign: Assign<'p>,
-    pub expr: Expr<'p>,
-    pub end: End<'p>,
+pub struct StatementConst {
+    pub const_tok: Const,
+    pub binding: OptTypeBinding,
+    pub assign: Assign,
+    pub expr: Expr,
+    pub end: End,
 }
 
 /// If statement
 #[derive(Debug, ToTokens)]
-pub struct StatementIf<'p> {
-    pub if_tok: If<'p>,
-    pub lparen: LParen<'p>,
-    pub condition: Expr<'p>,
-    pub rparen: RParen<'p>,
-    pub then_stmt: Box<Statement<'p>>,
-    pub else_block: Option<ElseBlock<'p>>,
+pub struct StatementIf {
+    pub if_tok: If,
+    pub lparen: LParen,
+    pub condition: Expr,
+    pub rparen: RParen,
+    pub then_stmt: Box<Statement>,
+    pub else_block: Option<ElseBlock>,
 }
 
 /// while statement
 #[derive(Debug, ToTokens)]
-pub struct StatementWhile<'p> {
-    pub while_tok: While<'p>,
-    pub lparen: LParen<'p>,
-    pub condition: Expr<'p>,
-    pub rparen: RParen<'p>,
-    pub stmt: Box<Statement<'p>>,
+pub struct StatementWhile {
+    pub while_tok: While,
+    pub lparen: LParen,
+    pub condition: Expr,
+    pub rparen: RParen,
+    pub stmt: Box<Statement>,
 }
 
 /// for statement
 #[derive(Debug, ToTokens)]
-pub struct StatementFor<'p> {
-    pub for_tok: For<'p>,
-    pub lparen: LParen<'p>,
-    pub condition: Expr<'p>,
-    pub rparen: RParen<'p>,
-    pub stmt: Box<Statement<'p>>,
+pub struct StatementFor {
+    pub for_tok: For,
+    pub lparen: LParen,
+    pub condition: Expr,
+    pub rparen: RParen,
+    pub stmt: Box<Statement>,
 }
 
 /// for statement
 #[derive(Debug, ToTokens)]
-pub struct StatementLoop<'p> {
-    pub loop_tok: Loop<'p>,
-    pub block: Box<StatementBlock<'p>>,
+pub struct StatementLoop {
+    pub loop_tok: Loop,
+    pub block: Box<StatementBlock>,
 }
 
 #[derive(Debug, ToTokens)]
-pub struct ElseBlock<'p> {
-    pub else_tok: Else<'p>,
-    pub else_stmt: Box<Statement<'p>>,
+pub struct ElseBlock {
+    pub else_tok: Else,
+    pub else_stmt: Box<Statement>,
 }
 
 /// A statement consisting of a single expression that must ultimately be a function call.
 #[derive(Debug, ToTokens)]
-pub struct StatementExpr<'p> {
-    pub expr: Expr<'p>,
-    pub end: Option<End<'p>>,
+pub struct StatementExpr {
+    pub expr: Expr,
+    pub end: Option<End>,
 }
 
 #[derive(Debug, ToTokens)]
-pub struct StatementReturn<'p> {
-    pub ret: Return<'p>,
-    pub expr: Option<Expr<'p>>,
-    pub end: End<'p>,
+pub struct StatementReturn {
+    pub ret: Return,
+    pub expr: Option<Expr>,
+    pub end: End,
 }
 
 #[derive(Debug, ToTokens)]
-pub struct StatementBreak<'p> {
-    pub break_tok: Break<'p>,
-    pub end: End<'p>,
+pub struct StatementBreak {
+    pub break_tok: Break,
+    pub end: End,
 }
 
 #[derive(Debug, ToTokens)]
-pub struct StatementContinue<'p> {
-    pub break_tok: Break<'p>,
-    pub end: End<'p>,
+pub struct StatementContinue {
+    pub break_tok: Break,
+    pub end: End,
 }
 
 #[derive(Debug, ToTokens)]
-pub struct StatementMatch<'p> {
-    pub match_tok: Match<'p>,
-    pub lparen: LParen<'p>,
-    pub condition: Expr<'p>,
-    pub rparen: RParen<'p>,
+pub struct StatementMatch {
+    pub match_tok: Match,
+    pub lparen: LParen,
+    pub condition: Expr,
+    pub rparen: RParen,
 }
 
 #[derive(Debug, ToTokens)]
-pub struct StatementTryCatch<'p> {
-    pub try_tok: Try<'p>,
-    pub statement_block: StatementBlock<'p>,
-    pub catches: Vec<CatchBlock<'p>>,
+pub struct StatementTryCatch {
+    pub try_tok: Try,
+    pub statement_block: StatementBlock,
+    pub catches: Vec<CatchBlock>,
 }
 
 #[derive(Debug, ToTokens)]
-pub struct CatchBlock<'p> {
-    pub catch: Catch<'p>,
-    pub lparen: LParen<'p>,
-    pub binding: OptTypeBinding<'p>,
-    pub rparen: RParen<'p>,
-    pub statement_block: StatementBlock<'p>,
+pub struct CatchBlock {
+    pub catch: Catch,
+    pub lparen: LParen,
+    pub binding: OptTypeBinding,
+    pub rparen: RParen,
+    pub statement_block: StatementBlock,
 }
 
 /// Parse a statement block
 fn parse_statement_list<'p, R: Read>(
-    parser: &mut SyntacticParser<'p, R>,
-) -> crate::parser::Result<'p, StatementList<'p>> {
+    parser: &mut SyntacticParser<R>,
+) -> crate::parser::SyntaxResult<StatementList> {
     let mut list = vec![];
     parser.with_ignore_nl(false, |parser| {
         loop {
@@ -246,14 +247,14 @@ fn parse_statement_list<'p, R: Read>(
 }
 /// Parse a statement block
 fn parse_statement<'p, R: Read>(
-    parser: &mut SyntacticParser<'p, R>,
-) -> crate::parser::Result<'p, Statement<'p>> {
+    parser: &mut SyntacticParser<R>,
+) -> crate::parser::SyntaxResult<Statement> {
     parser.parse(remove_nl)?;
     let lookahead = parser
         .peek()?
         .cloned()
-        .ok_or::<SyntaxError<'p>>(ErrorKind::UnexpectedEof.into())?;
-    let statement: Statement<'p> = match lookahead.kind() {
+        .ok_or::<SyntaxError>(ErrorKind::UnexpectedEof.into())?;
+    let statement: Statement = match lookahead.kind() {
         TokenKind::Let => {
             let let_tok = parser.parse(Let::parse)?;
             let binding = parser.parse(cut(OptTypeBinding::parse))?;
@@ -298,7 +299,7 @@ fn parse_statement<'p, R: Read>(
                 ));
             }
 
-            let else_block = parser.try_parse(|parser: &mut SyntacticParser<'p, R>| {
+            let else_block = parser.try_parse(|parser: &mut SyntacticParser<R>| {
                 let else_tok = parser.parse(Else::parse)?;
                 let else_stmt = parser.parse(Statement::parse)?;
                 if else_stmt.is_binding() {
@@ -347,7 +348,7 @@ fn parse_statement<'p, R: Read>(
         TokenKind::Try => {
             let try_tok = parser.parse(Try::parse)?;
             let block = parser.parse(StatementBlock::parse)?;
-            let catches = parser.parse(multi1(|parser: &mut SyntacticParser<'p, R>| {
+            let catches = parser.parse(multi1(|parser: &mut SyntacticParser<R>| {
                 let catch = parser.parse(Catch::parse)?;
                 let lparen = parser.parse(LParen::parse)?;
                 let binding = parser.parse(OptTypeBinding::parse)?;

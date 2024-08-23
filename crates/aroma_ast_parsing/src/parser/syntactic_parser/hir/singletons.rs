@@ -9,17 +9,18 @@ use aroma_ast::token::Token;
 use aroma_ast::token::TokenKind;
 use aroma_ast::token::TokenStream;
 use std::io::Read;
+use std::result;
 
 /// A variable id, an Id with a signle id
 #[derive(Debug, ToTokens)]
-pub struct VarId<'p> {
-    pub id: Id<'p>,
+pub struct VarId {
+    pub id: Id,
 }
 
-impl<'p> Parsable<'p> for VarId<'p> {
-    type Err = SyntaxError<'p>;
+impl Parsable for VarId {
+    type Err = SyntaxError;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<Self, Err<Self::Err>> {
+    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> crate::parser::SyntaxResult<Self> {
         if let Some(tok) =
             parser.consume_if(|tok| matches!(tok.kind(), TokenKind::Identifier(_)))?
         {
@@ -35,17 +36,17 @@ impl<'p> Parsable<'p> for VarId<'p> {
 macro_rules! token_singleton {
     ($ty:ident, $($pat:tt)*) => {
         #[derive(Debug)]
-        pub struct $ty<'p> {
-            token: Token<'p>,
+        pub struct $ty {
+            token: Token,
         }
 
-        impl<'p> Default for $ty<'p> {
+        impl Default for $ty {
             fn default() -> Self {
                 Self::new()
             }
         }
 
-        impl<'p> $ty<'p> {
+        impl $ty {
             #[track_caller]
             pub fn new() -> Self {
                 let token = Token::new(Span::call_site(), $($pat)*);
@@ -53,10 +54,10 @@ macro_rules! token_singleton {
             }
         }
 
-        impl<'p> TryFrom<Token<'p>> for $ty<'p> {
-            type Error = SyntaxError<'p>;
+        impl TryFrom<Token> for $ty {
+            type Error = SyntaxError;
 
-            fn try_from(token: Token<'p>) -> Result<Self, Self::Error> {
+            fn try_from(token: Token) -> Result<Self, Self::Error> {
                 match token.kind() {
                     $($pat)* => { Ok(Self { token }) },
                     _ => Err(ErrorKind::ExpectedToken(vec![format!("{:?}", $($pat)*)], Some(token)).into())
@@ -65,17 +66,17 @@ macro_rules! token_singleton {
         }
 
         #[automatically_derived]
-        impl<'p> ToTokens<'p> for $ty<'p> {
-            fn to_tokens(&self) -> TokenStream<'p, 'p> {
+        impl ToTokens for $ty {
+            fn to_tokens(&self) -> TokenStream {
                 TokenStream::from_iter([self.token.clone()])
             }
         }
 
         #[automatically_derived]
-        impl<'p> Parsable<'p> for $ty<'p> {
-            type Err = SyntaxError<'p>;
+        impl Parsable for $ty {
+            type Err = SyntaxError;
 
-            fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<Self, Err<Self::Err>> {
+            fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> Result<Self, Err<Self::Err>> {
                 if !matches!($($pat)*, TokenKind::Nl) {
                     parser.parse(remove_nl)?;
                 }
@@ -99,9 +100,9 @@ macro_rules! token_singleton {
         }
 
         #[automatically_derived]
-        impl<'p> CouldParse<'p> for $ty<'p> {
+        impl CouldParse for $ty {
             fn could_parse<R: Read>(
-                parser: &mut SyntacticParser<'p, R>,
+                parser: &mut SyntacticParser<'_, R>,
             ) -> Result<bool, Err<Self::Err>> {
                 if let Some(peek) = parser.peek()? {
                     Ok(matches!(peek.kind(), $($pat)*))

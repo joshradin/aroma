@@ -5,7 +5,7 @@ use crate::parser::singletons::{
     Colon, Comma, In, LBracket, LParen, Out, QMark, RBracket, RParen, VarId,
 };
 use crate::parser::{
-    cut, CouldParse, ErrorKind, Parsable, Punctuated0, Punctuated1, SyntacticParser, SyntaxError,
+    cut, CouldParse, ErrorKind, Parsable, Punctuated0, Punctuated1, SyntacticParser, SyntaxError, SyntaxResult
 };
 use aroma_ast::id::Id;
 use aroma_ast::token::{ToTokens, TokenKind};
@@ -13,18 +13,19 @@ use aroma_types::class::{ClassInst, ClassRef};
 use aroma_types::generic::GenericParameterBound;
 use aroma_types::type_signature::TypeSignature;
 use std::io::Read;
+use std::result;
 
 /// A binding between an id to a type
 #[derive(Debug, ToTokens)]
-pub struct Binding<'p> {
-    pub id: VarId<'p>,
-    pub type_dec: TypeDec<'p>,
+pub struct Binding {
+    pub id: VarId,
+    pub type_dec: TypeDec,
 }
 
-impl<'p> Parsable<'p> for Binding<'p> {
-    type Err = SyntaxError<'p>;
+impl Parsable for Binding {
+    type Err = SyntaxError;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<Self, parser::Err<Self::Err>> {
+    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Self> {
         let id = parser.parse(VarId::parse)?;
         let type_dec = parser.parse(TypeDec::parse)?;
         Ok(Self { id, type_dec })
@@ -33,15 +34,15 @@ impl<'p> Parsable<'p> for Binding<'p> {
 
 /// A binding between an id to an optional
 #[derive(Debug, ToTokens)]
-pub struct OptTypeBinding<'p> {
-    pub id: VarId<'p>,
-    pub type_dec: Option<TypeDec<'p>>,
+pub struct OptTypeBinding {
+    pub id: VarId,
+    pub type_dec: Option<TypeDec>,
 }
 
-impl<'p> Parsable<'p> for OptTypeBinding<'p> {
-    type Err = SyntaxError<'p>;
+impl Parsable for OptTypeBinding {
+    type Err = SyntaxError;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<Self, parser::Err<Self::Err>> {
+    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Self> {
         let id = parser.parse(VarId::parse)?;
         let type_dec = parser.try_parse(TypeDec::parse)?;
         Ok(Self { id, type_dec })
@@ -49,24 +50,24 @@ impl<'p> Parsable<'p> for OptTypeBinding<'p> {
 }
 
 #[derive(Debug, ToTokens)]
-pub struct TypeDec<'p> {
-    pub colon: Colon<'p>,
-    pub ty: Type<'p>,
+pub struct TypeDec {
+    pub colon: Colon,
+    pub ty: Type,
 }
 
-impl<'p> Parsable<'p> for TypeDec<'p> {
-    type Err = SyntaxError<'p>;
+impl Parsable for TypeDec {
+    type Err = SyntaxError;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<Self, parser::Err<Self::Err>> {
+    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Self> {
         let colon = parser.parse(Colon::parse)?;
         let ty = parser.parse(cut(Type::parse))?;
         Ok(Self { colon, ty })
     }
 }
 
-impl<'p> CouldParse<'p> for TypeDec<'p> {
+impl CouldParse for TypeDec {
     fn could_parse<R: Read>(
-        parser: &mut SyntacticParser<'p, R>,
+        parser: &mut SyntacticParser<R>,
     ) -> Result<bool, parser::Err<Self::Err>> {
         Ok(matches!(parser.peek()?, Some(tok) if matches!(tok.kind(), TokenKind::Colon)))
     }
@@ -74,24 +75,24 @@ impl<'p> CouldParse<'p> for TypeDec<'p> {
 
 /// Type signature
 #[derive(Debug, ToTokens)]
-pub struct Type<'p> {
+pub struct Type {
     /// the main id of the type
-    pub id: Id<'p>,
+    pub id: Id,
     /// Generics
-    pub generics: Option<GenericParameters<'p>>,
+    pub generics: Option<GenericParameters>,
     /// If present, this type is nullable
-    pub nullable: Option<QMark<'p>>,
+    pub nullable: Option<QMark>,
 }
 
-impl<'p> CouldParse<'p> for Type<'p> {
+impl CouldParse for Type {
     fn could_parse<R: Read>(
-        parser: &mut SyntacticParser<'p, R>,
+        parser: &mut SyntacticParser<R>,
     ) -> Result<bool, parser::Err<Self::Err>> {
         Ok(matches!(parser.peek()?, Some(tok) if matches!(tok.kind(), TokenKind::Identifier(_))))
     }
 }
 
-impl Type<'_> {
+impl Type {
     /// Converts this into a class inst
     pub fn as_class_inst(&self) -> ClassInst {
         ClassInst::with_generics(
@@ -124,22 +125,22 @@ impl Type<'_> {
     }
 }
 
-impl From<Type<'_>> for ClassInst {
-    fn from(value: Type<'_>) -> Self {
+impl From<Type> for ClassInst {
+    fn from(value: Type) -> Self {
         value.as_class_inst()
     }
 }
 
-impl From<Type<'_>> for TypeSignature {
-    fn from(value: Type<'_>) -> Self {
+impl From<Type> for TypeSignature {
+    fn from(value: Type) -> Self {
         value.as_type_signature()
     }
 }
 
-impl<'p> Parsable<'p> for Type<'p> {
-    type Err = SyntaxError<'p>;
+impl Parsable for Type {
+    type Err = SyntaxError;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<Self, parser::Err<Self::Err>> {
+    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Self> {
         let id = parser.parse(Id::parse)?;
         let generics = if GenericParameters::could_parse(parser)? {
             Some(parser.parse(GenericParameters::parse)?)
@@ -157,18 +158,18 @@ impl<'p> Parsable<'p> for Type<'p> {
 }
 
 #[derive(Debug, ToTokens)]
-pub struct GenericParameters<'p> {
-    pub lbracket: LBracket<'p>,
-    pub bounds: Punctuated0<GenericParameter<'p>, Comma<'p>>,
-    pub rbracket: RBracket<'p>,
+pub struct GenericParameters {
+    pub lbracket: LBracket,
+    pub bounds: Punctuated0<GenericParameter, Comma>,
+    pub rbracket: RBracket,
 }
 
-impl<'p> Parsable<'p> for GenericParameters<'p> {
-    type Err = SyntaxError<'p>;
+impl Parsable for GenericParameters {
+    type Err = SyntaxError;
 
     fn parse<R: Read>(
-        parser: &mut SyntacticParser<'p, R>,
-    ) -> Result<Self, crate::parser::Err<Self::Err>> {
+        parser: &mut SyntacticParser<'_, R>,
+    ) -> SyntaxResult<Self> {
         let lbracket = parser.parse(LBracket::parse)?;
         let generics = {
             if !RBracket::could_parse(parser)? {
@@ -188,9 +189,9 @@ impl<'p> Parsable<'p> for GenericParameters<'p> {
     }
 }
 
-impl<'p> CouldParse<'p> for GenericParameters<'p> {
+impl CouldParse for GenericParameters {
     fn could_parse<R: Read>(
-        parser: &mut SyntacticParser<'p, R>,
+        parser: &mut SyntacticParser<R>,
     ) -> Result<bool, crate::parser::Err<Self::Err>> {
         Ok(matches!(parser.peek()?, Some(tok) if matches!(tok.kind(), TokenKind::LBracket)))
     }
@@ -198,17 +199,17 @@ impl<'p> CouldParse<'p> for GenericParameters<'p> {
 
 /// A generic parameter
 #[derive(Debug, ToTokens)]
-pub struct GenericParameter<'p> {
-    pub variance: Option<Variance<'p>>,
-    pub bound: Type<'p>,
+pub struct GenericParameter {
+    pub variance: Option<Variance>,
+    pub bound: Type,
 }
 
-impl<'p> Parsable<'p> for GenericParameter<'p> {
-    type Err = SyntaxError<'p>;
+impl Parsable for GenericParameter {
+    type Err = SyntaxError;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<Self, parser::Err<Self::Err>> {
+    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Self> {
         let variance =
-            parser.try_parse(|parser: &mut SyntacticParser<'p, R>| match parser.peek()? {
+            parser.try_parse(|parser: &mut SyntacticParser<R>| match parser.peek()? {
                 Some(tok) if matches!(tok.kind(), TokenKind::In) => {
                     parser.parse(cut(In::parse)).map(Variance::In)
                 }
@@ -224,23 +225,23 @@ impl<'p> Parsable<'p> for GenericParameter<'p> {
 
 /// Generic variance
 #[derive(Debug, ToTokens)]
-pub enum Variance<'p> {
-    In(In<'p>),
-    Out(Out<'p>),
+pub enum Variance {
+    In(In),
+    Out(Out),
 }
 
 /// Function parameters
 #[derive(Debug, ToTokens)]
-pub struct FnParameters<'p> {
-    pub lparen: LParen<'p>,
-    pub parameters: Punctuated0<Binding<'p>, Comma<'p>>,
-    pub rparen: RParen<'p>,
+pub struct FnParameters {
+    pub lparen: LParen,
+    pub parameters: Punctuated0<Binding, Comma>,
+    pub rparen: RParen,
 }
 
-impl<'p> Parsable<'p> for FnParameters<'p> {
-    type Err = SyntaxError<'p>;
+impl Parsable for FnParameters {
+    type Err = SyntaxError;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<Self, parser::Err<Self::Err>> {
+    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Self> {
         let lparen = parser.parse(LParen::parse)?;
         let parameters = if RParen::could_parse(parser)? {
             Punctuated0::default()
