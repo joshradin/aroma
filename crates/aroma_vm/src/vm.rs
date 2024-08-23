@@ -206,7 +206,7 @@ impl AromaVm {
             .clone();
 
         let i = function.chunk_idx().unwrap();
-        
+
         ThreadExecutor::start(
             function,
             id,

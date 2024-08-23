@@ -4,11 +4,10 @@
 pub trait Typed<T, E = TypeError> {
     /// Gets the type
     fn get_type(&self) -> TypeState<&T, &E>;
-
 }
 
 /// Gets a type reference that's mutable
-pub trait TypedMut<T, E = TypeError> : Typed<T, E> {
+pub trait TypedMut<T, E = TypeError>: Typed<T, E> {
     /// Gets the type
     fn get_type_mut(&mut self) -> &mut TypeState<T, E>;
 
@@ -31,7 +30,6 @@ pub enum TypeState<T, E = TypeError> {
     Available(T),
     Err(E),
 }
-
 
 impl<T, E> TypeState<T, E> {
     /// Gets the internal representation as references
@@ -67,5 +65,5 @@ impl<T: Clone, E: Clone> TypeState<&T, &E> {
 #[derive(Debug, thiserror::Error)]
 pub enum TypeError {
     #[error("Could not resolve identifier {0:?}")]
-    IdentifierNotResolved(String)
+    IdentifierNotResolved(String),
 }

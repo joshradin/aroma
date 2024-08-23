@@ -3,13 +3,13 @@
 use crate::lexer::token_parsing::parse_token;
 use aroma_ast::spanned::Span;
 use aroma_ast::token::{Token, TokenKind};
+use nom::error::VerboseError;
 use nom::{Finish, Needed};
 use std::fs::File;
 use std::io;
 use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 use std::str::Utf8Error;
-use nom::error::VerboseError;
 use thiserror::Error;
 
 mod token_parsing;
@@ -59,9 +59,7 @@ impl<'p, R: Read> Lexer<'p, R> {
                     self.buffer = Vec::from(rest);
                     return Ok(Some(Token::new(span, token_kind)));
                 }
-                Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
-                    return Err(e.into())
-                }
+                Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => return Err(e.into()),
                 Err(nom::Err::Incomplete(needed)) => match needed {
                     Needed::Unknown => {
                         let len = (self.buffer.len() * 2).min(8);
@@ -121,7 +119,7 @@ pub enum LexingError {
     #[error(transparent)]
     Utf8Error(#[from] Utf8Error),
     #[error(transparent)]
-    NomError(#[from] VerboseError<String>)
+    NomError(#[from] VerboseError<String>),
 }
 
 #[cfg(test)]

@@ -1,11 +1,15 @@
+namespace simple
+
 public class Box[T] {
     private data: T
     private alive: Bool
 
-    public constructor(data: T) throws InvalidDataException {
+    public constructor(data: T?) throws InvalidDataException {
     }
 
-    public
+    protected constructor(data: T) {
+
+    }
 }
 
 fn main() {

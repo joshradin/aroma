@@ -28,7 +28,7 @@ impl<'p> Token<'p> {
     pub fn leak(self) -> Token<'static> {
         Token {
             span: self.span.leak(),
-            kind: self.kind
+            kind: self.kind,
         }
     }
 }

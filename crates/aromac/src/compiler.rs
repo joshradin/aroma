@@ -1,6 +1,7 @@
 //! Responsible with compiling aroma files into aroma object files
 
 use crate::compiler::compile_job::{CompileError, CompileJob, CompileJobId, CompileJobStatus};
+use error::AromaCError;
 use itertools::Itertools;
 use log::{error, info};
 use std::collections::{HashMap, HashSet};
@@ -8,7 +9,9 @@ use std::panic::resume_unwind;
 use std::path::{Path, PathBuf};
 use std::{io, thread};
 use thiserror::Error;
+
 mod compile_job;
+pub mod error;
 
 /// Responsible with compiling aroma files into aroma object files.
 ///
@@ -35,7 +38,7 @@ impl AromaC {
     /// Compile a file at a given path
     pub fn compile_all<'p, I>(&mut self, paths: I) -> Result<(), AromaCError<'p>>
     where
-        I: IntoIterator<Item= &'p Path>,
+        I: IntoIterator<Item = &'p Path>,
     {
         let paths = paths.into_iter().collect::<HashSet<&'p Path>>();
         let mut errors = thread::scope::<'p, _, _>(|scope| {
@@ -54,7 +57,7 @@ impl AromaC {
                             error!("job {:?} failed: {f}", job.id());
                             completed.insert(job.id());
                         }
-                        CompileJobStatus::Dead | CompileJobStatus::Done => {
+                        CompileJobStatus::Done => {
                             completed.insert(job.id());
                         }
                         _ => {}
@@ -80,7 +83,6 @@ impl AromaC {
                             }
                         }
                     }
-
                 }
             }
             errors
@@ -92,22 +94,6 @@ impl AromaC {
         } else {
             Err(AromaCError::Errors(errors))
         }
-    }
-}
-
-#[derive(Debug, Error)]
-pub enum AromaCError<'p> {
-    #[error(transparent)]
-    Io(#[from] io::Error),
-    #[error(transparent)]
-    CompileError(CompileError<'p>),
-    #[error("{}", .0.iter().join("\n"))]
-    Errors(Vec<AromaCError<'p>>)
-}
-
-impl<'p> From<CompileError<'p>> for AromaCError<'p> {
-    fn from(value: CompileError<'p>) -> Self {
-        Self::CompileError(value)
     }
 }
 
@@ -134,7 +120,7 @@ impl AromaCBuilder {
     }
 
     /// Builds an [AromaC] instance from this builder
-    pub fn build(self) -> Result<AromaC, BuildAromaCError> {
+    pub fn build(self) -> std::result::Result<AromaC, BuildAromaCError> {
         if self.jobs == 0 {
             return Err(BuildAromaCError::ZeroJobs);
         }

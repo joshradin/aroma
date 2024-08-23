@@ -140,6 +140,7 @@ dependencies = [
  "aroma_ast",
  "aroma_common",
  "aroma_types",
+ "aroma_visitor_gen",
  "log",
  "nom",
  "tempfile",

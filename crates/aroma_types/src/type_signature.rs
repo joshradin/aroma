@@ -2,6 +2,7 @@
 
 use crate::class::{ClassInst, ClassRef};
 use crate::generic::GenericParameterBound;
+use aroma_common::nom_helpers::recognize_identifier;
 use itertools::Itertools;
 use nom::branch::alt;
 use nom::character::complete::char;
@@ -13,7 +14,6 @@ use nom::{Finish, IResult};
 use std::error::Error as StdError;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
-use aroma_common::nom_helpers::recognize_identifier;
 
 /// A type signature
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]

@@ -3,11 +3,11 @@ use crate::parser::syntactic_parser::remove_nl;
 use crate::parser::{CouldParse, Err, Parsable};
 use aroma_ast::id::Id;
 use aroma_ast::spanned::Span;
+use aroma_ast::spanned::Spanned;
 use aroma_ast::token::ToTokens;
 use aroma_ast::token::Token;
 use aroma_ast::token::TokenKind;
 use aroma_ast::token::TokenStream;
-use aroma_ast::spanned::Spanned;
 use std::io::Read;
 
 /// A variable id, an Id with a signle id
@@ -185,3 +185,6 @@ token_singleton!(Static, TokenKind::Static);
 token_singleton!(Fn, TokenKind::Fn);
 token_singleton!(Final, TokenKind::Final);
 token_singleton!(Throws, TokenKind::Throws);
+token_singleton!(Constructor, TokenKind::Constructor);
+
+token_singleton!(Namespace, TokenKind::Namespace);

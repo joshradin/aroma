@@ -75,7 +75,7 @@ struct StateFrame<'p> {
     used: VecDeque<Token<'p>>,
     ignore_nl_prev: bool,
     non_terminals_prev: Vec<&'static str>,
-    last_span_prev: Option<Span<'p>>
+    last_span_prev: Option<Span<'p>>,
 }
 
 /// Err enum used to represent recoverable and non-recoverable errors
@@ -342,9 +342,9 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
     fn apply_frame<E: std::error::Error>(&mut self, pop: StateFrame<'p>, e: E) {
         let state = std::mem::replace(&mut self.state, State::Poisoned);
         trace!(
-                    "({}) error occurred while state={state:?} -> {e:?}",
-                    self.frames.len()
-                );
+            "({}) error occurred while state={state:?} -> {e:?}",
+            self.frames.len()
+        );
         let mut v = pop.used;
         let next_state = match state {
             State::Buffered(buffered) => {
@@ -362,10 +362,10 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
         };
         self.state = next_state;
         trace!(
-                    "({}) after backtrack state={:?}",
-                    self.frames.len(),
-                    self.state
-                );
+            "({}) after backtrack state={:?}",
+            self.frames.len(),
+            self.state
+        );
         self.ignore_nl = pop.ignore_nl_prev;
         self.non_terminals = pop.non_terminals_prev;
         self.last_span = pop.last_span_prev;
@@ -431,7 +431,8 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
             State::Lookahead(t) => Some(t.span()),
             State::Buffered(vec) => vec.front().map(|t| t.span()),
             _ => None,
-        }.or(self.last_span.map(|s| s.end()));
+        }
+        .or(self.last_span.map(|s| s.end()));
         Err::Error(SyntaxError::new(
             error.into(),
             span,
@@ -503,11 +504,12 @@ mod tests {
     use super::*;
     use crate::parser::singletons::Class;
     use crate::parser::syntactic_parser::syntax_tree::expr::Expr;
-    use crate::parser::{cut, ConstantKind};
+    use crate::parser::cut;
     use aroma_ast::spanned::{Span, Spanned};
     use aroma_ast::token::{ToTokens, TokenKind};
     use std::io::Write as _;
     use tempfile::NamedTempFile;
+    use crate::parser::syntactic_parser::syntax_tree::constants::ConstantKind;
 
     pub fn test_parser<F>(s: &str, callback: F)
     where

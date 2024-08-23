@@ -2,6 +2,7 @@ use crate::field::Field;
 use crate::generic::{GenericDeclaration, GenericParameterBound, GenericParameterBounds};
 use crate::method::Method;
 use crate::vis::{Vis, Visibility};
+use aroma_common::nom_helpers::recognize_identifier;
 use itertools::Itertools;
 use nom::character::complete::char;
 use nom::combinator::{all_consuming, map, opt, recognize};
@@ -13,7 +14,6 @@ use petgraph::visit::Walker;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::str::FromStr;
-use aroma_common::nom_helpers::recognize_identifier;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum ClassKind {

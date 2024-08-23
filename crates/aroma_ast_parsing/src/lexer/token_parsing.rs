@@ -7,8 +7,8 @@ use nom::bytes::complete::{is_not, tag, take_till, take_until, take_while_m_n};
 use nom::character::complete::{alpha1, char, digit1, hex_digit1, multispace1, newline, space1};
 use nom::character::is_newline;
 use nom::combinator::{
-    all_consuming, consumed, cut, eof, map, map_opt, map_parser, map_res, peek,
-    recognize, rest, value, verify,
+    all_consuming, consumed, cut, eof, map, map_opt, map_parser, map_res, peek, recognize, rest,
+    value, verify,
 };
 use nom::error::{context, ErrorKind, FromExternalError, VerboseError};
 use nom::multi::{fold_many0, many0, many1};
@@ -158,7 +158,10 @@ fn parse_keyword(src: &str) -> Result<TokenKind> {
                 value(TokenKind::Final, all_consuming_tag("final")),
                 value(TokenKind::Throws, all_consuming_tag("throws")),
             )),
-            alt((value(TokenKind::Constructor, all_consuming_tag("constructor")),)),
+            alt((value(
+                TokenKind::Constructor,
+                all_consuming_tag("constructor"),
+            ),)),
         )),
     )(src)
 }
@@ -397,7 +400,9 @@ mod tests {
         else {
             panic!()
         };
-        let (rest, TokenKind::Constructor ) = all_consuming(parse_word)("constructor").expect("could not parser")  else {
+        let (rest, TokenKind::Constructor) =
+            all_consuming(parse_word)("constructor").expect("could not parser")
+        else {
             panic!()
         };
     }

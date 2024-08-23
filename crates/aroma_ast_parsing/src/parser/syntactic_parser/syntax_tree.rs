@@ -2,9 +2,11 @@
 
 use crate::parser::syntactic_parser::error::{ErrorKind, SyntaxError};
 use crate::parser::SyntacticParser;
-use aroma_ast::token::{ToTokens, Token, TokenKind, TokenStream};
-use std::fmt::{Debug, Formatter};
+use aroma_ast::token::ToTokens;
+use std::fmt::Debug;
 use std::io::Read;
+use aroma_ast::id::Id;
+use aroma_visitor_gen::visitor;
 
 pub mod binding;
 pub mod expr;
@@ -12,78 +14,49 @@ mod helpers;
 pub mod items;
 pub mod singletons;
 pub mod statement;
+pub mod constants;
 
-use crate::parser::expr::remove_nl;
 use crate::parser::syntactic_parser::{Err, Parsable};
 pub use helpers::*;
 
-#[derive(Debug)]
-pub enum ConstantKind {
-    Float(f64),
-    Integer(i64),
-    String(String),
-    Boolean(bool),
-    Null,
-}
+use items::*;
+use crate::parser::singletons::VarId;
 
-pub struct Constant<'p> {
-    pub kind: ConstantKind,
-    pub tok: Token<'p>,
-}
-
-impl<'p> Debug for Constant<'p> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        self.kind.fmt(f)
-    }
-}
-
-impl<'p> Parsable<'p> for Constant<'p> {
-    type Err = SyntaxError<'p>;
-
-    fn parse<R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<Self, Err<Self::Err>> {
-        parser.parse(remove_nl)?;
-        if let Some(tok) = parser.consume_if(|token| {
-            matches!(
-                token.kind(),
-                TokenKind::Float(_)
-                    | TokenKind::Integer(_)
-                    | TokenKind::Boolean(_)
-                    | TokenKind::String(_)
-                    | TokenKind::Null
-            )
-        })? {
-            match tok.kind() {
-                TokenKind::Float(f) => Ok(Constant {
-                    kind: ConstantKind::Float(*f),
-                    tok,
-                }),
-                TokenKind::Integer(f) => Ok(Constant {
-                    kind: ConstantKind::Integer(*f),
-                    tok,
-                }),
-                TokenKind::Boolean(f) => Ok(Constant {
-                    kind: ConstantKind::Boolean(*f),
-                    tok,
-                }),
-                TokenKind::String(f) => Ok(Constant {
-                    kind: ConstantKind::String(f.clone()),
-                    tok,
-                }),
-                TokenKind::Null => Ok(Constant {
-                    kind: ConstantKind::Null,
-                    tok,
-                }),
-                _ => unreachable!(),
+visitor! {
+    pub trait SyntaxTreeVisitor {
+        visit fn translation_unit(v, unit: &TranslationUnit) -> Result<()> {
+            if let Some(nd) = &unit.namespace_declaration {
+                v.visit_namespace_declaration(nd)?;
             }
-        } else {
-            let kind = ErrorKind::expected_token(["constant".to_string()], parser.consume()?);
-            Err(parser.error(kind, None))
+            for item in &unit.items {
+                v.visit_item(item)?;
+            }
+            Ok(())
         }
-    }
-}
 
-impl<'p> ToTokens<'p> for Constant<'p> {
-    fn to_tokens(&self) -> TokenStream<'p, 'p> {
-        TokenStream::from_iter([self.tok.clone()])
+        visit fn namespace_declaration(v, nd: &NamespaceDeclaration) -> Result<()> {
+            v.visit_id(&nd.id)?;
+            Ok(())
+        }
+
+        visit fn item(v, item: &Item) -> Result<()> {
+            match item {
+                Item::Class(cls) => { v.visit_class(cls)}
+                Item::Func(func) => { todo!()}
+            }
+        }
+
+        visit fn class(v, class: &ItemClass) -> Result<()> {
+
+            Ok(())
+        }
+
+        visit fn id(v, id: &Id) -> Result<()> {
+            Ok(())
+        }
+
+        visit fn var_id(v, id: &VarId) -> Result<()> {
+            v.visit_id(&id.id)
+        }
     }
 }

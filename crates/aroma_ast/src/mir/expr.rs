@@ -1,14 +1,14 @@
 //! MIR expression
 
 use crate::mir::references::{FieldRef, MethodRef};
-use crate::mir::typed::{TypeError, Typed, TypeState};
+use crate::mir::typed::{TypeError, TypeState, Typed};
 
 /// An expression
 #[derive(Debug)]
 pub enum Expr {
     Field(ExprField),
     CallMethod(ExprMethodCall),
-    CallFunction()
+    CallFunction(),
 }
 
 /// Get a field from a type

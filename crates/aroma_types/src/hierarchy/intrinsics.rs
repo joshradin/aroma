@@ -69,8 +69,6 @@ primitive_as_class!(i64 => "aroma.primitive.Long");
 primitive_as_class!(String => "aroma.lang.String");
 
 fn class() -> Class {
-    
-
     Class::new(
         Vis::Public,
         ClassKind::Concrete,
@@ -95,8 +93,6 @@ fn class() -> Class {
 }
 
 fn object() -> Class {
-    
-
     Class::new(
         Vis::Public,
         ClassKind::Concrete,
@@ -117,8 +113,6 @@ fn object() -> Class {
 }
 
 fn array() -> Class {
-    
-
     Class::new(
         Vis::Public,
         ClassKind::Concrete,

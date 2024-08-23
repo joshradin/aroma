@@ -36,7 +36,13 @@ impl Display for SyntaxError<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "syntax error: {}", self.kind)?;
         if let Some(location) = &self.location {
-            write!(f, "  -> {}", std::fs::canonicalize(location.file()).unwrap_or(location.file().to_path_buf()).to_string_lossy())?;
+            write!(
+                f,
+                "  -> {}",
+                std::fs::canonicalize(location.file())
+                    .unwrap_or(location.file().to_path_buf())
+                    .to_string_lossy()
+            )?;
             let (lines, base_line) = LineReader::new(2, 2)
                 .lines(location)
                 .map_err(|_| std::fmt::Error)?;
@@ -52,7 +58,13 @@ impl Display for SyntaxError<'_> {
                 if line.line == base_line {
                     let col = line.col;
                     if location.len() > 0 {
-                        writeln!(f, "{}{}{}", " ".repeat(width + 3), " ".repeat(col), "~".repeat(location.len()))?;
+                        writeln!(
+                            f,
+                            "{}{}{}",
+                            " ".repeat(width + 3),
+                            " ".repeat(col),
+                            "~".repeat(location.len())
+                        )?;
                     } else {
                         writeln!(f, "{}{}^", " ".repeat(width + 3), "-".repeat(col))?;
                     }
@@ -108,6 +120,8 @@ pub enum ErrorKind<'p> {
     Lex(#[from] LexingError),
     #[error("{0}")]
     Custom(&'static str),
+    #[error("Constructors can not be static")]
+    ConstructorsCanNotBeStatic,
 }
 
 impl<'p> ErrorKind<'p> {

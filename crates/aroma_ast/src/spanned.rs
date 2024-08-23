@@ -175,7 +175,7 @@ impl LineReader {
     }
 
     /// Gets the lines for a given span, plus the base line index
-    pub fn lines(&self, span: &Span<'_>) -> io::Result<(Vec<Line>, usize)>{
+    pub fn lines(&self, span: &Span<'_>) -> io::Result<(Vec<Line>, usize)> {
         let string = std::fs::read_to_string(span.file())?;
 
         let expected_line_count = 1 + self.before + self.after;
@@ -223,11 +223,10 @@ impl LineReader {
             };
             lines.push(line);
         }
-        let base_line = span_start_line.ok_or_else(|| io::Error::new(ErrorKind::UnexpectedEof, "offset out of bounds"))?;
+        let base_line = span_start_line
+            .ok_or_else(|| io::Error::new(ErrorKind::UnexpectedEof, "offset out of bounds"))?;
         let range = base_line.saturating_sub(self.before)..=base_line.saturating_add(self.after);
-        lines.retain(|line| {
-            range.contains(&line.line)
-        });
+        lines.retain(|line| range.contains(&line.line));
 
         Ok((lines, base_line))
     }

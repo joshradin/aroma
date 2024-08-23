@@ -35,11 +35,7 @@ impl Disassembler {
         writeln!(buffer, "== {} ==", func.name())?;
         writeln!(buffer, "arity: {}", func.arity())?;
         for (idx, chunk) in func.chunks().iter().enumerate() {
-            self.disassemble_chunk_to(
-                chunk,
-                &format!("{} chunk {idx}", func.name()),
-                &mut buffer,
-            )?;
+            self.disassemble_chunk_to(chunk, &format!("{} chunk {idx}", func.name()), &mut buffer)?;
         }
         buffer.flush()?;
         Ok(())

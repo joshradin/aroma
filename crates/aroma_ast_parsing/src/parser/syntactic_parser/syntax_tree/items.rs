@@ -9,6 +9,7 @@ use crate::parser::{
     cut, map, multi0, seperated_list1, singletons::*, CouldParse, ErrorKind, Parsable, Punctuated1,
     Result, SyntacticParser, SyntaxError,
 };
+use aroma_ast::id::Id;
 use aroma_ast::spanned::Spanned;
 use aroma_ast::token::{ToTokens, TokenKind};
 use log::{debug, trace};
@@ -110,6 +111,17 @@ pub struct ClassField<'p> {
     pub default_value: Option<ClassFieldDefaultValue<'p>>,
 }
 
+/// Class constructor
+#[derive(Debug, ToTokens)]
+pub struct ClassConstructor<'p> {
+    pub vis: Option<Visibility<'p>>,
+    pub constructor: Constructor<'p>,
+    pub generics: Option<GenericDeclarations<'p>>,
+    pub parameters: FnParameters<'p>,
+    pub fn_throws: Option<FnThrows<'p>>,
+    pub body: FnBody<'p>,
+}
+
 /// Class field default value
 #[derive(Debug, ToTokens)]
 pub struct ClassFieldDefaultValue<'p> {
@@ -171,7 +183,7 @@ pub enum ClassMember<'p> {
     Method(ItemFn<'p>),
     AbstractMethod(ItemAbstractFn<'p>),
     Field(ClassField<'p>),
-    Constructor(),
+    Constructor(ClassConstructor<'p>),
     Class(ItemClass<'p>),
 }
 
@@ -198,9 +210,18 @@ impl<'p> Parsable<'p> for Item<'p> {
     }
 }
 
+/// Declares the current namespace
+#[derive(Debug, ToTokens)]
+pub struct NamespaceDeclaration<'p> {
+    pub namespace: Namespace<'p>,
+    pub id: Id<'p>,
+    pub end: End<'p>,
+}
+
 /// Highest level of parsing, the translation unit consists of items
 #[derive(Debug, ToTokens)]
 pub struct TranslationUnit<'p> {
+    pub namespace_declaration: Option<NamespaceDeclaration<'p>>,
     pub items: Vec<Item<'p>>,
 }
 
@@ -210,7 +231,23 @@ impl<'p> Parsable<'p> for TranslationUnit<'p> {
     fn parse<R: Read>(
         parser: &mut SyntacticParser<'p, R>,
     ) -> std::result::Result<Self, crate::parser::Err<Self::Err>> {
-        parser.parse(map(multi0(Item::parse), |items| TranslationUnit { items }))
+        parser.parse(remove_nl)?;
+        let namespace_declaration = parser.with_ignore_nl(false, |parser| {
+            if let Some(namespace) = parser.parse_opt::<Namespace>()? {
+                let id = parser.parse(cut(Id::parse))?;
+                let end = parser.parse(End::parse)?;
+                Ok(Some(NamespaceDeclaration { namespace, id, end }))
+            } else {
+                Ok(None)
+            }
+        })?;
+
+        parser
+            .parse(multi0(Item::parse))
+            .map(|items| TranslationUnit {
+                namespace_declaration,
+                items,
+            })
     }
 }
 
@@ -244,11 +281,13 @@ fn parse_item<'p, R: Read>(parser: &mut SyntacticParser<'p, R>) -> Result<'p, It
         }
         _other => {
             let span = lookahead.span();
-            return Err(parser.error_with_span(
-                ErrorKind::expected_token(["abstract", "class", "interface", "fn"], lookahead),
-                None,
-                span,
-            ).cut());
+            return Err(parser
+                .error_with_span(
+                    ErrorKind::expected_token(["abstract", "class", "interface", "fn"], lookahead),
+                    None,
+                    span,
+                )
+                .cut());
         }
     };
     Ok(item)
@@ -362,11 +401,20 @@ fn parse_class_member<'p, R: Read>(
     parser: &mut SyntacticParser<'p, R>,
 ) -> Result<'p, ClassMember<'p>> {
     let lookahead = parser.peek()?.cloned().ok_or_else(|| {
-        parser.error(ErrorKind::expected_token(["fn", "class", "id", "final"], None), None)
+        parser.error(
+            ErrorKind::expected_token(["fn", "class", "id", "final"], None),
+            None,
+        )
     })?;
     match lookahead.kind() {
         TokenKind::Identifier(_) | TokenKind::Final => {
             parse_field(owner, visibility, is_static, parser)
+        }
+        TokenKind::Constructor if is_static.is_none() => {
+            parse_constructor(owner, visibility, parser)
+        }
+        TokenKind::Constructor if is_static.is_some() => {
+            Err(parser.error(ErrorKind::ConstructorsCanNotBeStatic, None))
         }
         TokenKind::Fn | TokenKind::Abstract => parse_method(owner, visibility, is_static, parser),
         _ => Err(parser.error(
@@ -375,7 +423,6 @@ fn parse_class_member<'p, R: Read>(
         )),
     }
 }
-
 
 fn parse_field<'p, R: Read>(
     owner: &VarId<'p>,
@@ -387,10 +434,7 @@ fn parse_field<'p, R: Read>(
     let binding = parser.parse(cut(Binding::parse))?;
     let default_value = if let Some(assign) = parser.parse_opt::<Assign>()? {
         let value = parser.parse(cut(Expr::parse))?;
-        Some(ClassFieldDefaultValue {
-            assign,
-            value,
-        })
+        Some(ClassFieldDefaultValue { assign, value })
     } else {
         None
     };
@@ -405,7 +449,6 @@ fn parse_field<'p, R: Read>(
 
     Ok(ClassMember::Field(class_field))
 }
-
 
 fn parse_method<'p, R: Read>(
     owner: &VarId<'p>,
@@ -472,6 +515,36 @@ fn parse_method<'p, R: Read>(
         };
         Ok(ClassMember::Method(fn_))
     }
+}
+
+fn parse_constructor<'p, R: Read>(
+    owner: &VarId<'p>,
+    visibility: Option<Visibility<'p>>,
+    parser: &mut SyntacticParser<'p, R>,
+) -> Result<'p, ClassMember<'p>> {
+    let constructor = parser.parse(Constructor::parse)?;
+    let generics = parser.parse(parse_generics)?;
+    let parameters = parser.parse(cut(FnParameters::parse))?;
+    let fn_throws = if Throws::could_parse(parser)? {
+        let throws = parser.parse(Throws::parse)?;
+        let types = parser.parse(Punctuated1::<Type<'p>, Comma<'p>>::parse)?;
+        Some(FnThrows { throws, types })
+    } else {
+        None
+    };
+
+    let body = FnBody {
+        body: parser.parse(StatementBlock::parse)?,
+    };
+    let class_constructor = ClassConstructor {
+        vis: visibility,
+        constructor,
+        generics,
+        parameters,
+        fn_throws,
+        body,
+    };
+    Ok(ClassMember::Constructor(class_constructor))
 }
 
 fn parse_function<'p, R: Read>(

@@ -2,11 +2,12 @@ use crate::parser::singletons::*;
 use crate::parser::statement::StatementList;
 use crate::parser::syntactic_parser::{CouldParse, Parsable};
 use crate::parser::{
-    Constant, Err, ErrorKind, Punctuated0, Punctuated1, SyntacticParser, SyntaxError,
+    Err, ErrorKind, Punctuated0, Punctuated1, SyntacticParser, SyntaxError,
 };
 use aroma_ast::id::Id;
 use aroma_ast::token::{ToTokens, TokenKind};
 use std::io::Read;
+use crate::parser::syntactic_parser::syntax_tree::constants::Constant;
 
 #[derive(Debug, ToTokens)]
 pub struct ExprUnary<'p> {

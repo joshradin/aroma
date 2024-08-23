@@ -1,7 +1,8 @@
-use aromac::{AromaC, AromaCError};
+use aromac::error::AromaCError;
+use aromac::AromaC;
+use eyre::eyre;
 use log::{error, info};
 use std::path::PathBuf;
-use eyre::eyre;
 use test_log::test;
 
 mod common;
@@ -15,13 +16,13 @@ fn test_compile_single_file() -> eyre::Result<()> {
         .build()
         .expect("could not create aromac");
 
-    let file = PathBuf::from("tests").join("aroma_files").join("simple.aroma");
+    let file = PathBuf::from("tests")
+        .join("aroma_files")
+        .join("simple.aroma");
 
-    let c= match aroma_c.compile(&*file) {
+    let c = match aroma_c.compile(&*file) {
         Ok(ok) => {}
-        Err(e) => {
-            return Err(eyre!("{e}"))
-        }
+        Err(e) => return Err(eyre!("{e}")),
     };
 
     Ok(())
