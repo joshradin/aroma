@@ -4,7 +4,9 @@ use crate::parser::binding::OptTypeBinding;
 use crate::parser::expr::{remove_nl, Expr};
 use crate::parser::singletons::*;
 use crate::parser::syntactic_parser::hir::helpers::End;
-use crate::parser::{cut, multi1, CouldParse, ErrorKind, Parsable, SyntacticParser, SyntaxError, SyntaxResult};
+use crate::parser::{
+    cut, multi1, CouldParse, ErrorKind, Parsable, SyntacticParser, SyntaxError, SyntaxResult,
+};
 use aroma_ast::token::{ToTokens, TokenKind};
 use std::io::Read;
 use std::result;
@@ -44,9 +46,7 @@ impl Statement {
 impl Parsable for Statement {
     type Err = SyntaxError;
 
-    fn parse<R: Read>(
-        parser: &mut SyntacticParser<'_, R>,
-    ) -> SyntaxResult<Self> {
+    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Self> {
         parse_statement(parser)
     }
 }
@@ -58,9 +58,7 @@ pub struct StatementList {
 impl Parsable for StatementList {
     type Err = SyntaxError;
 
-    fn parse<R: Read>(
-        parser: &mut SyntacticParser<'_, R>,
-    ) -> SyntaxResult<Self> {
+    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Self> {
         parse_statement_list(parser)
     }
 }
@@ -75,9 +73,7 @@ pub struct StatementBlock {
 impl Parsable for StatementBlock {
     type Err = SyntaxError;
 
-    fn parse<R: Read>(
-        parser: &mut SyntacticParser<'_, R>,
-    ) -> SyntaxResult<Self> {
+    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Self> {
         let lcurly = parser.parse(LCurly::parse)?;
         let list = parser.parse(StatementList::parse)?;
         let rcurly = parser.parse(RCurly::parse)?;

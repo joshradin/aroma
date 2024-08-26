@@ -6,7 +6,7 @@ use crate::generic::GenericDeclaration;
 use crate::vis::Vis;
 use std::sync::LazyLock;
 
-use crate::method::Method;
+use crate::method::MethodDeclaration;
 use paste::paste;
 
 /// Class class. All classes have a corresponding class object, and this is the
@@ -49,6 +49,8 @@ macro_rules! primitive_as_class {
                     ClassInst::new(OBJECT_CLASS.get_ref()),
                     [],
                     [],
+                    [],
+                    [],
                     []
                     )
             }
@@ -80,8 +82,7 @@ fn class() -> Class {
         ClassInst::with_generics(ClassRef::from(BASE_CLASS_NAME.to_string()), []),
         [],
         [],
-        [Method::new(
-            0,
+        [MethodDeclaration::new(
             Vis::Public,
             "getName",
             [],
@@ -89,6 +90,8 @@ fn class() -> Class {
             [],
             [],
         )],
+        [],
+        [],
     )
 }
 
@@ -109,6 +112,8 @@ fn object() -> Class {
             ),
         ],
         [],
+        [],
+        [],
     )
 }
 
@@ -122,6 +127,8 @@ fn array() -> Class {
             ClassInst::new(OBJECT_CLASS.get_ref()),
         )],
         ClassInst::new(OBJECT_CLASS.get_ref()),
+        [],
+        [],
         [],
         [],
         [],

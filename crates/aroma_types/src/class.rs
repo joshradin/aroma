@@ -1,6 +1,7 @@
+use crate::constructor::Constructor;
 use crate::field::Field;
 use crate::generic::{GenericDeclaration, GenericParameterBound, GenericParameterBounds};
-use crate::method::Method;
+use crate::method::MethodDeclaration;
 use crate::vis::{Vis, Visibility};
 use aroma_common::nom_helpers::recognize_identifier;
 use itertools::Itertools;
@@ -32,12 +33,14 @@ pub struct Class {
     super_class: Option<ClassInst>,
     mixins: Vec<ClassInst>,
     fields: Vec<Field>,
-    methods: Vec<Method>,
+    methods: Vec<MethodDeclaration>,
+    constructors: Vec<Constructor>,
+    sub_classes: Vec<Class>,
 }
 
 impl Class {
     /// Creates a new class
-    pub fn new<G, S, M, F, Me>(
+    pub fn new<G, S, M, F, Me, Co, Sub>(
         vis: Vis,
         kind: ClassKind,
         name: impl AsRef<str>,
@@ -46,13 +49,17 @@ impl Class {
         mixins: M,
         fields: F,
         methods: Me,
+        constructors: Co,
+        sub_classes: Sub,
     ) -> Self
     where
         G: IntoIterator<Item = GenericDeclaration>,
         S: Into<Option<ClassInst>>,
         M: IntoIterator<Item = ClassInst>,
         F: IntoIterator<Item = Field>,
-        Me: IntoIterator<Item = Method>,
+        Me: IntoIterator<Item =MethodDeclaration>,
+        Co: IntoIterator<Item = Constructor>,
+        Sub: IntoIterator<Item = Class>,
     {
         Self {
             vis,
@@ -63,6 +70,8 @@ impl Class {
             mixins: mixins.into_iter().collect(),
             fields: fields.into_iter().collect(),
             methods: methods.into_iter().collect(),
+            constructors: constructors.into_iter().collect(),
+            sub_classes: sub_classes.into_iter().collect(),
         }
     }
 
@@ -108,12 +117,12 @@ impl Class {
         &self.fields
     }
 
-    pub fn methods(&self) -> &[Method] {
+    pub fn methods(&self) -> &[MethodDeclaration] {
         &self.methods
     }
 
     /// Gets a mutable reference to the methods of this class.
-    pub fn methods_mut(&mut self) -> &mut Vec<Method> {
+    pub fn methods_mut(&mut self) -> &mut Vec<MethodDeclaration> {
         &mut self.methods
     }
 }

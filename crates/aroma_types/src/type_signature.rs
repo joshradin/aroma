@@ -12,13 +12,14 @@ use nom::multi::{separated_list0, separated_list1};
 use nom::sequence::{delimited, preceded, tuple};
 use nom::{Finish, IResult};
 use std::error::Error as StdError;
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::str::FromStr;
 
 /// A type signature
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Eq, PartialEq, Hash, Default)]
 pub enum TypeSignature {
     Never,
+    #[default]
     Void,
     Boolean,
     Byte,
@@ -33,7 +34,7 @@ pub enum TypeSignature {
     Array(Box<TypeSignature>),
 }
 
-impl Display for TypeSignature {
+impl Debug for TypeSignature {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             TypeSignature::Never => {
@@ -92,6 +93,12 @@ impl Display for TypeSignature {
                 write!(f, "[{a}")
             }
         }
+    }
+}
+
+impl Display for TypeSignature {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        Debug::fmt(self, f)
     }
 }
 

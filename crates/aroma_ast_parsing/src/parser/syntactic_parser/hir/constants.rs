@@ -1,10 +1,10 @@
-use std::fmt::{Debug, Formatter};
 use aroma_ast::token::{ToTokens, Token, TokenKind, TokenStream};
+use std::fmt::{Debug, Formatter};
 use std::io::Read;
 use std::result;
 
-use crate::parser::{ErrorKind, Parsable, SyntacticParser, SyntaxError, Err};
 use crate::parser::expr::remove_nl;
+use crate::parser::{Err, ErrorKind, Parsable, SyntacticParser, SyntaxError};
 
 #[derive(Debug)]
 pub enum ConstantKind {

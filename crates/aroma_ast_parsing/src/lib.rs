@@ -1,7 +1,8 @@
 #![doc = include_str!("../README.md")]
 
-use crate::parser::items::TranslationUnit;
 use crate::parser::{Err, Parsable, SyntacticParser};
+use aroma_ast::mir::translation_unit::TranslationUnit;
+use parser::transforms::{transform, Transformer};
 use std::path::Path;
 
 pub mod lexer;
@@ -13,9 +14,14 @@ pub mod type_resolution;
 /// This creates the baseline AST for aroma source code.
 pub fn parse_file(path: &Path) -> Result<TranslationUnit, parser::SyntaxError> {
     let mut parser = SyntacticParser::with_file(path)?;
-    let unit = parser.parse(TranslationUnit::parse).map_err(|e| match e {
-        Err::Error(e) => e,
-        Err::Failure(e) => e,
-    })?;
-    Ok(unit)
+    let unit = parser
+        .parse(parser::translation_unit::TranslationUnit::parse)
+        .map_err(|e| match e {
+            Err::Error(e) => e,
+            Err::Failure(e) => e,
+        })?;
+
+    let translated = transform(unit)?;
+
+    Ok(translated)
 }

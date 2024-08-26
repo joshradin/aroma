@@ -33,6 +33,12 @@ impl Parsable for VarId {
     }
 }
 
+impl AsRef<str> for VarId {
+    fn as_ref(&self) -> &str {
+        self.id.most_specific()
+    }
+}
+
 macro_rules! token_singleton {
     ($ty:ident, $($pat:tt)*) => {
         #[derive(Debug)]
@@ -189,3 +195,4 @@ token_singleton!(Throws, TokenKind::Throws);
 token_singleton!(Constructor, TokenKind::Constructor);
 
 token_singleton!(Namespace, TokenKind::Namespace);
+token_singleton!(Import, TokenKind::Import);

@@ -5,7 +5,8 @@ use crate::parser::singletons::{
     Colon, Comma, In, LBracket, LParen, Out, QMark, RBracket, RParen, VarId,
 };
 use crate::parser::{
-    cut, CouldParse, ErrorKind, Parsable, Punctuated0, Punctuated1, SyntacticParser, SyntaxError, SyntaxResult
+    cut, CouldParse, ErrorKind, Parsable, Punctuated0, Punctuated1, SyntacticParser, SyntaxError,
+    SyntaxResult,
 };
 use aroma_ast::id::Id;
 use aroma_ast::token::{ToTokens, TokenKind};
@@ -167,9 +168,7 @@ pub struct GenericParameters {
 impl Parsable for GenericParameters {
     type Err = SyntaxError;
 
-    fn parse<R: Read>(
-        parser: &mut SyntacticParser<'_, R>,
-    ) -> SyntaxResult<Self> {
+    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Self> {
         let lbracket = parser.parse(LBracket::parse)?;
         let generics = {
             if !RBracket::could_parse(parser)? {

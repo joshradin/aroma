@@ -2,7 +2,8 @@
 
 mod syntactic_parser;
 
+pub(crate) use syntactic_parser::hir::*;
 pub use syntactic_parser::{
-    hir::*, CouldParse, Err, ErrorKind, Parsable, Parser, SyntaxResult, SyntacticParser,
-    SyntaxError,
+    transforms, CouldParse, Err, ErrorKind, Parsable, Parser, SyntacticParser, SyntaxError,
+    SyntaxResult,
 };

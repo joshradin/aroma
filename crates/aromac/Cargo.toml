@@ -24,8 +24,10 @@ regex = { workspace = true }
 num_cpus = { workspace = true }
 itertools.workspace = true
 parking_lot.workspace = true
+derive_more.workspace = true
 aroma_ast_parsing = { version = "0.0.0", path = "../aroma_ast_parsing" }
 aroma_ast = { version = "0.0.0", path = "../aroma_ast" }
+aroma_types = { version = "0.0.0", path = "../aroma_types" }
 
 
 [dev-dependencies]

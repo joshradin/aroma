@@ -1,9 +1,9 @@
 //! A lexical token from a source file, along with streams for said token
 
-use std::collections::VecDeque;
 use crate::spanned::{Span, Spanned};
 #[cfg(feature = "derive")]
 pub use aroma_ast_derive::ToTokens;
+use std::collections::VecDeque;
 use std::fmt::{Debug, Formatter};
 use std::iter;
 
@@ -24,8 +24,6 @@ impl Token {
     pub fn kind(&self) -> &TokenKind {
         &self.kind
     }
-
-
 }
 
 impl Debug for Token {
@@ -133,6 +131,7 @@ pub enum TokenKind {
     Final,
     Throws,
     Constructor,
+    Import,
 }
 
 /// A stream of tokens
@@ -164,7 +163,6 @@ impl TokenStream {
         TokenStream::from_iter(iter::empty())
     }
 }
-
 
 /// A trait to convert something to an iterator of tokens
 pub trait ToTokens {

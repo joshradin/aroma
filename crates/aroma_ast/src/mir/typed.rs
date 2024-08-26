@@ -1,19 +1,41 @@
 //! typing information traits
 
+use aroma_types::type_signature::TypeSignature;
+
+/// Represents some object with type information
+pub trait TypeInfo: Clone {
+    /// Gets the type signature
+    fn signature(&self) -> TypeSignature;
+}
+
 /// Gets the type of the node within the tree
-pub trait Typed<T, E = TypeError> {
+pub trait Typed<T: TypeInfo, E: Clone = TypeError> {
     /// Gets the type
     fn get_type(&self) -> TypeState<&T, &E>;
 }
 
 /// Gets a type reference that's mutable
-pub trait TypedMut<T, E = TypeError>: Typed<T, E> {
+pub trait TypedMut<T: TypeInfo, E: Clone = TypeError>: Typed<T, E> {
     /// Gets the type
     fn get_type_mut(&mut self) -> &mut TypeState<T, E>;
 
     /// Set the type for this object
     fn set_type(&mut self, ty: T) {
         *self.get_type_mut() = TypeState::Available(ty);
+    }
+
+    /// Sets the type for this object based on another
+    fn clone_type_from<O: Typed<T, E2>, E2>(&mut self, other: O)
+    where
+        E2: Into<E> + Clone,
+    {
+        match other.get_type() {
+            TypeState::Unavailable => {}
+            TypeState::Available(t) => {
+                self.set_type(t.clone());
+            }
+            TypeState::Err(e) => self.set_err(e.clone().into()),
+        }
     }
 
     /// Sets an error for this object
@@ -62,7 +84,7 @@ impl<T: Clone, E: Clone> TypeState<&T, &E> {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum TypeError {
     #[error("Could not resolve identifier {0:?}")]
     IdentifierNotResolved(String),

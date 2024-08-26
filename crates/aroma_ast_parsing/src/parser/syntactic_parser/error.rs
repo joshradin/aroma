@@ -1,6 +1,7 @@
 use crate::lexer::LexingError;
 use aroma_ast::spanned::{LineReader, Span};
 use aroma_ast::token::Token;
+use aroma_types::class::{ClassInst, ClassRef};
 use std::fmt::{Display, Formatter};
 use std::io;
 
@@ -122,6 +123,8 @@ pub enum ErrorKind {
     Custom(&'static str),
     #[error("Constructors can not be static")]
     ConstructorsCanNotBeStatic,
+    #[error("Can not declare {0:} as abstract in concrete class {1:?}")]
+    AbstractMethodInConcreteClass(String, ClassRef),
 }
 
 impl ErrorKind {

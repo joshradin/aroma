@@ -5,33 +5,33 @@ use crate::generic::GenericDeclaration;
 use crate::vis::{Vis, Visibility};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use crate::type_signature::TypeSignature;
 
 pub type MethodId = u64;
 
 #[derive(Clone, Debug)]
-pub struct Method {
+pub struct MethodDeclaration {
     id: Arc<AtomicU64>,
     vis: Vis,
     name: String,
     generic_declaration: Vec<GenericDeclaration>,
-    return_type: Option<ClassInst>,
+    return_type: TypeSignature,
     parameters: Vec<Parameter>,
     throws: Vec<ClassInst>,
 }
 
-impl Method {
+impl MethodDeclaration {
     /// Create a new method
     pub fn new(
-        id: MethodId,
         vis: Vis,
         name: impl AsRef<str>,
         generic_declaration: impl IntoIterator<Item = GenericDeclaration>,
-        return_type: impl Into<Option<ClassInst>>,
+        return_type: impl Into<TypeSignature>,
         parameters: impl IntoIterator<Item = Parameter>,
         throws: impl IntoIterator<Item = ClassInst>,
     ) -> Self {
         Self {
-            id: Arc::new(AtomicU64::new(id)),
+            id: Arc::new(AtomicU64::new(0)),
             vis,
             name: name.as_ref().to_string(),
             generic_declaration: generic_declaration.into_iter().collect(),
@@ -58,8 +58,8 @@ impl Method {
         &self.generic_declaration
     }
 
-    pub fn return_type(&self) -> Option<&ClassInst> {
-        self.return_type.as_ref()
+    pub fn return_type(&self) -> &TypeSignature {
+        &self.return_type
     }
 
     pub fn parameters(&self) -> &[Parameter] {
@@ -71,7 +71,7 @@ impl Method {
     }
 }
 
-impl Visibility for Method {
+impl Visibility for MethodDeclaration {
     fn visibility(&self) -> Vis {
         self.vis
     }
@@ -84,5 +84,5 @@ impl Visibility for Method {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Parameter {
     pub name: String,
-    pub class: ClassInst,
+    pub signature: TypeSignature,
 }

@@ -7,14 +7,17 @@ use crate::parser::statement::StatementBlock;
 use crate::parser::syntactic_parser::hir::helpers::End;
 use crate::parser::{
     cut, map, multi0, seperated_list1, singletons::*, CouldParse, ErrorKind, Parsable, Punctuated1,
-    SyntaxResult, SyntacticParser, SyntaxError,
+    SyntacticParser, SyntaxError, SyntaxResult,
 };
 use aroma_ast::id::Id;
 use aroma_ast::spanned::Spanned;
 use aroma_ast::token::{ToTokens, TokenKind};
+use aroma_types::vis::Vis;
 use log::{debug, trace};
 use std::io::Read;
 use std::result;
+use aroma_types::class::AsClassRef;
+use aroma_types::hierarchy::intrinsics::OBJECT_CLASS;
 
 #[derive(Debug, ToTokens)]
 pub enum Visibility {
@@ -61,6 +64,22 @@ impl CouldParse for Visibility {
     }
 }
 
+impl From<Visibility> for Vis {
+    fn from(value: Visibility) -> Self {
+        Vis::from(&value)
+    }
+}
+
+impl From<&Visibility> for Vis {
+    fn from(value: &Visibility) -> Self {
+        match value {
+            Visibility::Public(_) => Vis::Public,
+            Visibility::Protected(_) => Vis::Protected,
+            Visibility::Private(_) => Vis::Private,
+        }
+    }
+}
+
 /// Generic declarations
 #[derive(Debug, ToTokens)]
 pub struct GenericDeclarations {
@@ -75,13 +94,22 @@ pub struct GenericDeclaration {
     pub bound: Option<Type>,
 }
 
+impl Into<aroma_types::generic::GenericDeclaration> for &GenericDeclaration {
+    fn into(self) -> aroma_types::generic::GenericDeclaration {
+        aroma_types::generic::GenericDeclaration::new(
+            &self.id,
+            self.bound.as_ref().map(|b| b.as_class_inst()).unwrap_or(OBJECT_CLASS.as_class_ref().into())
+        )
+    }
+}
+
 /// A class declaration
 #[derive(Debug, ToTokens)]
 pub struct ItemClass {
     pub vis: Option<Visibility>,
     pub abstract_tok: Option<Abstract>,
     pub class: Class,
-    pub id: VarId,
+    pub ident: VarId,
     pub generics: Option<GenericDeclarations>,
     pub extends: Option<ClassExtends>,
     pub implements: Option<ClassImplements>,
@@ -136,9 +164,9 @@ pub struct ItemFn {
     pub vis: Option<Visibility>,
     pub static_tok: Option<Static>,
     pub fn_tok: Fn,
-    pub id: VarId,
+    pub ident: VarId,
     pub generics: Option<GenericDeclarations>,
-    pub parameters: FnParameters,
+    pub fn_parameters: FnParameters,
     pub fn_return: Option<FnReturn>,
     pub fn_throws: Option<FnThrows>,
     pub body: FnBody,
@@ -208,47 +236,6 @@ impl Parsable for Item {
 
     fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Self> {
         parse_item(parser)
-    }
-}
-
-/// Declares the current namespace
-#[derive(Debug, ToTokens)]
-pub struct NamespaceDeclaration {
-    pub namespace: Namespace,
-    pub id: Id,
-    pub end: End,
-}
-
-/// Highest level of parsing, the translation unit consists of items
-#[derive(Debug, ToTokens)]
-pub struct TranslationUnit {
-    pub namespace_declaration: Option<NamespaceDeclaration>,
-    pub items: Vec<Item>,
-}
-
-impl Parsable for TranslationUnit {
-    type Err = SyntaxError;
-
-    fn parse<R: Read>(
-        parser: &mut SyntacticParser<'_, R>,
-    ) -> SyntaxResult<Self> {
-        parser.parse(remove_nl)?;
-        let namespace_declaration = parser.with_ignore_nl(false, |parser| {
-            if let Some(namespace) = parser.parse_opt::<Namespace>()? {
-                let id = parser.parse(cut(Id::parse))?;
-                let end = parser.parse(End::parse)?;
-                Ok(Some(NamespaceDeclaration { namespace, id, end }))
-            } else {
-                Ok(None)
-            }
-        })?;
-
-        parser
-            .parse(multi0(Item::parse))
-            .map(|items| TranslationUnit {
-                namespace_declaration,
-                items,
-            })
     }
 }
 
@@ -334,7 +321,7 @@ fn parse_class<R: Read>(
         vis: visibility,
         abstract_tok,
         class,
-        id,
+        ident: id,
         generics,
         extends,
         implements,
@@ -507,9 +494,9 @@ fn parse_method<R: Read>(
             vis: visibility,
             static_tok: is_static,
             fn_tok,
-            id: name,
+            ident: name,
             generics,
-            parameters,
+            fn_parameters: parameters,
             fn_return,
             fn_throws,
             body,
@@ -579,9 +566,9 @@ fn parse_function<R: Read>(
         vis: visibility,
         static_tok: None,
         fn_tok,
-        id: name,
+        ident: name,
         generics,
-        parameters,
+        fn_parameters: parameters,
         fn_return,
         fn_throws,
         body,

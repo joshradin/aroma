@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 /// Constructors are specialty methods that have no return type
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Constructor {
     id: Arc<AtomicU64>,
     vis: Vis,

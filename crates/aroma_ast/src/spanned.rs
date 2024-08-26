@@ -20,7 +20,6 @@ pub struct Span {
     path: Arc<Path>,
     offset: usize,
     len: usize,
-
 }
 
 impl Span {
@@ -60,7 +59,6 @@ impl Span {
         }
         Self::new(path, offset, 0)
     }
-
 
     /// Gets a span directly after this span
     pub fn end(&self) -> Self {

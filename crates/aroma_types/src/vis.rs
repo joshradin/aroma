@@ -1,6 +1,7 @@
 /// Visibility of a type
-#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default)]
 pub enum Vis {
+    #[default]
     Public,
     Protected,
     Private,

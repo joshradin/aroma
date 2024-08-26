@@ -158,10 +158,10 @@ fn parse_keyword(src: &str) -> Result<TokenKind> {
                 value(TokenKind::Final, all_consuming_tag("final")),
                 value(TokenKind::Throws, all_consuming_tag("throws")),
             )),
-            alt((value(
-                TokenKind::Constructor,
-                all_consuming_tag("constructor"),
-            ),)),
+            alt((
+                value(TokenKind::Constructor, all_consuming_tag("constructor")),
+                value(TokenKind::Import, all_consuming_tag("import")),
+            )),
         )),
     )(src)
 }

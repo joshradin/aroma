@@ -11,6 +11,13 @@ pub struct Punctuated1<T, P> {
     pub punctuated: Vec<(T, Option<P>)>,
 }
 
+impl<T, P> Punctuated1<T, P> {
+    /// Gets the items in this
+    pub fn items(&self) -> Vec<&T> {
+        self.punctuated.iter().map(|i| &i.0).collect()
+    }
+}
+
 impl<T, P> Default for Punctuated1<T, P> {
     fn default() -> Self {
         Self { punctuated: vec![] }
@@ -72,6 +79,13 @@ where
 #[derive(Debug)]
 pub struct Punctuated0<T, P> {
     pub punctuated: Vec<(T, Option<P>)>,
+}
+
+impl<T, P> Punctuated0<T, P> {
+    /// Gets the items in this
+    pub fn items(&self) -> Vec<&T> {
+        self.punctuated.iter().map(|i| &i.0).collect()
+    }
 }
 
 impl<T, P> From<Punctuated1<T, P>> for Punctuated0<T, P> {
@@ -287,9 +301,7 @@ impl CouldParse for End {
 impl Parsable for End {
     type Err = SyntaxError;
 
-    fn parse<R: Read>(
-        parser: &mut SyntacticParser<'_, R>,
-    ) -> SyntaxResult<Self> {
+    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Self> {
         let p = parser
             .consume()?
             .ok_or_else(|| parser.error(ErrorKind::UnexpectedEof, None))?;

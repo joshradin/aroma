@@ -156,7 +156,8 @@ pub fn derive_to_tokens(tokens: TokenStream) -> TokenStream {
                         }
                     }
                 }
-            ).into()
+            )
+            .into()
         }
         Data::Union(_) => syn::Error::new(derive_input.span(), "unions not supported")
             .into_compile_error()

@@ -12,6 +12,7 @@ use std::result;
 
 pub mod error;
 pub mod hir;
+pub mod transforms;
 
 use crate::parser::expr::remove_nl;
 use crate::parser::singletons::{Dot, VarId};
@@ -278,10 +279,7 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
 
     /// Wrapper function for parsing an item
     #[inline]
-    pub fn parse<O, E, P: Parser<R, O, E>>(
-        &mut self,
-        mut parser: P,
-    ) -> result::Result<O, Err<E>>
+    pub fn parse<O, E, P: Parser<R, O, E>>(&mut self, mut parser: P) -> result::Result<O, Err<E>>
     where
         E: std::error::Error,
     {
@@ -483,9 +481,7 @@ impl Parsable for Id {
     }
 }
 impl CouldParse for Id {
-    fn could_parse<R: Read>(
-        parser: &mut SyntacticParser<R>,
-    ) -> SyntaxResult<bool> {
+    fn could_parse<R: Read>(parser: &mut SyntacticParser<R>) -> SyntaxResult<bool> {
         Ok(parser
             .peek()?
             .map(|t| matches!(t.kind(), TokenKind::Identifier(_)))
@@ -502,14 +498,14 @@ impl<'p, R: Read> From<Lexer<'p, R>> for SyntacticParser<'p, R> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::parser::constants::{Constant, ConstantKind};
+    use crate::parser::cut;
     use crate::parser::singletons::Class;
     use crate::parser::syntactic_parser::hir::expr::Expr;
-    use crate::parser::cut;
     use aroma_ast::spanned::{Span, Spanned};
     use aroma_ast::token::{ToTokens, TokenKind};
     use std::io::Write as _;
     use tempfile::NamedTempFile;
-    use crate::parser::constants::{Constant, ConstantKind};
 
     pub fn test_parser<F>(s: &str, callback: F)
     where

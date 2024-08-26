@@ -1,11 +1,15 @@
 //! General compile job
 
 use super::error::*;
+use crate::compiler::compile_job::passes::declaration_discovery::{
+    find_declarations, CreateIdentifierError,
+};
 use aroma_ast::id::Id;
+use aroma_ast::mir::translation_unit::TranslationUnit;
 use aroma_ast_parsing::parse_file;
-use aroma_ast_parsing::parser::items::TranslationUnit;
 use aroma_ast_parsing::parser::SyntaxError;
 use aroma_ast_parsing::type_resolution::Bindings;
+use itertools::Itertools as _;
 use log::{debug, info};
 use parking_lot::RwLock;
 use std::collections::HashSet;
@@ -18,8 +22,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::sync::Arc;
 use std::thread::{Scope, ScopedJoinHandle};
-use crate::compiler::compile_job::passes::id_creation::{create_identifiers, CreateIdentifierError};
-use itertools::Itertools as _;
 
 pub mod passes;
 
@@ -45,8 +47,7 @@ impl CompileJob {
     pub fn start<'scope>(
         scope: &'scope Scope<'scope, '_>,
         path: &'scope Path,
-    ) -> CompileJobHandle<'scope>
-    {
+    ) -> CompileJobHandle<'scope> {
         let status = Arc::new(RwLock::new(CompileJobStatus::NotStarted));
         let bindings = SharedBindings::default();
         let id =
@@ -97,7 +98,7 @@ impl CompileJob {
     fn run(&mut self, path: &Path) -> StdResult<(), CompileError> {
         *self.status.write() = CompileJobStatus::Parsing;
         let u = parse_file(path)?;
-        debug!("compiled {:?} to {} units", path, u.items.len());
+        // debug!("compiled {:?} to {} units", path, u.items.len());
         self.state = Some(CompileJobState::Parsed(u));
         *self.status.write() = CompileJobStatus::Parsed;
 
@@ -130,16 +131,13 @@ impl CompileJob {
         if let Some(state) = self.state.take() {
             let next_state: Option<CompileJobState> = match state {
                 CompileJobState::Done => None,
-                CompileJobState::Parsed(unit) => {
-                    Some(create_identifiers(self, unit)?)
-                }
+                CompileJobState::Parsed(unit) => Some(find_declarations(self, unit)?),
                 CompileJobState::IdentifiersCreated(_) => {
                     todo!()
                 }
                 CompileJobState::WaitingForIdentifiers(_, _) => {
                     todo!()
                 }
-
             };
             if let Some(next_state) = next_state {
                 *self.status.write() = next_state.status();
@@ -256,5 +254,3 @@ pub enum CompileError {
     #[error("job was cancelled")]
     Cancelled,
 }
-
-

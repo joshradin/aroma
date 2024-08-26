@@ -101,7 +101,6 @@ impl Id {
     pub fn join<S: AsRef<str> + ?Sized>(&self, other: &S) -> Self {
         self.concat(&Id::new_call_site([other]).unwrap())
     }
-
 }
 impl Debug for Id {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
