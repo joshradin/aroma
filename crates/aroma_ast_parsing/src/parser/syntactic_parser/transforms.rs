@@ -1,11 +1,9 @@
 //! transforms for converting the hir to mir
 
-mod to_fqi;
 mod to_mir;
 mod transform_combinators;
 
 use crate::parser::syntactic_parser::hir::translation_unit::TranslationUnit as ParsedTranslationUnit;
-use crate::parser::transforms::to_fqi::to_fqi;
 use crate::parser::transforms::to_mir::to_mir;
 use crate::parser::SyntaxError;
 use aroma_ast::mir::translation_unit::TranslationUnit;
@@ -14,7 +12,7 @@ pub use transform_combinators::*;
 
 /// The full transform sequence
 pub fn transform(translation_unit: ParsedTranslationUnit) -> Result<TranslationUnit, SyntaxError> {
-    to_mir.and_then(to_fqi).transform(translation_unit)
+    to_mir(translation_unit)
 }
 
 /// A basic transform trait

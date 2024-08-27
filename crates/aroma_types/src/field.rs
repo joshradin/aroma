@@ -1,8 +1,9 @@
+use std::fmt::{Debug, Formatter};
 use crate::class::ClassInst;
 use crate::vis::{Vis, Visibility};
 
 /// A field in a class
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Field {
     vis: Vis,
     name: String,
@@ -46,6 +47,12 @@ impl Field {
 
     pub fn is_final(&self) -> bool {
         self.is_final
+    }
+}
+
+impl Debug for Field {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}({}: {})", self.vis, self.name, self.kind)
     }
 }
 

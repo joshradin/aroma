@@ -10,7 +10,7 @@ use crate::parser::{
 };
 use aroma_ast::id::Id;
 use aroma_ast::token::{ToTokens, TokenKind};
-use aroma_types::class::{ClassInst, ClassRef};
+use aroma_types::class::{Class, ClassInst, ClassRef};
 use aroma_types::generic::GenericParameterBound;
 use aroma_types::type_signature::TypeSignature;
 use std::io::Read;

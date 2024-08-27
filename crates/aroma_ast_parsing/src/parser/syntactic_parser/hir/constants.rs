@@ -65,7 +65,8 @@ impl Parsable for Constant {
                 _ => unreachable!(),
             }
         } else {
-            let kind = ErrorKind::expected_token(["constant".to_string()], parser.consume()?);
+            let kind =
+                ErrorKind::expected_token(["{int}", "{float}", "true", "false", "null"], parser.consume()?);
             Err(parser.error(kind, None))
         }
     }

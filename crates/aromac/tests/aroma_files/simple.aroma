@@ -2,14 +2,9 @@ namespace simple.system
 import aroma.system.Object
 
 public class Box[T] {
-    private data: T
-    private alive: Bool
+    private data: T;
 
-    public constructor(data: T?) throws InvalidDataException {
-    }
-
-    protected constructor(data: T) {
-
+    public constructor(data: T) {
     }
 
     public fn getData() -> T {
@@ -17,7 +12,11 @@ public class Box[T] {
     }
 
     public fn setData(data: T) {
-        // this.data = data;
+        this.data = data;
+    }
+
+    public static fn box[T](data: T) -> Box[T] {
+        return Box(data);
     }
 }
 

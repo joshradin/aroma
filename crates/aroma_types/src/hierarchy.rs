@@ -57,6 +57,7 @@ impl ClassHierarchy {
     ///
     /// If successful, a class ref is returned
     pub fn insert(&mut self, class: Class) -> Result<ClassRef> {
+        let generics = class.generics().iter().map(|g| g.id()).collect::<Vec<_>>();
         if let Some(super_class) = class.super_class() {
             if !self.contains(super_class.as_ref()) {
                 return Err(Error::ClassNotDefined(super_class.as_ref().clone()));
@@ -69,13 +70,24 @@ impl ClassHierarchy {
                 return Err(Error::ClassNotDefined(mixin.as_ref().clone()));
             }
         }
+
+        for generic in class.generics() {
+            let bound = generic.bound();
+            if !generics.contains(&bound.class_ref().as_ref()) && !self.contains(bound.class_ref())
+            {
+                return Err(Error::ClassNotDefined(bound.as_ref().clone()));
+            }
+        }
+
         for field in class.fields() {
-            if !self.contains(field.kind().as_ref()) {
+            if !generics.contains(&field.kind().class_ref().as_ref())
+                && !self.contains(field.kind().as_ref())
+            {
                 return Err(Error::ClassNotDefined(field.kind().as_ref().clone()));
             }
         }
         for method in class.methods() {
-            // if !self.contains(method.return_type.as_ref()) {
+            // if !self.contains(ClassInst::try_from(method.return_type())?) {
             //     return Err(Error::ClassNotDefined(return_type.as_ref().clone()));
             // }
         }

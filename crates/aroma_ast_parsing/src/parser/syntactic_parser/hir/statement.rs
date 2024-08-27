@@ -8,24 +8,25 @@ use crate::parser::{
     cut, multi1, CouldParse, ErrorKind, Parsable, SyntacticParser, SyntaxError, SyntaxResult,
 };
 use aroma_ast::token::{ToTokens, TokenKind};
+use log::debug;
 use std::io::Read;
-use std::result;
 
 /// General statement types
 #[derive(Debug, ToTokens)]
 pub enum Statement {
-    Let(StatementLet),
-    Const(StatementConst),
-    Expr(StatementExpr),
-    Block(StatementBlock),
-    If(StatementIf),
-    While(StatementWhile),
-    Loop(StatementLoop),
-    Return(StatementReturn),
-    Break(StatementBreak),
-    Continue(StatementContinue),
-    Match(StatementMatch),
-    TryCatch(StatementTryCatch),
+    Let(LetStatement),
+    Const(ConstStatement),
+    Assign(AssignStatement),
+    Expr(ExprStatement),
+    Block(BlockStatement),
+    If(IfStatement),
+    While(WhileStatemeny),
+    Loop(LookStatement),
+    Return(ReturnStatement),
+    Break(BreakStatement),
+    Continue(ContinueStatement),
+    Match(MatchStatement),
+    TryCatch(TryCatchStatement),
 }
 
 impl Statement {
@@ -64,20 +65,20 @@ impl Parsable for StatementList {
 }
 /// A block of statements
 #[derive(Debug, ToTokens)]
-pub struct StatementBlock {
+pub struct BlockStatement {
     pub lcurly: LCurly,
     pub list: StatementList,
     pub rcurly: RCurly,
 }
 
-impl Parsable for StatementBlock {
+impl Parsable for BlockStatement {
     type Err = SyntaxError;
 
     fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Self> {
         let lcurly = parser.parse(LCurly::parse)?;
         let list = parser.parse(StatementList::parse)?;
         let rcurly = parser.parse(RCurly::parse)?;
-        Ok(StatementBlock {
+        Ok(BlockStatement {
             lcurly,
             list,
             rcurly,
@@ -86,7 +87,7 @@ impl Parsable for StatementBlock {
 }
 
 #[derive(Debug, ToTokens)]
-pub struct StatementLet {
+pub struct LetStatement {
     pub let_tok: Let,
     pub binding: OptTypeBinding,
     pub assign: Assign,
@@ -95,7 +96,7 @@ pub struct StatementLet {
 }
 
 #[derive(Debug, ToTokens)]
-pub struct StatementConst {
+pub struct ConstStatement {
     pub const_tok: Const,
     pub binding: OptTypeBinding,
     pub assign: Assign,
@@ -103,9 +104,17 @@ pub struct StatementConst {
     pub end: End,
 }
 
+#[derive(Debug, ToTokens)]
+pub struct AssignStatement {
+    pub lvalue: Expr,
+    pub assign: Assign,
+    pub rvalue: Expr,
+    pub end: End,
+}
+
 /// If statement
 #[derive(Debug, ToTokens)]
-pub struct StatementIf {
+pub struct IfStatement {
     pub if_tok: If,
     pub lparen: LParen,
     pub condition: Expr,
@@ -116,7 +125,7 @@ pub struct StatementIf {
 
 /// while statement
 #[derive(Debug, ToTokens)]
-pub struct StatementWhile {
+pub struct WhileStatemeny {
     pub while_tok: While,
     pub lparen: LParen,
     pub condition: Expr,
@@ -136,9 +145,9 @@ pub struct StatementFor {
 
 /// for statement
 #[derive(Debug, ToTokens)]
-pub struct StatementLoop {
+pub struct LookStatement {
     pub loop_tok: Loop,
-    pub block: Box<StatementBlock>,
+    pub block: Box<BlockStatement>,
 }
 
 #[derive(Debug, ToTokens)]
@@ -149,32 +158,32 @@ pub struct ElseBlock {
 
 /// A statement consisting of a single expression that must ultimately be a function call.
 #[derive(Debug, ToTokens)]
-pub struct StatementExpr {
+pub struct ExprStatement {
     pub expr: Expr,
     pub end: Option<End>,
 }
 
 #[derive(Debug, ToTokens)]
-pub struct StatementReturn {
+pub struct ReturnStatement {
     pub ret: Return,
     pub expr: Option<Expr>,
     pub end: End,
 }
 
 #[derive(Debug, ToTokens)]
-pub struct StatementBreak {
+pub struct BreakStatement {
     pub break_tok: Break,
     pub end: End,
 }
 
 #[derive(Debug, ToTokens)]
-pub struct StatementContinue {
+pub struct ContinueStatement {
     pub break_tok: Break,
     pub end: End,
 }
 
 #[derive(Debug, ToTokens)]
-pub struct StatementMatch {
+pub struct MatchStatement {
     pub match_tok: Match,
     pub lparen: LParen,
     pub condition: Expr,
@@ -182,9 +191,9 @@ pub struct StatementMatch {
 }
 
 #[derive(Debug, ToTokens)]
-pub struct StatementTryCatch {
+pub struct TryCatchStatement {
     pub try_tok: Try,
-    pub statement_block: StatementBlock,
+    pub statement_block: BlockStatement,
     pub catches: Vec<CatchBlock>,
 }
 
@@ -194,21 +203,22 @@ pub struct CatchBlock {
     pub lparen: LParen,
     pub binding: OptTypeBinding,
     pub rparen: RParen,
-    pub statement_block: StatementBlock,
+    pub statement_block: BlockStatement,
 }
 
 /// Parse a statement block
 fn parse_statement_list<'p, R: Read>(
     parser: &mut SyntacticParser<R>,
-) -> crate::parser::SyntaxResult<StatementList> {
+) -> SyntaxResult<StatementList> {
     let mut list = vec![];
     parser.with_ignore_nl(false, |parser| {
         loop {
-            if let Some(statement) = parser.try_parse(Statement::parse)? {
-                list.push(statement);
-            } else {
+            while parser.parse_opt::<End>()?.is_some() {}
+            if RCurly::could_parse(parser)? {
                 break;
             }
+            let statement = parser.parse(Statement::parse)?;
+            list.push(statement);
         }
         Ok(())
     })?;
@@ -258,7 +268,7 @@ fn parse_statement<'p, R: Read>(
             let val = parser.parse(cut(Expr::parse))?;
             let end = parser.parse(cut(End::parse))?;
 
-            Statement::Let(StatementLet {
+            Statement::Let(LetStatement {
                 let_tok,
                 binding,
                 assign,
@@ -273,7 +283,7 @@ fn parse_statement<'p, R: Read>(
             let val = parser.parse(cut(Expr::parse))?;
             let end = parser.parse(cut(End::parse))?;
 
-            Statement::Const(StatementConst {
+            Statement::Const(ConstStatement {
                 const_tok,
                 binding,
                 assign,
@@ -309,7 +319,7 @@ fn parse_statement<'p, R: Read>(
                     else_stmt: Box::new(else_stmt),
                 })
             })?;
-            Statement::If(StatementIf {
+            Statement::If(IfStatement {
                 if_tok,
                 lparen,
                 condition,
@@ -325,7 +335,7 @@ fn parse_statement<'p, R: Read>(
             let rparen = parser.parse(RParen::parse)?;
 
             let then_stmt = parser.parse(Statement::parse)?;
-            Statement::While(StatementWhile {
+            Statement::While(WhileStatemeny {
                 while_tok,
                 lparen,
                 condition,
@@ -335,21 +345,21 @@ fn parse_statement<'p, R: Read>(
         }
         TokenKind::Loop => {
             let loop_tok = parser.parse(Loop::parse)?;
-            let block = parser.parse(StatementBlock::parse)?;
-            Statement::Loop(StatementLoop {
+            let block = parser.parse(BlockStatement::parse)?;
+            Statement::Loop(LookStatement {
                 loop_tok,
                 block: Box::new(block),
             })
         }
         TokenKind::Try => {
             let try_tok = parser.parse(Try::parse)?;
-            let block = parser.parse(StatementBlock::parse)?;
+            let block = parser.parse(BlockStatement::parse)?;
             let catches = parser.parse(multi1(|parser: &mut SyntacticParser<R>| {
                 let catch = parser.parse(Catch::parse)?;
                 let lparen = parser.parse(LParen::parse)?;
                 let binding = parser.parse(OptTypeBinding::parse)?;
                 let rparen = parser.parse(RParen::parse)?;
-                let block = parser.parse(StatementBlock::parse)?;
+                let block = parser.parse(BlockStatement::parse)?;
                 Ok(CatchBlock {
                     catch,
                     lparen,
@@ -358,7 +368,7 @@ fn parse_statement<'p, R: Read>(
                     statement_block: block,
                 })
             }))?;
-            Statement::TryCatch(StatementTryCatch {
+            Statement::TryCatch(TryCatchStatement {
                 try_tok,
                 statement_block: block,
                 catches,
@@ -372,16 +382,34 @@ fn parse_statement<'p, R: Read>(
                 let expr = parser.parse(Expr::parse)?;
                 (Some(expr), parser.parse(End::parse)?)
             };
-            Statement::Return(StatementReturn {
+            Statement::Return(ReturnStatement {
                 ret,
                 expr: return_expr,
                 end,
             })
         }
         _ => {
+            debug!("parsing expression");
             let e: Expr = parser.parse(Expr::parse)?;
-            let end = parser.try_parse(End::parse)?;
-            Statement::Expr(StatementExpr { expr: e, end })
+            if let Some(assign) = parser.parse_opt::<Assign>()? {
+                let rvalue = parser.parse(Expr::parse).map_err(|e| e.cut())?;
+                let end = parser.parse(End::parse)?;
+                Statement::Assign(
+                    AssignStatement {
+                        lvalue: e,
+                        assign,
+                        rvalue,
+                        end,
+                    }
+                )
+            } else {
+
+                let end = parser.try_parse(End::parse)?;
+                Statement::Expr(ExprStatement { expr: e, end })
+            }
+
+
+
         }
     };
     Ok(statement)
@@ -445,7 +473,7 @@ mod tests {
                     "expected if: {:#?}",
                     parsed
                 );
-                let Statement::If(StatementIf {
+                let Statement::If(IfStatement {
                     if_tok,
                     lparen,
                     condition,
@@ -473,7 +501,7 @@ mod tests {
                     "expected if: {:#?}",
                     parsed
                 );
-                let Statement::If(StatementIf {
+                let Statement::If(IfStatement {
                     if_tok,
                     lparen,
                     condition,
@@ -502,7 +530,7 @@ mod tests {
                     "expected if: {:#?}",
                     parsed
                 );
-                let Statement::If(StatementIf {
+                let Statement::If(IfStatement {
                     if_tok,
                     lparen,
                     condition,
@@ -516,7 +544,7 @@ mod tests {
                 let Some(ElseBlock { else_stmt, .. }) = else_block else {
                     panic!("must have first else stmt defined")
                 };
-                let Statement::If(StatementIf {
+                let Statement::If(IfStatement {
                     if_tok,
                     lparen,
                     condition,

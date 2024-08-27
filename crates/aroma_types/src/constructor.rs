@@ -2,7 +2,7 @@
 
 use crate::class::ClassInst;
 use crate::generic::GenericDeclaration;
-use crate::method::{MethodId, Parameter};
+use crate::functions::{FunctionId, Parameter};
 use crate::vis::Vis;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -20,7 +20,7 @@ pub struct Constructor {
 impl Constructor {
     /// Create a new constructor
     pub fn new(
-        id: MethodId,
+        id: FunctionId,
         vis: Vis,
         generic_declaration: impl IntoIterator<Item = GenericDeclaration>,
         parameters: impl IntoIterator<Item = Parameter>,
@@ -35,12 +35,12 @@ impl Constructor {
         }
     }
 
-    pub fn id(&self) -> MethodId {
+    pub fn id(&self) -> FunctionId {
         self.id.load(Ordering::SeqCst)
     }
 
     /// Sets the id of the method
-    pub fn set_id(&mut self, id: MethodId) {
+    pub fn set_id(&mut self, id: FunctionId) {
         self.id.store(id, Ordering::SeqCst);
     }
 

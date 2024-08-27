@@ -8,11 +8,19 @@ pub trait TypeInfo: Clone {
     fn signature(&self) -> TypeSignature;
 }
 
+impl TypeInfo for TypeSignature {
+    fn signature(&self) -> TypeSignature {
+        self.clone()
+    }
+}
+
 /// Gets the type of the node within the tree
 pub trait Typed<T: TypeInfo, E: Clone = TypeError> {
     /// Gets the type
-    fn get_type(&self) -> TypeState<&T, &E>;
+    fn get_type(&self) -> TypeState<T, E>;
 }
+
+
 
 /// Gets a type reference that's mutable
 pub trait TypedMut<T: TypeInfo, E: Clone = TypeError>: Typed<T, E> {
@@ -45,15 +53,28 @@ pub trait TypedMut<T: TypeInfo, E: Clone = TypeError>: Typed<T, E> {
 }
 
 /// The state of a type node
-#[derive(Debug, Default, Clone)]
-pub enum TypeState<T, E = TypeError> {
-    #[default]
+#[derive(Debug, Clone)]
+pub enum TypeState<T, E = TypeError>
+where
+    T: Clone,
+    E: Clone
+{
     Unavailable,
     Available(T),
     Err(E),
 }
 
-impl<T, E> TypeState<T, E> {
+impl<T, E> Default for TypeState<T, E>
+where
+    T: Clone,
+    E: Clone
+{
+    fn default() -> Self {
+        Self::Unavailable
+    }
+}
+
+impl<T: Clone, E: Clone> TypeState<T, E> {
     /// Gets the internal representation as references
     pub fn as_ref(&self) -> TypeState<&T, &E> {
         match self {
@@ -64,23 +85,66 @@ impl<T, E> TypeState<T, E> {
     }
 
     /// Gets the type, if available
-    pub fn get_available(&self) -> Option<&T> {
+    pub fn as_available(&self) -> Option<&T> {
         if let TypeState::Available(t) = self {
             Some(t)
         } else {
             None
         }
     }
-}
 
-impl<T: Clone, E: Clone> TypeState<&T, &E> {
-    /// Gets the internal representation as cloned
-    pub fn cloned(&self) -> TypeState<T, E> {
+    /// Gets the available type if present
+    pub fn available(self) -> Option<T> {
+        if let TypeState::Available(t) = self {
+            Some(t)
+        } else {
+            None
+        }
+    }
+
+    /// Maps the type, if available
+    pub fn map<U, F>(self, mapper: F) -> TypeState<U, E>
+    where
+        F: FnOnce(T) -> U,
+        U: Clone,
+    {
         match self {
             TypeState::Unavailable => TypeState::Unavailable,
-            TypeState::Available(t) => TypeState::Available((**t).clone()),
-            TypeState::Err(e) => TypeState::Err((**e).clone()),
+            TypeState::Available(a) => TypeState::Available(mapper(a)),
+            TypeState::Err(e) => TypeState::Err(e),
         }
+    }
+
+    /// Maps the type info to it's signature
+    #[inline]
+    pub fn to_signature(self) -> TypeState<TypeSignature, E>
+        where T : TypeInfo
+    {
+        self.map(|t| t.signature())
+    }
+}
+
+impl<E : Clone> TypeState<TypeSignature, E> {
+
+    /// Creates a never type state
+    #[inline]
+    pub fn never() -> Self {
+        Self::Available(TypeSignature::Never)
+    }
+}
+
+impl <T : TypeInfo> From<Option<T>> for TypeState<T> {
+    fn from(value: Option<T>) -> Self {
+        match value {
+            None => { TypeState::Unavailable }
+            Some(v ) => { TypeState::Available(v)}
+        }
+    }
+}
+
+impl <T : TypeInfo> From<T> for TypeState<T> {
+    fn from(value: T) -> Self {
+        TypeState::Available(value)
     }
 }
 

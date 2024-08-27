@@ -5,7 +5,7 @@ pub mod constructor;
 pub mod field;
 pub mod generic;
 pub mod hierarchy;
-pub mod method;
+pub mod functions;
 pub mod type_signature;
 pub mod vis;
 

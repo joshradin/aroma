@@ -22,6 +22,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::sync::Arc;
 use std::thread::{Scope, ScopedJoinHandle};
+use crate::resolution::TranslationData;
 
 pub mod passes;
 
@@ -132,10 +133,10 @@ impl CompileJob {
             let next_state: Option<CompileJobState> = match state {
                 CompileJobState::Done => None,
                 CompileJobState::Parsed(unit) => Some(find_declarations(self, unit)?),
-                CompileJobState::IdentifiersCreated(_) => {
+                CompileJobState::IdentifiersCreated(_, _) => {
                     todo!()
                 }
-                CompileJobState::WaitingForIdentifiers(_, _) => {
+                CompileJobState::WaitingForIdentifiers(_, _, _) => {
                     todo!()
                 }
             };
@@ -217,8 +218,8 @@ pub enum CompileJobStatus {
 #[derive(Debug)]
 enum CompileJobState {
     Parsed(TranslationUnit),
-    IdentifiersCreated(TranslationUnit),
-    WaitingForIdentifiers(TranslationUnit, HashSet<Id>),
+    IdentifiersCreated(TranslationUnit, TranslationData),
+    WaitingForIdentifiers(TranslationUnit, HashSet<Id>, TranslationData),
     Done,
 }
 
@@ -227,9 +228,9 @@ impl CompileJobState {
         use CompileJobStatus::*;
         match self {
             CompileJobState::Parsed(_) => Parsing,
-            CompileJobState::WaitingForIdentifiers(_, ids) => WaitingForIdentifiers(ids.clone()),
+            CompileJobState::WaitingForIdentifiers(_, ids, _) => WaitingForIdentifiers(ids.clone()),
             CompileJobState::Done => Done,
-            CompileJobState::IdentifiersCreated(_) => IdentifiersCreated,
+            CompileJobState::IdentifiersCreated(_, _) => IdentifiersCreated,
         }
     }
 }

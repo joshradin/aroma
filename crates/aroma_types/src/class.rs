@@ -1,7 +1,7 @@
 use crate::constructor::Constructor;
 use crate::field::Field;
 use crate::generic::{GenericDeclaration, GenericParameterBound, GenericParameterBounds};
-use crate::method::MethodDeclaration;
+use crate::functions::FunctionDeclaration;
 use crate::vis::{Vis, Visibility};
 use aroma_common::nom_helpers::recognize_identifier;
 use itertools::Itertools;
@@ -33,7 +33,7 @@ pub struct Class {
     super_class: Option<ClassInst>,
     mixins: Vec<ClassInst>,
     fields: Vec<Field>,
-    methods: Vec<MethodDeclaration>,
+    methods: Vec<FunctionDeclaration>,
     constructors: Vec<Constructor>,
     sub_classes: Vec<Class>,
 }
@@ -57,7 +57,7 @@ impl Class {
         S: Into<Option<ClassInst>>,
         M: IntoIterator<Item = ClassInst>,
         F: IntoIterator<Item = Field>,
-        Me: IntoIterator<Item =MethodDeclaration>,
+        Me: IntoIterator<Item =FunctionDeclaration>,
         Co: IntoIterator<Item = Constructor>,
         Sub: IntoIterator<Item = Class>,
     {
@@ -117,12 +117,17 @@ impl Class {
         &self.fields
     }
 
-    pub fn methods(&self) -> &[MethodDeclaration] {
+    /// Gets a mutable reference to the fields of this type
+    pub fn fields_mut(&mut self) -> &mut Vec<Field> {
+        &mut self.fields
+    }
+
+    pub fn methods(&self) -> &[FunctionDeclaration] {
         &self.methods
     }
 
     /// Gets a mutable reference to the methods of this class.
-    pub fn methods_mut(&mut self) -> &mut Vec<MethodDeclaration> {
+    pub fn methods_mut(&mut self) -> &mut Vec<FunctionDeclaration> {
         &mut self.methods
     }
 }

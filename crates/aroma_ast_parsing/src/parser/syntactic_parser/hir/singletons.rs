@@ -183,6 +183,10 @@ token_singleton!(Break, TokenKind::Break);
 token_singleton!(Continue, TokenKind::Continue);
 token_singleton!(Return, TokenKind::Return);
 
+token_singleton!(This, TokenKind::This);
+token_singleton!(Super, TokenKind::Super);
+token_singleton!(Delegate, TokenKind::Delegate);
+
 token_singleton!(Public, TokenKind::Public);
 token_singleton!(Protected, TokenKind::Protected);
 token_singleton!(Private, TokenKind::Private);

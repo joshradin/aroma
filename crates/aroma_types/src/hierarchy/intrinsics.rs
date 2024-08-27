@@ -6,7 +6,7 @@ use crate::generic::GenericDeclaration;
 use crate::vis::Vis;
 use std::sync::LazyLock;
 
-use crate::method::MethodDeclaration;
+use crate::functions::FunctionDeclaration;
 use paste::paste;
 
 /// Class class. All classes have a corresponding class object, and this is the
@@ -82,7 +82,7 @@ fn class() -> Class {
         ClassInst::with_generics(ClassRef::from(BASE_CLASS_NAME.to_string()), []),
         [],
         [],
-        [MethodDeclaration::new(
+        [FunctionDeclaration::new(
             Vis::Public,
             "getName",
             [],

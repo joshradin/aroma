@@ -1,5 +1,6 @@
 //! methods are parts of a vtable for a type
 
+use std::fmt::{Debug, Formatter};
 use crate::class::ClassInst;
 use crate::generic::GenericDeclaration;
 use crate::vis::{Vis, Visibility};
@@ -7,10 +8,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use crate::type_signature::TypeSignature;
 
-pub type MethodId = u64;
+pub type FunctionId = u64;
 
 #[derive(Clone, Debug)]
-pub struct MethodDeclaration {
+pub struct FunctionDeclaration {
     id: Arc<AtomicU64>,
     vis: Vis,
     name: String,
@@ -20,7 +21,7 @@ pub struct MethodDeclaration {
     throws: Vec<ClassInst>,
 }
 
-impl MethodDeclaration {
+impl FunctionDeclaration {
     /// Create a new method
     pub fn new(
         vis: Vis,
@@ -41,12 +42,12 @@ impl MethodDeclaration {
         }
     }
 
-    pub fn id(&self) -> MethodId {
+    pub fn id(&self) -> FunctionId {
         self.id.load(Ordering::SeqCst)
     }
 
     /// Sets the id of the method
-    pub fn set_id(&mut self, id: MethodId) {
+    pub fn set_id(&mut self, id: FunctionId) {
         self.id.store(id, Ordering::SeqCst);
     }
 
@@ -71,7 +72,7 @@ impl MethodDeclaration {
     }
 }
 
-impl Visibility for MethodDeclaration {
+impl Visibility for FunctionDeclaration {
     fn visibility(&self) -> Vis {
         self.vis
     }
@@ -81,8 +82,14 @@ impl Visibility for MethodDeclaration {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Parameter {
     pub name: String,
     pub signature: TypeSignature,
+}
+
+impl Debug for Parameter {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}: {}", self.name, self.signature)
+    }
 }

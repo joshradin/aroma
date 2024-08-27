@@ -3,7 +3,7 @@
 use crate::parser::binding::{Binding, FnParameters, Type};
 use crate::parser::expr::{remove_nl, Expr};
 use crate::parser::singletons::{Abstract, Class, Private, Protected, Public};
-use crate::parser::statement::StatementBlock;
+use crate::parser::statement::BlockStatement;
 use crate::parser::syntactic_parser::hir::helpers::End;
 use crate::parser::{
     cut, map, multi0, seperated_list1, singletons::*, CouldParse, ErrorKind, Parsable, Punctuated1,
@@ -138,6 +138,7 @@ pub struct ClassField {
     pub final_tok: Option<Final>,
     pub binding: Binding,
     pub default_value: Option<ClassFieldDefaultValue>,
+    pub end: End
 }
 
 /// Class constructor
@@ -175,7 +176,7 @@ pub struct ItemFn {
 /// Function body
 #[derive(Debug, ToTokens)]
 pub struct FnBody {
-    pub body: StatementBlock,
+    pub body: BlockStatement,
 }
 
 /// An abstract function declaration
@@ -426,6 +427,7 @@ fn parse_field<R: Read>(
     } else {
         None
     };
+    let end = parser.parse(cut(End::parse))?;
 
     let class_field = ClassField {
         vis: visibility,
@@ -433,6 +435,7 @@ fn parse_field<R: Read>(
         final_tok,
         binding,
         default_value,
+        end
     };
 
     Ok(ClassMember::Field(class_field))
@@ -488,7 +491,7 @@ fn parse_method<R: Read>(
         Ok(ClassMember::AbstractMethod(abstract_fn))
     } else {
         let body = FnBody {
-            body: parser.parse(StatementBlock::parse)?,
+            body: parser.parse(BlockStatement::parse)?,
         };
         let fn_ = ItemFn {
             vis: visibility,
@@ -522,7 +525,7 @@ fn parse_constructor<'p, R: Read>(
     };
 
     let body = FnBody {
-        body: parser.parse(StatementBlock::parse)?,
+        body: parser.parse(BlockStatement::parse)?,
     };
     let class_constructor = ClassConstructor {
         vis: visibility,
@@ -560,7 +563,7 @@ fn parse_function<R: Read>(
     };
 
     let body = FnBody {
-        body: parser.parse(StatementBlock::parse)?,
+        body: parser.parse(BlockStatement::parse)?,
     };
     let fn_ = ItemFn {
         vis: visibility,

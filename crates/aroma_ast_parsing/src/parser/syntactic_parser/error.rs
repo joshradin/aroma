@@ -4,6 +4,7 @@ use aroma_ast::token::Token;
 use aroma_types::class::{ClassInst, ClassRef};
 use std::fmt::{Display, Formatter};
 use std::io;
+use aroma_ast::id::Id;
 
 /// Represents an error occurring during parsing
 #[derive(Debug, thiserror::Error)]
@@ -125,6 +126,8 @@ pub enum ErrorKind {
     ConstructorsCanNotBeStatic,
     #[error("Can not declare {0:} as abstract in concrete class {1:?}")]
     AbstractMethodInConcreteClass(String, ClassRef),
+    #[error("undeclared variable {0:?}")]
+    UndeclaredVariable(Id)
 }
 
 impl ErrorKind {

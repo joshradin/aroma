@@ -4,19 +4,37 @@ use crate::parser::{CouldParse, Err, ErrorKind, Parsable, Parser, SyntaxError, S
 use aroma_ast::token::TokenStream;
 use aroma_ast::token::{ToTokens, TokenKind};
 use std::io::Read;
-use std::result;
+
+
+pub trait Punctuated<T>{
+
+    /// Gets the items in this
+    fn items(&self) -> Vec<&T>;
+
+    /// Converts this into just its items, losing all punctuation
+    fn into_items(self) -> Vec<T> where Self : Sized;
+}
 
 #[derive(Debug)]
 pub struct Punctuated1<T, P> {
     pub punctuated: Vec<(T, Option<P>)>,
 }
 
-impl<T, P> Punctuated1<T, P> {
+impl<T, P> Punctuated<T> for Punctuated1<T, P> {
     /// Gets the items in this
-    pub fn items(&self) -> Vec<&T> {
+    fn items(&self) -> Vec<&T> {
         self.punctuated.iter().map(|i| &i.0).collect()
     }
+
+    fn into_items(self) -> Vec<T>
+    where
+        Self: Sized
+    {
+        self.punctuated.into_iter().map(|i| i.0).collect()
+    }
 }
+
+
 
 impl<T, P> Default for Punctuated1<T, P> {
     fn default() -> Self {
@@ -85,6 +103,20 @@ impl<T, P> Punctuated0<T, P> {
     /// Gets the items in this
     pub fn items(&self) -> Vec<&T> {
         self.punctuated.iter().map(|i| &i.0).collect()
+    }
+}
+
+impl<T, P> Punctuated<T> for Punctuated0<T, P> {
+    /// Gets the items in this
+    fn items(&self) -> Vec<&T> {
+        self.punctuated.iter().map(|i| &i.0).collect()
+    }
+
+    fn into_items(self) -> Vec<T>
+    where
+        Self: Sized
+    {
+        self.punctuated.into_iter().map(|i| i.0).collect()
     }
 }
 

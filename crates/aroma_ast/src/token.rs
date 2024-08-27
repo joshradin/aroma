@@ -60,6 +60,9 @@ pub enum TokenKind {
     Integer(i64),
     String(String),
     Boolean(bool),
+    This,
+    Super,
+    Delegate,
 
     /// new line
     Nl,

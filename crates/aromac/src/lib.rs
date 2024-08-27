@@ -6,6 +6,7 @@ pub mod common;
 mod compiler;
 pub mod frontend;
 pub use compiler::*;
+pub mod resolution;
 
 cfg_if! {
     if #[cfg(windows)] {

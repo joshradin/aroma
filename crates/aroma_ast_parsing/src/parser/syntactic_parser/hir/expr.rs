@@ -8,7 +8,6 @@ use crate::parser::{
 use aroma_ast::id::Id;
 use aroma_ast::token::{ToTokens, TokenKind};
 use std::io::Read;
-use std::result;
 
 #[derive(Debug, ToTokens)]
 pub struct ExprUnary {
@@ -206,6 +205,25 @@ pub struct MapExpr {
     pub rbracket: RBracket,
 }
 
+/// This expr
+#[derive(Debug, ToTokens)]
+pub struct ThisExpr {
+    pub this: This
+}
+
+/// Super expr
+#[derive(Debug, ToTokens)]
+pub struct SuperExpr {
+    pub super_tok: Super
+}
+
+/// Super expr
+#[derive(Debug, ToTokens)]
+pub struct DelegateExpr {
+    pub delegate: Delegate
+}
+
+
 /// An expression
 #[derive(Debug, ToTokens)]
 pub enum Expr {
@@ -220,6 +238,9 @@ pub enum Expr {
     Closure(ClosureExpr),
     Nested(NestedExpr),
     Ternary(TernaryExpr),
+    This(ThisExpr),
+    Super(SuperExpr),
+    Delegate(DelegateExpr),
 }
 
 impl Parsable for Expr {
@@ -584,11 +605,26 @@ fn parse_primary(parser: &mut SyntacticParser<impl Read>) -> Result<Expr, Err<Sy
                 rbracket,
             }))
         }
+        Some(t) if matches!(t.kind(), TokenKind::This) => {
+            let this = parser.parse(This::parse)?;
+            Ok(Expr::This(ThisExpr { this }))
+        }
+        Some(t) if matches!(t.kind(), TokenKind::Super) => {
+            let super_tok = parser.parse(Super::parse)?;
+            Ok(Expr::Super(SuperExpr { super_tok }))
+        }
+        Some(t) if matches!(t.kind(), TokenKind::This) => {
+            let delegate = parser.parse(Delegate::parse)?;
+            Ok(Expr::Delegate(DelegateExpr { delegate }))
+        }
         _ => {
             let kind = ErrorKind::expected_token(
                 [
                     "constant".to_string(),
                     "identifier".to_string(),
+                    "this".to_string(),
+                    "super".to_string(),
+                    "delegate".to_string(),
                     "(".to_string(),
                     "[".to_string(),
                 ],
