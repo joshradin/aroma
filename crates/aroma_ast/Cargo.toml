@@ -9,11 +9,11 @@ repository.workspace = true
 
 [features]
 default = []
-derive = ["dep:aroma_ast_derive"]
 
 [dependencies]
-aroma_ast_derive = { version = "0.0.0", path = "../aroma_ast_derive", optional = true }
 aroma_types = { version = "0.0.0", path = "../aroma_types"}
+aroma_tokens = { version = "0.0.0", path = "../aroma_tokens" }
+aroma_visitor_gen = {version = "0.0.0", path="../aroma_visitor_gen"}
 itertools = { workspace = true }
 thiserror = "1.0.63"
 log = "0.4.22"

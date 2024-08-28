@@ -20,8 +20,6 @@ pub trait Typed<T: TypeInfo, E: Clone = TypeError> {
     fn get_type(&self) -> TypeState<T, E>;
 }
 
-
-
 /// Gets a type reference that's mutable
 pub trait TypedMut<T: TypeInfo, E: Clone = TypeError>: Typed<T, E> {
     /// Gets the type
@@ -57,7 +55,7 @@ pub trait TypedMut<T: TypeInfo, E: Clone = TypeError>: Typed<T, E> {
 pub enum TypeState<T, E = TypeError>
 where
     T: Clone,
-    E: Clone
+    E: Clone,
 {
     Unavailable,
     Available(T),
@@ -67,7 +65,7 @@ where
 impl<T, E> Default for TypeState<T, E>
 where
     T: Clone,
-    E: Clone
+    E: Clone,
 {
     fn default() -> Self {
         Self::Unavailable
@@ -118,14 +116,14 @@ impl<T: Clone, E: Clone> TypeState<T, E> {
     /// Maps the type info to it's signature
     #[inline]
     pub fn to_signature(self) -> TypeState<TypeSignature, E>
-        where T : TypeInfo
+    where
+        T: TypeInfo,
     {
         self.map(|t| t.signature())
     }
 }
 
-impl<E : Clone> TypeState<TypeSignature, E> {
-
+impl<E: Clone> TypeState<TypeSignature, E> {
     /// Creates a never type state
     #[inline]
     pub fn never() -> Self {
@@ -133,16 +131,16 @@ impl<E : Clone> TypeState<TypeSignature, E> {
     }
 }
 
-impl <T : TypeInfo> From<Option<T>> for TypeState<T> {
+impl<T: TypeInfo> From<Option<T>> for TypeState<T> {
     fn from(value: Option<T>) -> Self {
         match value {
-            None => { TypeState::Unavailable }
-            Some(v ) => { TypeState::Available(v)}
+            None => TypeState::Unavailable,
+            Some(v) => TypeState::Available(v),
         }
     }
 }
 
-impl <T : TypeInfo> From<T> for TypeState<T> {
+impl<T: TypeInfo> From<T> for TypeState<T> {
     fn from(value: T) -> Self {
         TypeState::Available(value)
     }

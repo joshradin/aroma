@@ -2,11 +2,11 @@ use crate::parser::items::{ClassField, ClassMember, ItemFn, Visibility};
 use crate::parser::syntactic_parser::hir::translation_unit::TranslationUnit as ParsedTranslationUnit;
 use crate::parser::{items as parser_items, ErrorKind};
 use crate::parser::{Punctuated, SyntaxError};
-use aroma_ast::id::Id;
-use aroma_ast::mir::items::{Item, ItemClass};
-use aroma_ast::mir::method::MethodDef;
-use aroma_ast::mir::translation_unit::TranslationUnit;
-use aroma_ast::spanned::Spanned;
+use aroma_tokens::id::Id;
+use aroma_ast::items::{Item, ItemClass};
+use aroma_ast::method::MethodDef;
+use aroma_ast::translation_unit::TranslationUnit;
+use aroma_tokens::spanned::Spanned;
 use aroma_types::class::{AsClassRef, Class, ClassInst, ClassKind, ClassRef};
 use aroma_types::field::Field;
 use aroma_types::functions::{FunctionDeclaration, Parameter};
@@ -16,6 +16,7 @@ use aroma_types::vis::Vis;
 use log::debug;
 use method_hir_to_mir::method_hir_to_mir_def;
 use std::collections::HashMap;
+use aroma_tokens::id_resolver::IdResolver;
 
 mod expr_hir_to_mir;
 mod method_hir_to_mir;
@@ -23,13 +24,17 @@ mod method_hir_to_mir;
 /// Runs the initial conversion to mir, removing most tokens while keeping spans
 pub fn to_mir(translation_unit: ParsedTranslationUnit) -> Result<TranslationUnit, SyntaxError> {
     let span = translation_unit.span();
-    let namespace = translation_unit.namespace_declaration.as_ref()
-                                    .map(|i| &i.id);
-    let imports = translation_unit
+    let namespace = translation_unit
+        .namespace_declaration
+        .as_ref()
+        .map(|i| &i.id);
+
+    let imports: Vec<Id> = translation_unit
         .imports
         .iter()
         .map(|import| import.id.clone())
         .collect();
+
     let items = translation_unit.items.into_iter().try_fold(
         Vec::new(),
         |mut items, item| -> Result<Vec<Item>, SyntaxError> {
@@ -54,12 +59,13 @@ pub fn to_mir(translation_unit: ParsedTranslationUnit) -> Result<TranslationUnit
     Ok(mir)
 }
 
-fn class_hir_to_mir(namespace: Option<&Id>, cls: parser_items::ItemClass) -> Result<ItemClass, SyntaxError> {
+fn class_hir_to_mir(
+    namespace: Option<&Id>,
+    cls: parser_items::ItemClass,
+) -> Result<ItemClass, SyntaxError> {
     let id = match namespace {
-        None => { cls.ident.id.clone() }
-        Some(namespace) => {
-            namespace.resolve(&cls.ident.id)
-        }
+        None => cls.ident.id.clone(),
+        Some(namespace) => namespace.resolve(&cls.ident.id),
     };
     let span = cls.span();
     let vis = vis_hir_to_mir(cls.vis);
@@ -108,8 +114,7 @@ fn class_hir_to_mir(namespace: Option<&Id>, cls: parser_items::ItemClass) -> Res
     let mut method_defs = vec![];
     let mut sub_classes = vec![];
     let mut constructors = vec![];
-    cls.members.members.into_iter()
-                       .try_for_each(|member| {
+    cls.members.members.into_iter().try_for_each(|member| {
         match member {
             ClassMember::Method(method) => {
                 let (dec, def) = method_hir_to_mir(&class_inst, &fields, &class_generics, method)?;
@@ -162,7 +167,7 @@ fn class_hir_to_mir(namespace: Option<&Id>, cls: parser_items::ItemClass) -> Res
     let class = Class::new(
         vis,
         class_kind,
-        id.to_string(),
+        id,
         class_generics,
         super_class,
         mixins,

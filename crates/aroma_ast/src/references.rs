@@ -1,11 +1,11 @@
 //! References to other ids along with their type if necessary
 
-use crate::mir::typed::TypeInfo;
+use crate::typed::TypeInfo;
 use aroma_types::class::ClassInst;
 use aroma_types::type_signature::TypeSignature;
 
 /// A trait for generalizing over types that has [TypeInfo].
-pub trait GetInfoTypeRef<T : TypeInfo> {
+pub trait GetInfoTypeRef<T: TypeInfo> {
     /// Gets type
     fn get_info_type_ref(&self) -> T;
 }

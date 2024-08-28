@@ -1,6 +1,6 @@
 //! Responsible for type resolution
 
-use aroma_ast::id::Id;
+use aroma_tokens::id::Id;
 use aroma_types::type_signature::TypeSignature;
 use std::collections::{HashMap, HashSet};
 
@@ -63,7 +63,7 @@ impl Bindings {
     /// # Examples
     /// Resolving a locally scoped id
     /// ```
-    /// # use aroma_ast::id::Id;
+    /// # use aroma_tokens::id::Id;
     /// use aroma_ast_parsing::type_resolution::{Bindings, Scope};
     /// use aroma_types::type_signature::TypeSignature;
     /// let mut bindings = Bindings::new();
@@ -99,7 +99,7 @@ impl Bindings {
     /// # Examples
     /// Resolving a locally scoped id
     /// ```
-    /// # use aroma_ast::id::Id;
+    /// # use aroma_tokens::id::Id;
     /// use aroma_ast_parsing::type_resolution::{Bindings, Scope};
     /// use aroma_types::type_signature::TypeSignature;
     /// let mut bindings = Bindings::new();
@@ -170,7 +170,7 @@ pub struct Scope {
 #[cfg(test)]
 mod tests {
     use crate::type_resolution::Bindings;
-    use aroma_ast::id::Id;
+    use aroma_tokens::id::Id;
     use aroma_types::type_signature::TypeSignature;
 
     #[test]

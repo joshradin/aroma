@@ -9,15 +9,15 @@ use crate::parser::{
     cut, map, multi0, seperated_list1, singletons::*, CouldParse, ErrorKind, Parsable, Punctuated1,
     SyntacticParser, SyntaxError, SyntaxResult,
 };
-use aroma_ast::id::Id;
-use aroma_ast::spanned::Spanned;
-use aroma_ast::token::{ToTokens, TokenKind};
+use aroma_tokens::id::Id;
+use aroma_tokens::spanned::Spanned;
+use aroma_tokens::token::{ToTokens, TokenKind};
+use aroma_types::class::AsClassRef;
+use aroma_types::hierarchy::intrinsics::OBJECT_CLASS;
 use aroma_types::vis::Vis;
 use log::{debug, trace};
 use std::io::Read;
 use std::result;
-use aroma_types::class::AsClassRef;
-use aroma_types::hierarchy::intrinsics::OBJECT_CLASS;
 
 #[derive(Debug, ToTokens)]
 pub enum Visibility {
@@ -98,7 +98,10 @@ impl Into<aroma_types::generic::GenericDeclaration> for &GenericDeclaration {
     fn into(self) -> aroma_types::generic::GenericDeclaration {
         aroma_types::generic::GenericDeclaration::new(
             &self.id,
-            self.bound.as_ref().map(|b| b.as_class_inst()).unwrap_or(OBJECT_CLASS.as_class_ref().into())
+            self.bound
+                .as_ref()
+                .map(|b| b.as_class_inst())
+                .unwrap_or(OBJECT_CLASS.as_class_ref().into()),
         )
     }
 }
@@ -138,7 +141,7 @@ pub struct ClassField {
     pub final_tok: Option<Final>,
     pub binding: Binding,
     pub default_value: Option<ClassFieldDefaultValue>,
-    pub end: End
+    pub end: End,
 }
 
 /// Class constructor
@@ -435,7 +438,7 @@ fn parse_field<R: Read>(
         final_tok,
         binding,
         default_value,
-        end
+        end,
     };
 
     Ok(ClassMember::Field(class_field))

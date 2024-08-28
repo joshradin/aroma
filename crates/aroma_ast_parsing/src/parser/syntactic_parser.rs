@@ -1,7 +1,7 @@
 use crate::lexer::Lexer;
-use aroma_ast::id::Id;
-use aroma_ast::spanned::{Span, Spanned};
-use aroma_ast::token::{ToTokens, Token, TokenKind};
+use aroma_tokens::id::Id;
+use aroma_tokens::spanned::{Span, Spanned};
+use aroma_tokens::token::{ToTokens, Token, TokenKind};
 use std::any::type_name;
 use std::collections::VecDeque;
 use std::fmt::{Debug, Display, Formatter};
@@ -304,7 +304,7 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
     /// Wrapper function for parsing an optional item
     pub fn parse_opt<P: Parsable<Err: std::error::Error> + CouldParse>(
         &mut self,
-    ) -> result::Result<Option<P>, Err<P::Err>> {
+    ) -> Result<Option<P>, Err<P::Err>> {
         if P::could_parse(self)? {
             Ok(Some(self.parse(P::parse)?))
         } else {
@@ -502,8 +502,8 @@ mod tests {
     use crate::parser::cut;
     use crate::parser::singletons::Class;
     use crate::parser::syntactic_parser::hir::expr::Expr;
-    use aroma_ast::spanned::{Span, Spanned};
-    use aroma_ast::token::{ToTokens, TokenKind};
+    use aroma_tokens::spanned::{Span, Spanned};
+    use aroma_tokens::token::{ToTokens, TokenKind};
     use std::io::Write as _;
     use tempfile::NamedTempFile;
 

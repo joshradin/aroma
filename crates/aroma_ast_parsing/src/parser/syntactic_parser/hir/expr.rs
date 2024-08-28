@@ -5,8 +5,8 @@ use crate::parser::syntactic_parser::{CouldParse, Parsable};
 use crate::parser::{
     Err, ErrorKind, Punctuated0, Punctuated1, SyntacticParser, SyntaxError, SyntaxResult,
 };
-use aroma_ast::id::Id;
-use aroma_ast::token::{ToTokens, TokenKind};
+use aroma_tokens::id::Id;
+use aroma_tokens::token::{ToTokens, TokenKind};
 use std::io::Read;
 
 #[derive(Debug, ToTokens)]
@@ -208,21 +208,20 @@ pub struct MapExpr {
 /// This expr
 #[derive(Debug, ToTokens)]
 pub struct ThisExpr {
-    pub this: This
+    pub this: This,
 }
 
 /// Super expr
 #[derive(Debug, ToTokens)]
 pub struct SuperExpr {
-    pub super_tok: Super
+    pub super_tok: Super,
 }
 
 /// Super expr
 #[derive(Debug, ToTokens)]
 pub struct DelegateExpr {
-    pub delegate: Delegate
+    pub delegate: Delegate,
 }
-
 
 /// An expression
 #[derive(Debug, ToTokens)]
@@ -640,8 +639,8 @@ mod tests {
     use crate::parser::expr::Expr;
     use crate::parser::syntactic_parser::tests::test_parser;
     use crate::parser::Parsable;
-    use aroma_ast::id::Id;
-    use aroma_ast::token::ToTokens;
+    use aroma_tokens::id::Id;
+    use aroma_tokens::token::ToTokens;
 
     #[test]
     fn test_parse_identifier() {

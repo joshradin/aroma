@@ -1,9 +1,9 @@
 //! MIR expression
 
-use crate::id::Id;
-use crate::mir::block::Block;
-use crate::mir::references::{FieldRef, GlobalRef, MethodRef};
-use crate::mir::typed::{TypeError, TypeInfo, TypeState, Typed, TypedMut};
+use aroma_tokens::id::Id;
+use crate::block::Block;
+use crate::references::{FieldRef, GlobalRef, MethodRef};
+use crate::typed::{TypeError, TypeInfo, TypeState, Typed, TypedMut};
 use aroma_types::type_signature::TypeSignature;
 
 /// An expression
@@ -116,7 +116,10 @@ pub struct GlobalExpr {
 
 impl GlobalExpr {
     pub fn new(id: Id) -> Self {
-        Self { id, global_ref: TypeState::default() }
+        Self {
+            id,
+            global_ref: TypeState::default(),
+        }
     }
 }
 
@@ -141,7 +144,10 @@ pub struct VarExpr {
 
 impl VarExpr {
     pub fn new(id: String) -> Self {
-        Self { id, state: TypeState::default() }
+        Self {
+            id,
+            state: TypeState::default(),
+        }
     }
 }
 
@@ -183,8 +189,8 @@ impl TypedMut<TypeSignature> for ExprThis {
 
 #[cfg(test)]
 mod tests {
-    use crate::mir::expr::{Expr, ExprThis, FieldExpr};
-    use crate::mir::typed::Typed;
+    use crate::expr::{Expr, ExprThis, FieldExpr};
+    use crate::typed::Typed;
 
     #[test]
     fn test_type_of_expr() {

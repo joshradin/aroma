@@ -1,0 +1,15 @@
+[package]
+name = "aroma_tokens"
+authors.workspace = true
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+readme.workspace = true
+repository.workspace = true
+
+[features]
+derive = ["dep:aroma_tokens_derive"]
+
+[dependencies]
+aroma_tokens_derive = { version = "0.0.0", path = "../aroma_tokens_derive", optional = true }
+itertools.workspace = true

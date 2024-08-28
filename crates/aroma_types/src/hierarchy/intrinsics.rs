@@ -5,9 +5,10 @@ use crate::field::Field;
 use crate::generic::GenericDeclaration;
 use crate::vis::Vis;
 use std::sync::LazyLock;
+use aroma_tokens::id::Id;
+use std::str::FromStr;
 
 use crate::functions::FunctionDeclaration;
-use paste::paste;
 
 /// Class class. All classes have a corresponding class object, and this is the
 /// class that such objects implement
@@ -35,46 +36,70 @@ pub fn primitive_ref_to_class<T: PrimitiveAsClass>(_r: &T) -> &'static Class {
 pub trait PrimitiveAsClass {
     fn class() -> &'static Class;
 }
-macro_rules! primitive_as_class {
-    ($ty:ty => $name:literal) => {
-        paste! {
-            pub const [<$ty:upper _CLASS_NAME>]: &'static str = $name;
 
-            fn [<$ty:lower _class>]() -> Class {
-                Class::new(
-                    Vis::Public,
-                    ClassKind::Concrete,
-                    $name,
-                    [],
-                    ClassInst::new(OBJECT_CLASS.get_ref()),
-                    [],
-                    [],
-                    [],
-                    [],
-                    []
-                    )
-            }
+macro_rules! primitives {
+    ($($ty:ty => $name:literal),+ $(,)?) => {
+        mod __primitives {
+            use super::*;
+            $(
+            paste::paste! {
+                pub const [<$ty:upper _CLASS_NAME>]: &'static str = $name;
 
-            pub static  [<$ty:upper _CLASS>]: LazyLock<Class> = LazyLock::new([<$ty:lower _class>]);
+                fn [<$ty:lower _class>]() -> Class {
+                    Class::new(
+                        Vis::Public,
+                        ClassKind::Concrete,
+                        Id::from_str($name).unwrap(),
+                        [],
+                        ClassInst::new(OBJECT_CLASS.get_ref()),
+                        [],
+                        [],
+                        [],
+                        [],
+                        []
+                        )
+                }
 
-            impl PrimitiveAsClass for $ty {
-                fn class() -> &'static Class {
-                    &*[<$ty:upper _CLASS>]
+                pub static  [<$ty:upper _CLASS>]: LazyLock<Class> = LazyLock::new([<$ty:lower _class>]);
+
+                impl PrimitiveAsClass for $ty {
+                    fn class() -> &'static Class {
+                        &*[<$ty:upper _CLASS>]
+                    }
                 }
             }
+            )*
+            pub static PRIMITIVES: &[&LazyLock<Class>] = &[
+                $(
+                    &paste::paste!([<$ty:upper _CLASS>])
+                ),*
+            ];
         }
+
+        pub use __primitives::*;
     };
 }
 
-primitive_as_class!(i32 => "aroma.primitive.Int");
-primitive_as_class!(i64 => "aroma.primitive.Long");
-primitive_as_class!(String => "aroma.lang.String");
+/// Void type, used to represent void
+#[derive(Debug)]
+pub enum Void {}
+
+primitives! {
+    i32 => "aroma.primitive.Int",
+    i64 => "aroma.primitive.Long",
+    f32 => "aroma.primitive.Float",
+    f64 => "aroma.primitive.Double",
+    bool => "aroma.primitive.Bool",
+    u8 => "aroma.primitive.Byte",
+    Void => "aroma.primitive.Void",
+    String => "aroma.lang.String"
+}
 
 fn class() -> Class {
     Class::new(
         Vis::Public,
         ClassKind::Concrete,
-        CLASS_CLASS_NAME,
+        Id::from_str(CLASS_CLASS_NAME).unwrap(),
         [GenericDeclaration::new(
             "T",
             ClassInst::with_generics(ClassRef::from(BASE_CLASS_NAME.to_string()), []),
@@ -99,7 +124,7 @@ fn object() -> Class {
     Class::new(
         Vis::Public,
         ClassKind::Concrete,
-        BASE_CLASS_NAME,
+        BASE_CLASS_NAME.parse().unwrap(),
         [],
         None,
         [],
@@ -121,7 +146,7 @@ fn array() -> Class {
     Class::new(
         Vis::Public,
         ClassKind::Concrete,
-        ARRAY_CLASS_NAME,
+        ARRAY_CLASS_NAME.parse().unwrap(),
         [GenericDeclaration::new(
             "T",
             ClassInst::new(OBJECT_CLASS.get_ref()),

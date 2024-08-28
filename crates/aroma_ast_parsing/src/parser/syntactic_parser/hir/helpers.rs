@@ -1,18 +1,18 @@
 use super::SyntacticParser;
 use crate::parser::singletons::{Nl, SemiC};
 use crate::parser::{CouldParse, Err, ErrorKind, Parsable, Parser, SyntaxError, SyntaxResult};
-use aroma_ast::token::TokenStream;
-use aroma_ast::token::{ToTokens, TokenKind};
+use aroma_tokens::token::TokenStream;
+use aroma_tokens::token::{ToTokens, TokenKind};
 use std::io::Read;
 
-
-pub trait Punctuated<T>{
-
+pub trait Punctuated<T> {
     /// Gets the items in this
     fn items(&self) -> Vec<&T>;
 
     /// Converts this into just its items, losing all punctuation
-    fn into_items(self) -> Vec<T> where Self : Sized;
+    fn into_items(self) -> Vec<T>
+    where
+        Self: Sized;
 }
 
 #[derive(Debug)]
@@ -28,13 +28,11 @@ impl<T, P> Punctuated<T> for Punctuated1<T, P> {
 
     fn into_items(self) -> Vec<T>
     where
-        Self: Sized
+        Self: Sized,
     {
         self.punctuated.into_iter().map(|i| i.0).collect()
     }
 }
-
-
 
 impl<T, P> Default for Punctuated1<T, P> {
     fn default() -> Self {
@@ -114,7 +112,7 @@ impl<T, P> Punctuated<T> for Punctuated0<T, P> {
 
     fn into_items(self) -> Vec<T>
     where
-        Self: Sized
+        Self: Sized,
     {
         self.punctuated.into_iter().map(|i| i.0).collect()
     }

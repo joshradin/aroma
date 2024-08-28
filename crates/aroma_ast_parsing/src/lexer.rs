@@ -1,8 +1,8 @@
 //! Responsible with converting a [io::Read] obj into a token stream
 
 use crate::lexer::token_parsing::parse_token;
-use aroma_ast::spanned::Span;
-use aroma_ast::token::{Token, TokenKind};
+use aroma_tokens::spanned::Span;
+use aroma_tokens::token::{Token, TokenKind};
 use nom::error::VerboseError;
 use nom::{Finish, Needed};
 use std::fs::File;

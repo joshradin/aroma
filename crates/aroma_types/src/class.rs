@@ -1,7 +1,7 @@
 use crate::constructor::Constructor;
 use crate::field::Field;
-use crate::generic::{GenericDeclaration, GenericParameterBound, GenericParameterBounds};
 use crate::functions::FunctionDeclaration;
+use crate::generic::{GenericDeclaration, GenericParameterBound, GenericParameterBounds};
 use crate::vis::{Vis, Visibility};
 use aroma_common::nom_helpers::recognize_identifier;
 use itertools::Itertools;
@@ -15,6 +15,7 @@ use petgraph::visit::Walker;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::str::FromStr;
+use aroma_tokens::id::Id;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum ClassKind {
@@ -28,7 +29,7 @@ pub enum ClassKind {
 pub struct Class {
     vis: Vis,
     kind: ClassKind,
-    name: String,
+    name: Id,
     generics: Vec<GenericDeclaration>,
     super_class: Option<ClassInst>,
     mixins: Vec<ClassInst>,
@@ -43,7 +44,7 @@ impl Class {
     pub fn new<G, S, M, F, Me, Co, Sub>(
         vis: Vis,
         kind: ClassKind,
-        name: impl AsRef<str>,
+        name: Id,
         generics: G,
         super_class: S,
         mixins: M,
@@ -57,14 +58,14 @@ impl Class {
         S: Into<Option<ClassInst>>,
         M: IntoIterator<Item = ClassInst>,
         F: IntoIterator<Item = Field>,
-        Me: IntoIterator<Item =FunctionDeclaration>,
+        Me: IntoIterator<Item = FunctionDeclaration>,
         Co: IntoIterator<Item = Constructor>,
         Sub: IntoIterator<Item = Class>,
     {
         Self {
             vis,
             kind,
-            name: name.as_ref().to_string(),
+            name,
             generics: generics.into_iter().collect(),
             super_class: super_class.into(),
             mixins: mixins.into_iter().collect(),
@@ -86,14 +87,14 @@ impl Class {
 
     /// Gets a ref to this class
     pub fn get_ref(&self) -> ClassRef {
-        ClassRef(self.name.clone())
+        ClassRef(self.name.to_string())
     }
 
     pub fn vis(&self) -> Vis {
         self.vis
     }
 
-    pub fn name(&self) -> &str {
+    pub fn id(&self) -> &Id {
         &self.name
     }
 
@@ -130,6 +131,17 @@ impl Class {
     pub fn methods_mut(&mut self) -> &mut Vec<FunctionDeclaration> {
         &mut self.methods
     }
+
+    /// Creates a class inst where all generics are just their bounds
+    pub fn generic_inst(&self) -> ClassInst {
+        ClassInst::with_generics(
+            self.get_ref(),
+            self.generics.iter()
+                .map(|i| {
+                    GenericParameterBound::Invariant(ClassInst::new_generic_param(i.id()))
+                })
+        )
+    }
 }
 
 impl AsClassRef for Class {
@@ -145,6 +157,12 @@ impl Visibility for Class {
 
     fn visibility_mut(&mut self) -> &mut Vis {
         &mut self.vis
+    }
+}
+
+impl Display for Class {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}[{}]", self.as_class_ref(), self.generics().iter().join(","))
     }
 }
 
@@ -288,6 +306,12 @@ impl Display for ClassInst {
 impl From<ClassRef> for ClassInst {
     fn from(value: ClassRef) -> Self {
         ClassInst::new(value)
+    }
+}
+
+impl From<&str> for ClassInst {
+    fn from(value: &str) -> Self {
+        ClassInst::new(ClassRef::from(value))
     }
 }
 

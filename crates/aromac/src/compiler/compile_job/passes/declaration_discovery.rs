@@ -1,48 +1,35 @@
-use std::collections::HashSet;
 use crate::compiler::compile_job::{CompileJob, CompileJobState};
-use aroma_ast::mir::translation_unit::TranslationUnit;
-use log::debug;
-use thiserror::Error;
-use aroma_ast::id::Id;
-use aroma_ast::mir::items::Item;
 use crate::resolution::TranslationData;
+use aroma_ast::items::Item;
+use aroma_ast::translation_unit::TranslationUnit;
+use aroma_tokens::id::Id;
+use aroma_tokens::id_resolver::IdResolver;
+use aroma_types::hierarchy::Error;
+use log::{debug, warn};
+use std::collections::HashSet;
+use thiserror::Error;
 
 /// Creates the identifiers for this translation unit
-pub fn find_declarations(
+pub fn create_declarations(
     job: &mut CompileJob,
     tu: TranslationUnit,
 ) -> Result<CompileJobState, CreateIdentifierError> {
     debug!("tu: {tu:#?}");
-    let mut translation_data =
-        TranslationData::new();
-    let mut missing = HashSet::new();
+    let mut translation_data = TranslationData::new();
+
     for item in &tu.items {
         match item {
             Item::Class(cls) => {
-                translation_data.class_hierarchy_mut()
-                    .insert(
-                        cls.class.clone()
-                    )?;
+                translation_data.insert_class(&cls.class)?;
             }
         }
     }
 
-    debug!("data state: {:#?}", translation_data);
-    if missing.is_empty() {
-        Ok(CompileJobState::IdentifiersCreated(
-            tu, translation_data
-        ))
-    } else {
-        Ok(CompileJobState::WaitingForIdentifiers(
-            tu,
-            missing,
-            translation_data,
-        ))
-    }
+    Ok(CompileJobState::IdentifiersCreated(tu, translation_data))
 }
 
 #[derive(Debug, Error)]
 pub enum CreateIdentifierError {
     #[error(transparent)]
-    HierarchyError(#[from] aroma_types::hierarchy::Error)
+    HierarchyError(#[from] aroma_types::hierarchy::Error),
 }

@@ -1,5 +1,5 @@
 [package]
-name = "aroma_ast_derive"
+name = "aroma_tokens_derive"
 authors.workspace = true
 version.workspace = true
 edition.workspace = true

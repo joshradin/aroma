@@ -1,10 +1,22 @@
 use crate::class::ClassInst;
+use crate::type_signature::TypeSignature;
 use std::fmt::{Display, Formatter};
+use crate::hierarchy::intrinsics::{BASE_CLASS_NAME, OBJECT_CLASS};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct GenericDeclaration {
     id: String,
     bound: ClassInst,
+}
+
+impl Display for GenericDeclaration {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if self.bound.class_ref() == &OBJECT_CLASS.get_ref() {
+            write!(f, "{}", self.id)
+        } else {
+            write!(f, "{} {}", self.id, self.bound)
+        }
+    }
 }
 
 impl GenericDeclaration {
@@ -39,6 +51,23 @@ pub enum GenericParameterBound {
     Invariant(ClassInst),
     Covariant(ClassInst),
     Contravariant(ClassInst),
+}
+
+impl From<TypeSignature> for GenericParameterBound {
+    fn from(value: TypeSignature) -> Self {
+        match value {
+            TypeSignature::Invariant(c, p) => GenericParameterBound::Invariant(
+                ClassInst::with_generics(c, p.into_iter().map(|tp| tp.into())),
+            ),
+            TypeSignature::Covariant(c, p) => GenericParameterBound::Covariant(
+                ClassInst::with_generics(c, p.into_iter().map(|tp| tp.into())),
+            ),
+            TypeSignature::Contravariant(c, p) => GenericParameterBound::Contravariant(
+                ClassInst::with_generics(c, p.into_iter().map(|tp| tp.into())),
+            ),
+            base => GenericParameterBound::Covariant(ClassInst::from(base)),
+        }
+    }
 }
 
 impl GenericParameterBound {
@@ -83,10 +112,10 @@ impl Display for GenericParameterBound {
                 write!(f, "{i}")
             }
             GenericParameterBound::Covariant(c) => {
-                write!(f, "? extends {c}")
+                write!(f, "out {c}")
             }
             GenericParameterBound::Contravariant(c) => {
-                write!(f, "? super {c}")
+                write!(f, "in {c}")
             }
         }
     }

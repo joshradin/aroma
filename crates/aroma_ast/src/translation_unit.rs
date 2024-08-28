@@ -1,8 +1,8 @@
 //! translation units are the highest level
 
-use crate::id::Id;
-use crate::mir::items::Item;
-use crate::spanned::Span;
+use aroma_tokens::id::Id;
+use crate::items::Item;
+use aroma_tokens::spanned::Span;
 
 /// A translation unit
 #[derive(Debug)]

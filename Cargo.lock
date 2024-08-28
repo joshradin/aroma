@@ -118,19 +118,12 @@ checksum = "7d5a26814d8dcb93b0e5a0ff3c6d80a8843bafb21b39e8e18a6f05471870e110"
 name = "aroma_ast"
 version = "0.0.0"
 dependencies = [
- "aroma_ast_derive",
+ "aroma_tokens",
  "aroma_types",
+ "aroma_visitor_gen",
  "itertools",
  "log",
  "thiserror",
-]
-
-[[package]]
-name = "aroma_ast_derive"
-version = "0.0.0"
-dependencies = [
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -139,6 +132,7 @@ version = "0.0.0"
 dependencies = [
  "aroma_ast",
  "aroma_common",
+ "aroma_tokens",
  "aroma_types",
  "aroma_visitor_gen",
  "log",
@@ -166,12 +160,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "aroma_tokens"
+version = "0.0.0"
+dependencies = [
+ "aroma_tokens_derive",
+ "itertools",
+]
+
+[[package]]
+name = "aroma_tokens_derive"
+version = "0.0.0"
+dependencies = [
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "aroma_types"
 version = "0.0.0"
 dependencies = [
  "aroma_common",
+ "aroma_tokens",
  "derive_more",
  "itertools",
+ "log",
  "nom",
  "parking_lot",
  "paste",
@@ -220,6 +232,7 @@ dependencies = [
  "aroma_ast",
  "aroma_ast_parsing",
  "aroma_bytecode",
+ "aroma_tokens",
  "aroma_types",
  "aroma_visitor_gen",
  "cfg-if",

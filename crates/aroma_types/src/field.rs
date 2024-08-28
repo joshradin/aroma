@@ -1,6 +1,6 @@
-use std::fmt::{Debug, Formatter};
 use crate::class::ClassInst;
 use crate::vis::{Vis, Visibility};
+use std::fmt::{Debug, Formatter};
 
 /// A field in a class
 #[derive(Clone)]

@@ -2,10 +2,11 @@
 
 use super::error::*;
 use crate::compiler::compile_job::passes::declaration_discovery::{
-    find_declarations, CreateIdentifierError,
+    create_declarations, CreateIdentifierError,
 };
-use aroma_ast::id::Id;
-use aroma_ast::mir::translation_unit::TranslationUnit;
+use crate::resolution::TranslationData;
+use aroma_tokens::id::Id;
+use aroma_ast::translation_unit::TranslationUnit;
 use aroma_ast_parsing::parse_file;
 use aroma_ast_parsing::parser::SyntaxError;
 use aroma_ast_parsing::type_resolution::Bindings;
@@ -22,7 +23,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::sync::Arc;
 use std::thread::{Scope, ScopedJoinHandle};
-use crate::resolution::TranslationData;
+use aroma_tokens::id_resolver::IdResolver;
+use crate::compiler::compile_job::passes::fully_qualify::fully_qualify;
 
 pub mod passes;
 
@@ -132,18 +134,23 @@ impl CompileJob {
         if let Some(state) = self.state.take() {
             let next_state: Option<CompileJobState> = match state {
                 CompileJobState::Done => None,
-                CompileJobState::Parsed(unit) => Some(find_declarations(self, unit)?),
-                CompileJobState::IdentifiersCreated(_, _) => {
+                CompileJobState::Parsed(unit) => Some(fully_qualify(unit)?),
+                CompileJobState::IdentifiersCreated(unit, created) => {
                     todo!()
                 }
                 CompileJobState::WaitingForIdentifiers(_, _, _) => {
                     todo!()
                 }
+                CompileJobState::FullyQualified(_, _) => {
+                    todo!()
+                }
             };
             if let Some(next_state) = next_state {
                 *self.status.write() = next_state.status();
+                self.state = Some(next_state);
             } else {
                 *self.status.write() = CompileJobStatus::Done;
+                self.state = None;
             }
             Ok(())
         } else {
@@ -209,6 +216,7 @@ pub enum CompileJobStatus {
     Processing,
     Parsed,
     IdentifiersCreated,
+    FullyQualified,
     WaitingForIdentifiers(HashSet<Id>),
     Failed(CompileError),
     Done,
@@ -219,7 +227,8 @@ pub enum CompileJobStatus {
 enum CompileJobState {
     Parsed(TranslationUnit),
     IdentifiersCreated(TranslationUnit, TranslationData),
-    WaitingForIdentifiers(TranslationUnit, HashSet<Id>, TranslationData),
+    FullyQualified(TranslationData, TranslationData),
+    WaitingForIdentifiers(TranslationUnit, TranslationData, HashSet<Id>),
     Done,
 }
 
@@ -228,7 +237,8 @@ impl CompileJobState {
         use CompileJobStatus::*;
         match self {
             CompileJobState::Parsed(_) => Parsing,
-            CompileJobState::WaitingForIdentifiers(_, ids, _) => WaitingForIdentifiers(ids.clone()),
+            CompileJobState::FullyQualified(_, _) => FullyQualified,
+            CompileJobState::WaitingForIdentifiers(_, _, ids) => WaitingForIdentifiers(ids.clone()),
             CompileJobState::Done => Done,
             CompileJobState::IdentifiersCreated(_, _) => IdentifiersCreated,
         }

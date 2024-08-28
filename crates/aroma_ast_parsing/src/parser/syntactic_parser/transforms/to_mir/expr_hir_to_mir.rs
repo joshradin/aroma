@@ -1,12 +1,12 @@
 use crate::parser::{expr as parsed_exprs, ErrorKind, Punctuated, SyntaxError};
 use crate::type_resolution::Bindings;
-use aroma_ast::id::Id;
-use aroma_ast::mir::expr::{CallMethodExpr, Expr, ExprThis, FieldExpr, GlobalExpr, VarExpr};
-use aroma_ast::mir::references::{FieldRef, NameType};
-use aroma_ast::spanned::Spanned;
+use aroma_tokens::id::Id;
+use aroma_ast::expr::{CallMethodExpr, Expr, ExprThis, FieldExpr, GlobalExpr, VarExpr};
+use aroma_ast::references::{FieldRef, NameType};
+use aroma_ast::typed::TypedMut;
+use aroma_tokens::spanned::Spanned;
 use aroma_types::class::ClassInst;
 use log::debug;
-use aroma_ast::mir::typed::TypedMut;
 use parsed_exprs::Expr as ParsedExpr;
 
 pub fn expr_hir_to_mir(
@@ -35,33 +35,21 @@ pub fn expr_hir_to_mir(
             todo!()
         }
         ParsedExpr::Call(call) => {
-            let parameters =
-                match call.parameters {
-                    Some(p) => {
-                        p.into_items()
-                         .into_iter()
-                         .try_fold(
-                             Vec::new(),
-                             |mut accum, item| -> Result<_, SyntaxError> {
-                                 let expr = expr_hir_to_mir(item, declared_variables)?;
-                                 accum.push(
-                                     expr
-                                 );
-                                 Ok(accum)
-                             }
-                         )?
+            let parameters = match call.parameters {
+                Some(p) => p.into_items().into_iter().try_fold(
+                    Vec::new(),
+                    |mut accum, item| -> Result<_, SyntaxError> {
+                        let expr = expr_hir_to_mir(item, declared_variables)?;
+                        accum.push(expr);
+                        Ok(accum)
                     },
-                    None => {
-                        vec![]
-                    }
-                };
+                )?,
+                None => {
+                    vec![]
+                }
+            };
             let callee = expr_hir_to_mir(*call.callee, declared_variables)?;
-            Ok(Expr::CallMethod(
-                CallMethodExpr::new(
-                    callee,
-                    parameters,
-                )
-            ))
+            Ok(Expr::CallMethod(CallMethodExpr::new(callee, parameters)))
         }
         ParsedExpr::Index(_) => {
             todo!()
@@ -79,9 +67,15 @@ pub fn expr_hir_to_mir(
             todo!()
         }
 
-        ParsedExpr::This(_) => {todo!()}
-        ParsedExpr::Super(_) => {todo!()}
-        ParsedExpr::Delegate(_) => {todo!()}
+        ParsedExpr::This(_) => {
+            todo!()
+        }
+        ParsedExpr::Super(_) => {
+            todo!()
+        }
+        ParsedExpr::Delegate(_) => {
+            todo!()
+        }
     }
 }
 
@@ -121,12 +115,8 @@ fn get_var(
         [other] => {
             let mut var_expr = VarExpr::new(other.to_string());
             var_expr.set_type(ty.clone());
-            Ok(
-                Expr::Var(
-                    var_expr
-                )
-            )
+            Ok(Expr::Var(var_expr))
         }
-        _ => unreachable!("var id restriction should prevent multi-ids at this point")
+        _ => unreachable!("var id restriction should prevent multi-ids at this point"),
     }
 }

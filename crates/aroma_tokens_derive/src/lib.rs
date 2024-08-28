@@ -26,9 +26,9 @@ pub fn derive_to_tokens(tokens: TokenStream) -> TokenStream {
 
             quote! (
                 #[automatically_derived]
-                impl <#(, #generics)*> aroma_ast::token::ToTokens for #ident <#(, #generic_uses)*> {
-                    fn to_tokens(&self) -> aroma_ast::token::TokenStream {
-                        aroma_ast::token::TokenStream::from_iter(
+                impl <#(, #generics)*> aroma_tokens::token::ToTokens for #ident <#(, #generic_uses)*> {
+                    fn to_tokens(&self) -> aroma_tokens::token::TokenStream {
+                        aroma_tokens::token::TokenStream::from_iter(
                             [#(
                                 self.#fields.to_tokens()
                             ),*]
@@ -37,8 +37,8 @@ pub fn derive_to_tokens(tokens: TokenStream) -> TokenStream {
                         )
                     }
 
-                    fn to_token_tree(&self) -> aroma_ast::token::TokenTree {
-                        aroma_ast::token::TokenTree::Node(Vec::from_iter(
+                    fn to_token_tree(&self) -> aroma_tokens::token::TokenTree {
+                        aroma_tokens::token::TokenTree::Node(Vec::from_iter(
                             [
                                 #(self.#fields.to_token_tree()),*
                             ]
@@ -79,8 +79,8 @@ pub fn derive_to_tokens(tokens: TokenStream) -> TokenStream {
                         (
                             quote! {
                                 #ident::#id { #(#pats),* } => {
-                                    aroma_ast::token::TokenStream::from_iter(
-                                        <[aroma_ast::token::TokenStream; #len]>::into_iter([#(
+                                    aroma_tokens::token::TokenStream::from_iter(
+                                        <[aroma_tokens::token::TokenStream; #len]>::into_iter([#(
                                            #bindings.to_tokens()
                                         ),*]
                                         )
@@ -90,7 +90,7 @@ pub fn derive_to_tokens(tokens: TokenStream) -> TokenStream {
                             },
                             quote! {
                                 #ident::#id { #(#pats),* } => {
-                                    aroma_ast::token::TokenTree::Node(
+                                    aroma_tokens::token::TokenTree::Node(
                                         Vec::from([
                                                 #(#bindings.to_token_tree()),*
                                             ])
@@ -107,8 +107,8 @@ pub fn derive_to_tokens(tokens: TokenStream) -> TokenStream {
                         (
                             quote! {
                                 #ident::#id(#(#bindings),*) => {
-                                    aroma_ast::token::TokenStream::from_iter(
-                                        <[aroma_ast::token::TokenStream; #len]>::into_iter([#(
+                                    aroma_tokens::token::TokenStream::from_iter(
+                                        <[aroma_tokens::token::TokenStream; #len]>::into_iter([#(
                                            #bindings.to_tokens()
                                         ),*]
                                         )
@@ -118,7 +118,7 @@ pub fn derive_to_tokens(tokens: TokenStream) -> TokenStream {
                             },
                             quote! {
                                 #ident::#id(#(#bindings),*) => {
-                                    aroma_ast::token::TokenTree::Node(
+                                    aroma_tokens::token::TokenTree::Node(
                                         Vec::from([
                                                 #(#bindings.to_token_tree()),*
                                             ])
@@ -129,9 +129,9 @@ pub fn derive_to_tokens(tokens: TokenStream) -> TokenStream {
                     }
                     Fields::Unit => (
                         quote! {
-                            #ident::#id => { aroma_ast::token::TokenStream::new() }
+                            #ident::#id => { aroma_tokens::token::TokenStream::new() }
                         },
-                        quote! { #ident::#id => { aroma_ast::token::TokenTree::Leaf(vec![]) }},
+                        quote! { #ident::#id => { aroma_tokens::token::TokenTree::Leaf(vec![]) }},
                     ),
                 };
 
@@ -143,14 +143,14 @@ pub fn derive_to_tokens(tokens: TokenStream) -> TokenStream {
 
             quote! (
                 #[automatically_derived]
-                impl <#(, #generics)*> aroma_ast::token::ToTokens for #ident <#(, #generic_uses)*> {
-                    fn to_tokens(&self) -> aroma_ast::token::TokenStream {
+                impl <#(, #generics)*> aroma_tokens::token::ToTokens for #ident <#(, #generic_uses)*> {
+                    fn to_tokens(&self) -> aroma_tokens::token::TokenStream {
                         match self {
                             #(#to_token_matches)*
                         }
                     }
 
-                    fn to_token_tree(&self) -> aroma_ast::token::TokenTree {
+                    fn to_token_tree(&self) -> aroma_tokens::token::TokenTree {
                         match self {
                             #(#to_token_tree_matches)*
                         }

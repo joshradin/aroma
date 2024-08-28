@@ -7,7 +7,7 @@ use crate::parser::syntactic_parser::hir::helpers::End;
 use crate::parser::{
     cut, multi1, CouldParse, ErrorKind, Parsable, SyntacticParser, SyntaxError, SyntaxResult,
 };
-use aroma_ast::token::{ToTokens, TokenKind};
+use aroma_tokens::token::{ToTokens, TokenKind};
 use log::debug;
 use std::io::Read;
 
@@ -394,22 +394,16 @@ fn parse_statement<'p, R: Read>(
             if let Some(assign) = parser.parse_opt::<Assign>()? {
                 let rvalue = parser.parse(Expr::parse).map_err(|e| e.cut())?;
                 let end = parser.parse(End::parse)?;
-                Statement::Assign(
-                    AssignStatement {
-                        lvalue: e,
-                        assign,
-                        rvalue,
-                        end,
-                    }
-                )
+                Statement::Assign(AssignStatement {
+                    lvalue: e,
+                    assign,
+                    rvalue,
+                    end,
+                })
             } else {
-
                 let end = parser.try_parse(End::parse)?;
                 Statement::Expr(ExprStatement { expr: e, end })
             }
-
-
-
         }
     };
     Ok(statement)

@@ -1,10 +1,10 @@
 use crate::lexer::LexingError;
-use aroma_ast::spanned::{LineReader, Span};
-use aroma_ast::token::Token;
+use aroma_tokens::id::Id;
+use aroma_tokens::spanned::{LineReader, Span};
+use aroma_tokens::token::Token;
 use aroma_types::class::{ClassInst, ClassRef};
 use std::fmt::{Display, Formatter};
 use std::io;
-use aroma_ast::id::Id;
 
 /// Represents an error occurring during parsing
 #[derive(Debug, thiserror::Error)]
@@ -127,7 +127,7 @@ pub enum ErrorKind {
     #[error("Can not declare {0:} as abstract in concrete class {1:?}")]
     AbstractMethodInConcreteClass(String, ClassRef),
     #[error("undeclared variable {0:?}")]
-    UndeclaredVariable(Id)
+    UndeclaredVariable(Id),
 }
 
 impl ErrorKind {

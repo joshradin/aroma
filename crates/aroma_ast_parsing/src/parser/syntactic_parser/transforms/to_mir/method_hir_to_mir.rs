@@ -1,15 +1,15 @@
 use crate::parser::expr::Expr;
 use crate::parser::items::FnBody;
-use crate::parser::statement::{Statement as ParsedStatement, ReturnStatement, Statement};
+use crate::parser::statement::{ReturnStatement, Statement as ParsedStatement, Statement};
 use crate::parser::transforms::to_mir::expr_hir_to_mir::expr_hir_to_mir;
 use crate::parser::SyntaxError;
 use crate::type_resolution::Bindings;
-use aroma_ast::id::Id;
-use aroma_ast::mir::block::Block;
-use aroma_ast::mir::method::MethodDef;
-use aroma_ast::mir::statements::{Stmt, DeclareStmt, StmtKind, ReturnStmt};
-use aroma_ast::mir::typed::Typed;
-use aroma_ast::spanned::{Span, Spanned};
+use aroma_tokens::id::Id;
+use aroma_ast::block::Block;
+use aroma_ast::method::MethodDef;
+use aroma_ast::statements::{DeclareStmt, ReturnStmt, Stmt, StmtKind};
+use aroma_ast::typed::Typed;
+use aroma_tokens::spanned::{Span, Spanned};
 use aroma_types::class::ClassInst;
 use aroma_types::field::Field;
 use aroma_types::functions::{FunctionDeclaration, Parameter};
@@ -38,16 +38,12 @@ fn transform_fn_body(
     let mut declared_variables = Bindings::new();
 
     declared_variables.new_scope(Id::new_call_site(["this"]).unwrap());
-    fields.iter()
-        .for_each(|field| {
-            declared_variables.insert(
-                Id::new_call_site([
-                    "this",
-                    field.name()
-                ]).expect("could not create id"),
-                TypeSignature::from(field.kind().clone())
-            )
-        });
+    fields.iter().for_each(|field| {
+        declared_variables.insert(
+            Id::new_call_site(["this", field.name()]).expect("could not create id"),
+            TypeSignature::from(field.kind().clone()),
+        )
+    });
 
     declared_variables.new_scope(None);
 

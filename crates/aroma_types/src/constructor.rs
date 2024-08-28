@@ -1,8 +1,8 @@
 //! Constructors are used for creating objects
 
 use crate::class::ClassInst;
-use crate::generic::GenericDeclaration;
 use crate::functions::{FunctionId, Parameter};
+use crate::generic::GenericDeclaration;
 use crate::vis::Vis;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;

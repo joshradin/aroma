@@ -1,43 +1,71 @@
 //! Resolver for type information and globals
 
-use std::collections::HashMap;
-use aroma_ast::id::Id;
+use aroma_tokens::id::Id;
+use aroma_tokens::id_resolver::IdResolver;
+use aroma_types::class::Class;
 use aroma_types::hierarchy::ClassHierarchy;
 use aroma_types::type_signature::TypeSignature;
+use std::collections::HashMap;
 
 /// Resolver for connecting types and globals
 #[derive(Debug)]
 pub struct TranslationData {
+    namespace: Option<Id>,
+    id_resolver: IdResolver,
     class_hierarchy: ClassHierarchy,
-    globals: HashMap<Id, TypeSignature>
+    globals: HashMap<Id, TypeSignature>,
 }
-
 
 impl TranslationData {
     /// Creates the new translation data instance, with only defaults available
     pub fn new() -> Self {
+        let hierarchy: ClassHierarchy = ClassHierarchy::new();
+        let mut resolver: IdResolver = IdResolver::new();
+        for class in hierarchy.classes() {
+            resolver.insert_qualified(class.id().clone());
+            resolver
+                .build_namespace(Id::default())
+                .insert_alias(class.id().most_specific(), class.id().clone());
+        }
+
         Self {
-            class_hierarchy: Default::default(),
+            namespace: None,
+            id_resolver: resolver,
+            class_hierarchy: hierarchy,
             globals: Default::default(),
         }
     }
 
-    /// Gets access to the class hierarchy
-    pub fn class_hierarchy(&self) -> &ClassHierarchy {
-        &self.class_hierarchy
+    pub fn set_namespace(&mut self, id: Id) {
+        self.namespace = Some(id);
     }
 
-    /// Gets access to the class hierarchy
-    pub fn class_hierarchy_mut(&mut self) -> &mut ClassHierarchy {
-        &mut self.class_hierarchy
+    pub fn id_resolver(&self) -> &IdResolver {
+        &self.id_resolver
+    }
+    pub fn id_resolver_mut(&mut self) -> &mut IdResolver {
+        &mut self.id_resolver
     }
 
-    pub fn globals(&self) -> &HashMap<Id, TypeSignature> {
-        &self.globals
+    /// Tries to insert a class into this translation data
+    pub fn insert_class(&mut self, class: &Class) -> aroma_types::hierarchy::Result<()> {
+        let class = class.clone();
+        self.id_resolver.insert_qualified(class.id().clone());
+        let queries = self.id_resolver.query(self.namespace.as_ref().cloned().unwrap_or_default());
+        self.class_hierarchy.insert(class, &queries)?;
+        Ok(())
     }
 
-    pub fn globals_mut(&mut self) -> &mut HashMap<Id, TypeSignature> {
-        &mut self.globals
+    /// Merges the contents of another translation into this
+    ///
+    /// # Examples
+    /// ```
+    /// # use aromac::resolution::TranslationData;
+    /// let mut td = TranslationData::new();
+    /// td.merge(&TranslationData::new()).merge(&TranslationData::new());
+    /// ```
+    pub fn merge(&mut self, other: &Self) -> &mut Self {
+        self
     }
 }
 
@@ -47,3 +75,22 @@ impl Default for TranslationData {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use crate::resolution::TranslationData;
+    use aroma_tokens::id::Id;
+    use std::str::FromStr;
+    use aroma_types::hierarchy::intrinsics::BASE_CLASS_NAME;
+
+    #[test]
+    fn test_intrinsic_classes_alias() {
+        let data = TranslationData::new();
+        let resolved = data
+            .id_resolver()
+            .query(Id::from_str("simply.package").unwrap())
+            .resolve(&Id::from_str("Object").unwrap());
+        assert_eq!(resolved.len(), 1);
+        let resolved = resolved[0];
+        assert_eq!(resolved.to_string(), BASE_CLASS_NAME);
+    }
+}

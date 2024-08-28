@@ -1,6 +1,6 @@
-use crate::mir::expr::Expr;
-use crate::mir::typed::{TypeError, TypeState, Typed, TypedMut};
-use crate::spanned::{Span, Spanned};
+use crate::expr::Expr;
+use crate::typed::{TypeError, TypeState, Typed, TypedMut};
+use aroma_tokens::spanned::{Span, Spanned};
 use aroma_types::type_signature::TypeSignature;
 
 /// A statement
@@ -43,7 +43,7 @@ impl DeclareStmt {
         var_name: impl AsRef<str>,
         allow_reassign: bool,
         ty: impl Into<Option<TypeSignature>>,
-        initial_value: impl Into<Option<Expr>>
+        initial_value: impl Into<Option<Expr>>,
     ) -> Self {
         Self {
             var_name: var_name.as_ref().to_string(),
@@ -74,7 +74,9 @@ pub struct ReturnStmt {
 
 impl ReturnStmt {
     pub fn new(value: impl Into<Option<Expr>>) -> Self {
-        Self { value: value.into()}
+        Self {
+            value: value.into(),
+        }
     }
 }
 
@@ -83,4 +85,3 @@ impl Typed<TypeSignature> for ReturnStmt {
         TypeState::never()
     }
 }
-

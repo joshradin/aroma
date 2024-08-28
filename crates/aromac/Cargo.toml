@@ -28,6 +28,7 @@ derive_more.workspace = true
 aroma_ast_parsing = { version = "0.0.0", path = "../aroma_ast_parsing" }
 aroma_ast = { version = "0.0.0", path = "../aroma_ast" }
 aroma_types = { version = "0.0.0", path = "../aroma_types" }
+aroma_tokens = { version = "0.0.0", path = "../aroma_tokens" }
 
 
 [dev-dependencies]

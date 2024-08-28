@@ -2,8 +2,8 @@ use crate::parser::expr::remove_nl;
 use crate::parser::items::Item;
 use crate::parser::singletons::{Import, Namespace};
 use crate::parser::{cut, multi0, End, Parsable, SyntacticParser, SyntaxError, SyntaxResult};
-use aroma_ast::id::Id;
-use aroma_ast::token::ToTokens;
+use aroma_tokens::id::Id;
+use aroma_tokens::token::ToTokens;
 use std::io::Read;
 
 /// Declares the current namespace

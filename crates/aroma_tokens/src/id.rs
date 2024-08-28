@@ -1,11 +1,12 @@
 use crate::spanned::{Span, Spanned};
 use crate::token::{ToTokens, Token, TokenKind, TokenStream};
 use itertools::Itertools;
+use std::cmp::Ordering;
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
+use std::str::FromStr;
 
-
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, Default)]
 pub struct Id(Vec<IdInternal>);
 
 impl Id {
@@ -56,23 +57,64 @@ impl Id {
     }
 
     /// Gets the most specific member of this id
-    pub fn most_specific(&self) -> &str {
+    pub fn most_specific(&self) -> Id {
         let tok = self.0.last().unwrap();
-        if let TokenKind::Identifier(id) = &tok.0.kind() {
-            id.as_ref()
+        if let TokenKind::Identifier(_) = &tok.0.kind() {
+            Id(vec![tok.clone()])
         } else {
             unreachable!()
         }
     }
 
     /// Gets the least specific member of this id
-    pub fn least_specific(&self) -> &str {
+    pub fn least_specific(&self) -> Id {
         let tok = self.0.first().unwrap();
-        if let TokenKind::Identifier(id) = &tok.0.kind() {
-            id.as_ref()
+        if let TokenKind::Identifier(_) = &tok.0.kind() {
+            Id(vec![tok.clone()])
         } else {
             unreachable!()
         }
+    }
+
+    /// if this id is only one id, returns Some(&str) otherwise returns None
+    pub fn try_as_ref(&self) -> Option<&str> {
+        if self.is_qualified() {
+            None
+        } else {
+            let tok = self.0.last().unwrap();
+            if let TokenKind::Identifier(s) = &tok.0.kind() {
+                Some(s.as_ref())
+            } else {
+                unreachable!()
+            }
+        }
+
+    }
+
+    /// Creates a new identifier of only the namespace this id is part of, effectively
+    /// chopping off the most specific part of the id.
+    ///
+    /// Does nothing if the id is empty or is unqualified
+    ///
+    /// # Example
+    /// ```
+    /// # use aroma_tokens::id::Id;
+    /// let id = Id::new_call_site(["aroma", "system", "Object"]).unwrap();
+    /// let namespace = id.namespace().expect("has qualifiers");
+    /// assert_eq!(namespace, Id::new_call_site(["aroma", "system"]).unwrap());
+    /// ```
+    pub fn namespace(&self) -> Option<Self> {
+        if !self.is_qualified() {
+            None
+        } else {
+            Some(Self(Vec::from(&self.0[..self.0.len() - 1])))
+        }
+    }
+
+    /// Checks if this id is qualified
+    #[inline]
+    pub fn is_qualified(&self) -> bool {
+        self.0.len() >= 2
     }
 
     /// Joins two ids together, changing the span of it's all the children in other to right after this span
@@ -103,6 +145,32 @@ impl Id {
         self.concat(&Id::new_call_site([other]).unwrap())
     }
 }
+
+impl From<&str> for Id {
+    fn from(value: &str) -> Self {
+        Self::new_call_site([value]).expect("could not create")
+    }
+}
+
+impl FromStr for Id {
+    type Err = &'static str;
+
+    #[track_caller]
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let split = s
+            .split(".")
+            .map(|i| {
+                IdInternal::new(Token::new(
+                    Span::call_site(),
+                    TokenKind::Identifier(i.to_string()),
+                ))
+                .ok_or("Could not create id")
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Self(split))
+    }
+}
+
 impl Debug for Id {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -126,6 +194,18 @@ impl ToTokens for Id {
                 .map(|internal| internal.0.clone())
                 .collect::<Vec<_>>(),
         )
+    }
+}
+
+impl PartialOrd for Id {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Id {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.iter().cmp(other.iter())
     }
 }
 

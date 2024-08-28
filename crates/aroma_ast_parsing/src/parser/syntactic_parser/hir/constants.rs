@@ -1,4 +1,4 @@
-use aroma_ast::token::{ToTokens, Token, TokenKind, TokenStream};
+use aroma_tokens::token::{ToTokens, Token, TokenKind, TokenStream};
 use std::fmt::{Debug, Formatter};
 use std::io::Read;
 use std::result;
@@ -65,8 +65,10 @@ impl Parsable for Constant {
                 _ => unreachable!(),
             }
         } else {
-            let kind =
-                ErrorKind::expected_token(["{int}", "{float}", "true", "false", "null"], parser.consume()?);
+            let kind = ErrorKind::expected_token(
+                ["{int}", "{float}", "true", "false", "null"],
+                parser.consume()?,
+            );
             Err(parser.error(kind, None))
         }
     }

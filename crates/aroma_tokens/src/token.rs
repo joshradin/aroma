@@ -2,7 +2,7 @@
 
 use crate::spanned::{Span, Spanned};
 #[cfg(feature = "derive")]
-pub use aroma_ast_derive::ToTokens;
+pub use aroma_tokens_derive::ToTokens;
 use std::collections::VecDeque;
 use std::fmt::{Debug, Formatter};
 use std::iter;

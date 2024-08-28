@@ -1,8 +1,8 @@
 //! Contains MIR level method definition
 
-use crate::mir::block::Block;
-use crate::mir::references::{GetInfoTypeRef, MethodRef, NameType};
-use crate::spanned::Span;
+use crate::block::Block;
+use crate::references::{GetInfoTypeRef, MethodRef, NameType};
+use aroma_tokens::spanned::Span;
 use aroma_types::class::ClassInst;
 use aroma_types::functions::{FunctionDeclaration, Parameter};
 use aroma_types::generic::GenericDeclaration;
@@ -22,7 +22,12 @@ pub struct MethodDef {
 }
 
 impl MethodDef {
-    pub fn new(span: Span, parent: Option<&ClassInst>, dec: &FunctionDeclaration, body: Block) -> Self {
+    pub fn new(
+        span: Span,
+        parent: Option<&ClassInst>,
+        dec: &FunctionDeclaration,
+        body: Block,
+    ) -> Self {
         Self {
             span,
             this: parent.cloned(),
@@ -53,6 +58,9 @@ impl GetInfoTypeRef<NameType> for MethodDef {
 
 impl GetInfoTypeRef<MethodRef> for MethodDef {
     fn get_info_type_ref(&self) -> MethodRef {
-        MethodRef(self.this.clone().expect("static method"), self.get_info_type_ref())
+        MethodRef(
+            self.this.clone().expect("static method"),
+            self.get_info_type_ref(),
+        )
     }
 }

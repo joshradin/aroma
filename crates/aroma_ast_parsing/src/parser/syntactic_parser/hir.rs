@@ -2,8 +2,8 @@
 
 use crate::parser::syntactic_parser::error::{ErrorKind, SyntaxError};
 use crate::parser::SyntacticParser;
-use aroma_ast::id::Id;
-use aroma_ast::token::ToTokens;
+use aroma_tokens::id::Id;
+use aroma_tokens::token::ToTokens;
 use aroma_visitor_gen::visitor;
 use std::fmt::Debug;
 use std::io::Read;

@@ -1,12 +1,13 @@
 //! methods are parts of a vtable for a type
 
-use std::fmt::{Debug, Formatter};
 use crate::class::ClassInst;
 use crate::generic::GenericDeclaration;
+use crate::type_signature::TypeSignature;
 use crate::vis::{Vis, Visibility};
+use std::fmt::{Debug, Display, Formatter};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use crate::type_signature::TypeSignature;
+use itertools::Itertools;
 
 pub type FunctionId = u64;
 
@@ -72,6 +73,27 @@ impl FunctionDeclaration {
     }
 }
 
+impl Display for FunctionDeclaration {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut builder = String::new();
+        builder = format!("{builder}{}", self.name);
+        if !self.generic_declaration().is_empty() {
+            builder = format!("{builder}[{}]", self.generic_declaration().iter().join(","));
+        }
+        builder = format!("{builder}({})", self.parameters().iter().join(","));
+
+        match self.return_type() {
+            TypeSignature::Void => {},
+            _ => {
+                let ret = ClassInst::from(self.return_type().clone());
+                builder = format!("{builder} -> {ret}")
+            }
+        }
+
+        write!(f, "{}", builder)
+    }
+}
+
 impl Visibility for FunctionDeclaration {
     fn visibility(&self) -> Vis {
         self.vis
@@ -91,5 +113,11 @@ pub struct Parameter {
 impl Debug for Parameter {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}: {}", self.name, self.signature)
+    }
+}
+
+impl Display for Parameter {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.name, ClassInst::from(self.signature.clone()))
     }
 }

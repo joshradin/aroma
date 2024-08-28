@@ -1,7 +1,7 @@
 #![doc = include_str!("../README.md")]
 
 use crate::parser::{Err, Parsable, SyntacticParser};
-use aroma_ast::mir::translation_unit::TranslationUnit;
+use aroma_ast::translation_unit::TranslationUnit;
 use parser::transforms::{transform, Transformer};
 use std::path::Path;
 

@@ -1,13 +1,16 @@
 //! The type hierarchy for type querying
 
 use crate::class::{AsClassRef, Class, ClassInst, ClassRef};
-use crate::generic::{GenericParameterBound, GenericParameterBounds};
+use crate::generic::{GenericDeclaration, GenericParameterBound, GenericParameterBounds};
 use intrinsics::*;
 use itertools::Itertools;
+use log::{debug, trace, warn};
 use parking_lot::RwLock;
 use petgraph::prelude::*;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::ops::Index;
+use aroma_tokens::id::Id;
+use aroma_tokens::id_resolver::{IdQueries, IdResolver};
 
 pub mod intrinsics;
 
@@ -18,6 +21,7 @@ pub struct ClassHierarchy {
     class_ref_map: HashMap<ClassRef, (NodeIndex, Class)>,
     base_class: ClassRef,
     instantiated: RwLock<HashSet<ClassInst>>,
+    validated: RwLock<HashSet<ClassInst>>,
 }
 
 impl Default for ClassHierarchy {
@@ -34,21 +38,23 @@ impl ClassHierarchy {
             class_ref_map: Default::default(),
             base_class: OBJECT_CLASS.get_ref(),
             instantiated: Default::default(),
+            validated: Default::default(),
         };
+        let ref id_resolver = IdResolver::new();
         hierarchy.unchecked_insert(OBJECT_CLASS.clone());
         hierarchy.unchecked_insert(CLASS_CLASS.clone());
+        let ref queries = id_resolver.query(Id::default());
         hierarchy
-            .insert(ARRAY_CLASS.clone())
+            .insert(ARRAY_CLASS.clone(), queries)
             .expect("could not insert array class");
-        hierarchy
-            .insert(I32_CLASS.clone())
-            .expect("could not insert int class");
-        hierarchy
-            .insert(I64_CLASS.clone())
-            .expect("could not insert long class");
-        hierarchy
-            .insert(STRING_CLASS.clone())
-            .expect("could not insert string class");
+        PRIMITIVES
+            .iter()
+            .try_for_each(|primitive| {
+                let primitive = (**primitive).clone();
+                hierarchy.insert(primitive, queries)?;
+                Ok(())
+            })
+            .unwrap_or_else(|e: Error| panic!("could not insert primitives: {e}"));
         hierarchy
     }
 
@@ -56,43 +62,77 @@ impl ClassHierarchy {
     /// already present within the hierarchy, failing if any is missing.
     ///
     /// If successful, a class ref is returned
-    pub fn insert(&mut self, class: Class) -> Result<ClassRef> {
-        let generics = class.generics().iter().map(|g| g.id()).collect::<Vec<_>>();
-        if let Some(super_class) = class.super_class() {
-            if !self.contains(super_class.as_ref()) {
-                return Err(Error::ClassNotDefined(super_class.as_ref().clone()));
+    pub fn insert(&mut self, class: Class, id_resolver: &IdQueries<'_>) -> Result<ClassRef> {
+        let class_ref = self.unchecked_insert(class.clone());
+        let try_validate = || -> Result<()> {
+            let generics = class.generics();
+            if let Some(super_class) = class.super_class() {
+                self.validate_with_generics(super_class, &generics)?;
+            } else {
+                return Err(Error::AllClassesMustHaveParent(class.get_ref()));
             }
-        } else {
-            return Err(Error::AllClassesMustHaveParent(class.get_ref()));
-        }
-        for mixin in class.mixins() {
-            if !self.contains(mixin.as_ref()) {
-                return Err(Error::ClassNotDefined(mixin.as_ref().clone()));
+            for mixin in class.mixins() {
+                self.validate_with_generics(mixin, &generics)?;
+            }
+
+            let validate = |bound: &ClassInst| {
+                self.validate_with_generics(bound, &generics)
+            };
+
+            for generic in class.generics() {
+                let bound = generic.bound();
+                validate(bound)?;
+            }
+
+            for field in class.fields() {
+                validate(field.kind())
+                    .map_err(|e| Error::FieldInvalid(
+                        class.generic_inst(),
+                        field.name().to_string(),
+                        Box::new(e)
+                    ))?;
+            }
+            for method in class.methods() {
+                let return_type: ClassInst = method.return_type().into();
+                validate(&return_type).map_err(|e| Error::MethodInvalid(
+                    class.generic_inst(),
+                    method.to_string(),
+                    Box::new(e)
+                ))?;
+                let parameters: Vec<ClassInst> = method
+                    .parameters()
+                    .iter()
+                    .map(|p| (&p.signature).into())
+                    .collect();
+                for param in &parameters {
+                    validate(param).map_err(|e| Error::MethodInvalid(
+                        class.generic_inst(),
+                        method.to_string(),
+                        Box::new(e)
+                    ))?;
+                }
+            }
+            Ok(())
+        };
+
+        let result = try_validate();
+        if let Err(e) = &result {
+            warn!("error occurred while validating {class}: {e}");
+            let Some((node_idx, _cls)) = self.class_ref_map.remove(&class_ref) else {
+                unreachable!()
+            };
+            let mut edges = vec![];
+            for neighbor in self.graph.neighbors_undirected(node_idx) {
+                if let Some((edge, _)) = self.graph.find_edge_undirected(node_idx, neighbor) {
+                    edges.push(edge);
+                }
+            }
+            for edge in edges {
+                self.graph.remove_edge(edge);
             }
         }
 
-        for generic in class.generics() {
-            let bound = generic.bound();
-            if !generics.contains(&bound.class_ref().as_ref()) && !self.contains(bound.class_ref())
-            {
-                return Err(Error::ClassNotDefined(bound.as_ref().clone()));
-            }
-        }
-
-        for field in class.fields() {
-            if !generics.contains(&field.kind().class_ref().as_ref())
-                && !self.contains(field.kind().as_ref())
-            {
-                return Err(Error::ClassNotDefined(field.kind().as_ref().clone()));
-            }
-        }
-        for method in class.methods() {
-            // if !self.contains(ClassInst::try_from(method.return_type())?) {
-            //     return Err(Error::ClassNotDefined(return_type.as_ref().clone()));
-            // }
-        }
-
-        Ok(self.unchecked_insert(class))
+        Ok(class_ref)
     }
 
     /// Tries to insert a class into this hierarchy.
@@ -138,8 +178,78 @@ impl ClassHierarchy {
     }
 
     /// Checks if this type hierarchy has the given class reference.
-    pub fn contains(&self, cls: &ClassRef) -> bool {
+    pub fn contains_ref(&self, cls: &ClassRef) -> bool {
         self.class_ref_map.contains_key(cls)
+    }
+
+    /// Validate a class inst, a fast path version of `instantiate`
+    #[inline]
+    pub fn validate(&self, inst: &ClassInst) -> Result<()> {
+        self.validate_with_generics(inst, &[])
+    }
+
+    /// Validate a class inst, with the given generics being *defined*, valid data
+    pub fn validate_with_generics(&self, inst: &ClassInst, unspecified_generic_parameters: &[
+        GenericDeclaration
+    ]) -> Result<()> {
+        if self.validated.read().contains(inst) {
+            trace!("{inst} already validated...");
+            return Ok(());
+        }
+        debug!("validating {inst:?}");
+        let cls_ref = inst.class_ref();
+
+        if unspecified_generic_parameters.iter().any(|gd| gd.id() == cls_ref.as_ref()) {
+            if !inst.generics().is_empty() {
+                return Err(Error::WrongNumberOfGenericParameters {
+                    definition: ClassInst::new_generic_param("?"),
+                    expected: 0,
+                    received: unspecified_generic_parameters.len(),
+                });
+            }
+        } else {
+            let Some(cls) = self.get(&cls_ref) else {
+                warn!("{cls_ref:?} not defined");
+                return Err(Error::ClassNotDefined(cls_ref.clone()));
+            };
+            let generics = inst.generics().iter().collect::<Vec<_>>();
+            if cls.generics().len() != generics.len() {
+                warn!("{inst} has wrong number of generics, expected type is {}", cls);
+                return Err(Error::WrongNumberOfGenericParameters {
+                    definition: cls.generic_inst(),
+                    expected: cls.generics().len(),
+                    received: generics.len(),
+                });
+            }
+
+            cls
+                .generics()
+                .iter()
+                .zip(generics.into_iter())
+                .try_for_each(|(dec, usage)| -> Result<_> {
+                    let bound = dec.bound();
+                    debug!("checking if generic usage bound {bound} is valid");
+                    self.validate_with_generics(bound, unspecified_generic_parameters)?;
+
+                    if let GenericParameterBound::Invariant(i) = &usage {
+                        if unspecified_generic_parameters.iter()
+                            .any(|unspecified| {
+                                unspecified.id() == dec.id()
+                            }) {
+                            return Ok(())
+                        }
+                    }
+                    let usage_cls = usage.bound_class_instance();
+                    debug!("checking if {usage:?} -> {usage_cls:?} is assignable to {bound:?}");
+                    self.is_assignable(usage_cls, bound)?;
+                    Ok(())
+                })?;
+        }
+
+
+
+        self.validated.write().insert(inst.clone());
+        Ok(())
     }
 
     /// Creates a new [`ClassInst`](ClassInst) value with default generic parameters for this type
@@ -161,30 +271,8 @@ impl ClassHierarchy {
         cls_ref: &C,
         generics: I,
     ) -> Result<ClassInst> {
-        let cls_ref = cls_ref.as_class_ref();
-        let cls = self
-            .get(&cls_ref)
-            .ok_or_else(|| Error::ClassNotDefined(cls_ref.clone()))?;
-        let generics = generics.into_iter().collect::<Vec<_>>();
-        if cls.generics().len() != generics.len() {
-            return Err(Error::WrongNumberOfGenericParameters {
-                expected: cls.generics().len(),
-                received: generics.len(),
-            });
-        }
-
-        let validated_generics = cls.generics().iter().zip(generics.into_iter()).try_fold(
-            Vec::new(),
-            |mut accum: Vec<GenericParameterBound>, (dec, usage)| -> Result<_> {
-                let bound = dec.bound();
-                let usage_cls = usage.bound_class_instance();
-                self.is_assignable(usage_cls, bound)?;
-                accum.push(usage);
-                Ok(accum)
-            },
-        )?;
-
-        let instantiated = ClassInst::with_generics(cls_ref, validated_generics);
+        let instantiated = ClassInst::with_generics(cls_ref.as_class_ref(), generics);
+        self.validate(&instantiated)?;
         self.add_to_instantiated_set(&instantiated);
         Ok(instantiated)
     }
@@ -428,7 +516,7 @@ pub enum Error {
     #[error("{0} is not defined")]
     ClassNotDefined(ClassRef),
     #[error("expected {expected} generic parameters but received {received}")]
-    WrongNumberOfGenericParameters { expected: usize, received: usize },
+    WrongNumberOfGenericParameters { definition: ClassInst, expected: usize, received: usize },
     #[error("{0} is not covariant with {1}")]
     ClassIsNotCovariant(ClassInst, ClassInst),
     #[error("{0} is not contravariant with {1}")]
@@ -440,6 +528,10 @@ pub enum Error {
     ClassIsNotAssignable(ClassInst, ClassInst, Option<Box<Error>>),
     #[error("{0} does not have a parent class")]
     AllClassesMustHaveParent(ClassRef),
+    #[error("In {0}, field {1} is invalid because {2}")]
+    FieldInvalid(ClassInst, String, Box<Error>),
+    #[error("In {0}, method {1} is invalid because {2}")]
+    MethodInvalid(ClassInst, String, Box<Error>)
 }
 
 pub type Result<T = ()> = std::result::Result<T, Error>;

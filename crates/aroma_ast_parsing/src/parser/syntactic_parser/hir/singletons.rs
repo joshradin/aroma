@@ -1,13 +1,13 @@
 use super::{ErrorKind, SyntacticParser, SyntaxError};
 use crate::parser::syntactic_parser::remove_nl;
 use crate::parser::{CouldParse, Err, Parsable};
-use aroma_ast::id::Id;
-use aroma_ast::spanned::Span;
-use aroma_ast::spanned::Spanned;
-use aroma_ast::token::ToTokens;
-use aroma_ast::token::Token;
-use aroma_ast::token::TokenKind;
-use aroma_ast::token::TokenStream;
+use aroma_tokens::id::Id;
+use aroma_tokens::spanned::Span;
+use aroma_tokens::spanned::Spanned;
+use aroma_tokens::token::ToTokens;
+use aroma_tokens::token::Token;
+use aroma_tokens::token::TokenKind;
+use aroma_tokens::token::TokenStream;
 use std::io::Read;
 use std::result;
 
@@ -35,7 +35,7 @@ impl Parsable for VarId {
 
 impl AsRef<str> for VarId {
     fn as_ref(&self) -> &str {
-        self.id.most_specific()
+        self.id.try_as_ref().unwrap()
     }
 }
 

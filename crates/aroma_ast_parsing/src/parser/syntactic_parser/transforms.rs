@@ -6,7 +6,7 @@ mod transform_combinators;
 use crate::parser::syntactic_parser::hir::translation_unit::TranslationUnit as ParsedTranslationUnit;
 use crate::parser::transforms::to_mir::to_mir;
 use crate::parser::SyntaxError;
-use aroma_ast::mir::translation_unit::TranslationUnit;
+use aroma_ast::translation_unit::TranslationUnit;
 use nom::Parser;
 pub use transform_combinators::*;
 

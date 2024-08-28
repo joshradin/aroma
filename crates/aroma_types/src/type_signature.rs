@@ -2,6 +2,9 @@
 
 use crate::class::{ClassInst, ClassRef};
 use crate::generic::GenericParameterBound;
+use crate::hierarchy::intrinsics::{
+    ARRAY_CLASS, BOOL_CLASS, F32_CLASS, F64_CLASS, I32_CLASS, I64_CLASS, U8_CLASS, VOID_CLASS,
+};
 use aroma_common::nom_helpers::recognize_identifier;
 use itertools::Itertools;
 use nom::branch::alt;
@@ -96,8 +99,6 @@ impl Debug for TypeSignature {
     }
 }
 
-
-
 impl Display for TypeSignature {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         Debug::fmt(self, f)
@@ -129,6 +130,40 @@ impl From<ClassInst> for TypeSignature {
                 })
                 .collect(),
         )
+    }
+}
+
+impl From<&TypeSignature> for ClassInst {
+    fn from(value: &TypeSignature) -> Self {
+        match value {
+            TypeSignature::Never => ClassInst::from("never"),
+            TypeSignature::Void => ClassInst::from(VOID_CLASS.get_ref()),
+            TypeSignature::Boolean => ClassInst::from(BOOL_CLASS.get_ref()),
+            TypeSignature::Byte => ClassInst::from(U8_CLASS.get_ref()),
+            TypeSignature::Int => I32_CLASS.get_ref().into(),
+            TypeSignature::Long => I64_CLASS.get_ref().into(),
+            TypeSignature::Float => F32_CLASS.get_ref().into(),
+            TypeSignature::Double => F64_CLASS.get_ref().into(),
+            TypeSignature::Covariant(c, p)
+            | TypeSignature::Contravariant(c, p)
+            | TypeSignature::Invariant(c, p) => ClassInst::with_generics(
+                c.clone(),
+                p.iter().map(|p| GenericParameterBound::from(p.clone())),
+            ),
+
+            TypeSignature::Function(args, ret) => {
+                todo!("function representation as ClassInst")
+            }
+            TypeSignature::Array(a) => {
+                ClassInst::with_generics(ARRAY_CLASS.get_ref(), [(**a).clone().into()])
+            }
+        }
+    }
+}
+
+impl From<TypeSignature> for ClassInst {
+    fn from(value: TypeSignature) -> Self {
+        ClassInst::from(&value)
     }
 }
 

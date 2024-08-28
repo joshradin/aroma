@@ -8,13 +8,12 @@ use crate::parser::{
     cut, CouldParse, ErrorKind, Parsable, Punctuated0, Punctuated1, SyntacticParser, SyntaxError,
     SyntaxResult,
 };
-use aroma_ast::id::Id;
-use aroma_ast::token::{ToTokens, TokenKind};
-use aroma_types::class::{Class, ClassInst, ClassRef};
+use aroma_tokens::id::Id;
+use aroma_tokens::token::{ToTokens, TokenKind};
+use aroma_types::class::{ClassInst, ClassRef};
 use aroma_types::generic::GenericParameterBound;
 use aroma_types::type_signature::TypeSignature;
 use std::io::Read;
-use std::result;
 
 /// A binding between an id to a type
 #[derive(Debug, ToTokens)]
@@ -261,7 +260,7 @@ mod tests {
     use crate::parser::binding::{Binding, FnParameters, OptTypeBinding, Type};
     use crate::parser::syntactic_parser::tests::test_parser;
     use crate::parser::Parsable;
-    use aroma_ast::token::ToTokens;
+    use aroma_tokens::token::ToTokens;
     use test_log::test;
 
     #[test]
