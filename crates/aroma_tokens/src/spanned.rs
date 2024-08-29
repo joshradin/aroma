@@ -234,7 +234,7 @@ pub struct Line {
 
 #[cfg(test)]
 mod tests {
-    use aroma_tokens::spanned::{Span, Spanned};
+    use crate::spanned::{Span, Spanned};
     use std::path::{Path, PathBuf};
 
     #[test]

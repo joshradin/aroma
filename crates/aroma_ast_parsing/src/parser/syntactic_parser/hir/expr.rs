@@ -646,7 +646,7 @@ mod tests {
     fn test_parse_identifier() {
         test_parser("helloWorld", |parser, _| {
             let identifier = parser.parse(Id::parse).unwrap();
-            assert!(matches!(identifier.most_specific(), "helloWorld"));
+            assert!(matches!(identifier.most_specific().try_as_ref().unwrap(), "helloWorld"));
         })
     }
 
@@ -654,7 +654,7 @@ mod tests {
     fn test_parse_identifier_single_letter() {
         test_parser("i", |parser, _| {
             let identifier = parser.parse(Id::parse).unwrap();
-            assert!(matches!(identifier.most_specific(), "i"));
+            assert!(matches!(identifier.most_specific().try_as_ref().unwrap(), "i"));
         })
     }
 

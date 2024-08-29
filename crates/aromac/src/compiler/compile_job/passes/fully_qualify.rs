@@ -6,6 +6,7 @@ use crate::resolution::TranslationData;
 use aroma_ast::translation_unit::TranslationUnit;
 use aroma_tokens::id_resolver::IdResolver;
 use log::debug;
+use aroma_tokens::id::Id;
 
 /// Attempts to fully qualify a translation unit
 pub fn fully_qualify(
@@ -17,7 +18,7 @@ pub fn fully_qualify(
         .cloned()
         .unwrap_or_default();
     let mut translation_data = TranslationData::new();
-    let mut missing = HashSet::new();
+    let mut missing = HashSet::<Id>::new();
 
     for import in &translation_unit.imports {
         translation_data
@@ -32,5 +33,5 @@ pub fn fully_qualify(
     );
 
 
-
+    todo!()
 }
