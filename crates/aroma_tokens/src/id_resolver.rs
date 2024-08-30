@@ -2,6 +2,8 @@
 
 use crate::id::Id;
 use std::collections::{BTreeMap, HashMap};
+use std::collections::hash_map::Entry;
+use itertools::Itertools as _;
 
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
 struct DeclaredId {
@@ -55,9 +57,7 @@ impl IdResolver {
     /// Merges the entries of another id resolver into this id resolver
     pub fn merge(&mut self, other: &Self) {
         for (id, map) in &other.namespaces {
-            let mut namespace_map = self.namespaces
-                        .entry(id.clone())
-                        .or_default();
+            let mut namespace_map = self.namespaces.entry(id.clone()).or_default();
             for (short, d) in map {
                 namespace_map.insert(short.clone(), d.clone());
             }
@@ -73,35 +73,57 @@ pub struct NamespaceBuilder<'a> {
 
 impl NamespaceBuilder<'_> {
     /// Inserts an unqualified id into this namespace builder, returning a fully qualified id
-    pub fn insert(&mut self, id: Id) -> Id {
+    pub fn insert(&mut self, id: Id) -> Result<Id, CreateIdError> {
         let full = self.namespace.resolve(&id);
         let declared = DeclaredId {
             short: id.clone(),
             full: full.clone(),
         };
-        self.resolver
-            .namespaces
-            .get_mut(&self.namespace)
-            .unwrap()
-            .entry(id)
-            .or_insert(declared);
-        full
+        match self.resolver
+                  .namespaces
+                  .get_mut(&self.namespace)
+                  .unwrap()
+                  .entry(id) {
+            Entry::Occupied(occ) => {
+                return Err(
+                    CreateIdError {
+                        short: occ.get().short.clone(),
+                        full: occ.get().full.clone(),
+                    }
+                )
+            }
+            Entry::Vacant(vac) => {
+                vac.insert(declared);
+            }
+        }
+        Ok(full)
     }
 
     /// Inserts an unqualified id into this namespace builder that refers to a different fully qualified id. Returns
     /// the original FQI unchanged. This allows for imports into the namespace
-    pub fn insert_alias(&mut self, id: Id, fqi: Id) -> Id {
+    pub fn insert_alias(&mut self, id: Id, fqi: Id) -> Result<Id, CreateIdError> {
         let declared = DeclaredId {
             short: id.clone(),
             full: fqi.clone(),
         };
-        self.resolver
-            .namespaces
-            .get_mut(&self.namespace)
-            .unwrap()
-            .entry(id)
-            .or_insert(declared);
-        fqi
+        match self.resolver
+                  .namespaces
+                  .get_mut(&self.namespace)
+                  .unwrap()
+                  .entry(id) {
+            Entry::Occupied(occ) => {
+                return Err(
+                    CreateIdError {
+                        short: occ.get().short.clone(),
+                        full: occ.get().full.clone(),
+                    }
+                )
+            }
+            Entry::Vacant(vac) => {
+                vac.insert(declared);
+            }
+        }
+        Ok(fqi)
     }
 
     /// Creates a querier
@@ -122,33 +144,85 @@ pub struct IdQueries<'a> {
 
 impl<'a> IdQueries<'a> {
     /// Try to resolve an id query, returning all matching
-    pub fn resolve(&self, id: &Id) -> Vec<&'a Id> {
+    pub fn resolve(&self, query: &Id) -> Result<&Id, ResolveIdError> {
         let mut resolved = vec![];
         // fast path - check directly for this
-        let direct_namespace = id.namespace().unwrap_or_default();
+        let direct_namespace = query.namespace().unwrap_or_default();
         if let Some(valid) = self
             .resolver
             .namespaces
             .get(&direct_namespace)
-            .and_then(|map| map.get(&id.most_specific()))
+            .and_then(|map| map.get(&query.most_specific()))
         {
             resolved.push(&valid.full);
         }
 
-        let concat = self.namespace.resolve(id);
+        let concat = self.namespace.resolve(query);
         if let Some(namespace) = concat.namespace() {
             if let Some(valid) = self
                 .resolver
                 .namespaces
                 .get(&namespace)
-                .and_then(|map| map.get(&id.most_specific()))
+                .and_then(|map| map.get(&query.most_specific()))
             {
                 resolved.push(&valid.full);
             }
         }
 
-        resolved
+        match resolved.as_slice() {
+            [] => Err(ResolveIdError::NotFound {
+                namespace: if self.namespace.is_empty() { None } else { Some(self.namespace.clone())},
+                query: query.clone(),
+            }),
+            [resolved] => Ok(*resolved),
+            more => Err(
+                ResolveIdError::Ambiguous {
+                    namespace: if self.namespace.is_empty() { None } else { Some(self.namespace.clone())},
+                    query: query.clone(),
+                    results: more.into_iter()
+                        .map(|i| (**i).to_owned())
+                        .sorted_by_key(|i| i.len())
+                        .collect()
+                }
+            )
+        }
     }
+}
+
+fn format_namespace(namespace: &Option<Id>) -> String {
+    namespace.as_ref().map(|i| format!("in namespace {i}, ")).unwrap_or_default()
+}
+/// An error occurred while trying to resolve some identifier
+#[derive(Debug, thiserror::Error)]
+pub enum ResolveIdError {
+    #[error("{}{query} is ambiguous, could be any of {}", format_namespace(namespace), results.iter().join(", "))]
+    Ambiguous {
+        namespace: Option<Id>,
+        query: Id,
+        results: Vec<Id>,
+    },
+    #[error("{}{query} not found", format_namespace(namespace))]
+    NotFound {
+        namespace: Option<Id>,
+        query: Id,
+    },
+}
+
+/// An error occurred while trying to resolve some identifier
+#[derive(Debug, thiserror::Error)]
+#[error("Trying to create id {short} but it is already present ({full})")]
+pub struct CreateIdError {
+    pub short: Id,
+    pub full: Id
+}
+
+/// Any id error
+#[derive(Debug, thiserror::Error)]
+pub enum IdError {
+    #[error(transparent)]
+    Resolve(#[from] ResolveIdError),
+    #[error(transparent)]
+    Create(#[from] CreateIdError)
 }
 
 #[cfg(test)]

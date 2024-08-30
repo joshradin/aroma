@@ -2,6 +2,8 @@
 
 use crate::class::{AsClassRef, Class, ClassInst, ClassRef};
 use crate::generic::{GenericDeclaration, GenericParameterBound, GenericParameterBounds};
+use aroma_tokens::id::Id;
+use aroma_tokens::id_resolver::{IdQueries, IdResolver};
 use intrinsics::*;
 use itertools::Itertools;
 use log::{debug, trace, warn};
@@ -9,8 +11,6 @@ use parking_lot::RwLock;
 use petgraph::prelude::*;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::ops::Index;
-use aroma_tokens::id::Id;
-use aroma_tokens::id_resolver::{IdQueries, IdResolver};
 
 pub mod intrinsics;
 
@@ -75,9 +75,7 @@ impl ClassHierarchy {
                 self.validate_with_generics(mixin, &generics)?;
             }
 
-            let validate = |bound: &ClassInst| {
-                self.validate_with_generics(bound, &generics)
-            };
+            let validate = |bound: &ClassInst| self.validate_with_generics(bound, &generics);
 
             for generic in class.generics() {
                 let bound = generic.bound();
@@ -85,31 +83,25 @@ impl ClassHierarchy {
             }
 
             for field in class.fields() {
-                validate(field.kind())
-                    .map_err(|e| Error::FieldInvalid(
-                        class.generic_inst(),
-                        field.name().to_string(),
-                        Box::new(e)
-                    ))?;
+                validate(field.class()).map_err(|e| {
+                    Error::FieldInvalid(class.generic_inst(), field.name().to_string(), Box::new(e))
+                })?;
             }
             for method in class.methods() {
-                let return_type: ClassInst = method.return_type().into();
-                validate(&return_type).map_err(|e| Error::MethodInvalid(
-                    class.generic_inst(),
-                    method.to_string(),
-                    Box::new(e)
-                ))?;
-                let parameters: Vec<ClassInst> = method
+                if let Some(return_type) = method.return_type() {
+                    validate(&return_type).map_err(|e| {
+                        Error::MethodInvalid(class.generic_inst(), method.to_string(), Box::new(e))
+                    })?;
+                }
+                let parameters: Vec<&ClassInst> = method
                     .parameters()
                     .iter()
-                    .map(|p| (&p.signature).into())
+                    .map(|p| &p.class)
                     .collect();
-                for param in &parameters {
-                    validate(param).map_err(|e| Error::MethodInvalid(
-                        class.generic_inst(),
-                        method.to_string(),
-                        Box::new(e)
-                    ))?;
+                for param in parameters {
+                    validate(param).map_err(|e| {
+                        Error::MethodInvalid(class.generic_inst(), method.to_string(), Box::new(e))
+                    })?;
                 }
             }
             Ok(())
@@ -189,9 +181,11 @@ impl ClassHierarchy {
     }
 
     /// Validate a class inst, with the given generics being *defined*, valid data
-    pub fn validate_with_generics(&self, inst: &ClassInst, unspecified_generic_parameters: &[
-        GenericDeclaration
-    ]) -> Result<()> {
+    pub fn validate_with_generics(
+        &self,
+        inst: &ClassInst,
+        unspecified_generic_parameters: &[GenericDeclaration],
+    ) -> Result<()> {
         if self.validated.read().contains(inst) {
             trace!("{inst} already validated...");
             return Ok(());
@@ -199,7 +193,10 @@ impl ClassHierarchy {
         debug!("validating {inst:?}");
         let cls_ref = inst.class_ref();
 
-        if unspecified_generic_parameters.iter().any(|gd| gd.id() == cls_ref.as_ref()) {
+        if unspecified_generic_parameters
+            .iter()
+            .any(|gd| gd.id() == cls_ref.as_ref())
+        {
             if !inst.generics().is_empty() {
                 return Err(Error::WrongNumberOfGenericParameters {
                     definition: ClassInst::new_generic_param("?"),
@@ -214,7 +211,10 @@ impl ClassHierarchy {
             };
             let generics = inst.generics().iter().collect::<Vec<_>>();
             if cls.generics().len() != generics.len() {
-                warn!("{inst} has wrong number of generics, expected type is {}", cls);
+                warn!(
+                    "{inst} has wrong number of generics, expected type is {}",
+                    cls
+                );
                 return Err(Error::WrongNumberOfGenericParameters {
                     definition: cls.generic_inst(),
                     expected: cls.generics().len(),
@@ -222,8 +222,7 @@ impl ClassHierarchy {
                 });
             }
 
-            cls
-                .generics()
+            cls.generics()
                 .iter()
                 .zip(generics.into_iter())
                 .try_for_each(|(dec, usage)| -> Result<_> {
@@ -232,11 +231,11 @@ impl ClassHierarchy {
                     self.validate_with_generics(bound, unspecified_generic_parameters)?;
 
                     if let GenericParameterBound::Invariant(i) = &usage {
-                        if unspecified_generic_parameters.iter()
-                            .any(|unspecified| {
-                                unspecified.id() == dec.id()
-                            }) {
-                            return Ok(())
+                        if unspecified_generic_parameters
+                            .iter()
+                            .any(|unspecified| unspecified.id() == dec.id())
+                        {
+                            return Ok(());
                         }
                     }
                     let usage_cls = usage.bound_class_instance();
@@ -245,8 +244,6 @@ impl ClassHierarchy {
                     Ok(())
                 })?;
         }
-
-
 
         self.validated.write().insert(inst.clone());
         Ok(())
@@ -516,7 +513,11 @@ pub enum Error {
     #[error("{0} is not defined")]
     ClassNotDefined(ClassRef),
     #[error("expected {expected} generic parameters but received {received}")]
-    WrongNumberOfGenericParameters { definition: ClassInst, expected: usize, received: usize },
+    WrongNumberOfGenericParameters {
+        definition: ClassInst,
+        expected: usize,
+        received: usize,
+    },
     #[error("{0} is not covariant with {1}")]
     ClassIsNotCovariant(ClassInst, ClassInst),
     #[error("{0} is not contravariant with {1}")]
@@ -531,7 +532,7 @@ pub enum Error {
     #[error("In {0}, field {1} is invalid because {2}")]
     FieldInvalid(ClassInst, String, Box<Error>),
     #[error("In {0}, method {1} is invalid because {2}")]
-    MethodInvalid(ClassInst, String, Box<Error>)
+    MethodInvalid(ClassInst, String, Box<Error>),
 }
 
 pub type Result<T = ()> = std::result::Result<T, Error>;

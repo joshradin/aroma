@@ -4,10 +4,11 @@ use crate::functions::FunctionDeclaration;
 use crate::generic::{GenericDeclaration, GenericParameterBound, GenericParameterBounds};
 use crate::vis::{Vis, Visibility};
 use aroma_common::nom_helpers::recognize_identifier;
+use aroma_tokens::id::Id;
 use itertools::Itertools;
 use nom::character::complete::char;
-use nom::combinator::{all_consuming, map, opt, recognize};
-use nom::error::ParseError;
+use nom::combinator::{all_consuming, map, map_res, opt, recognize};
+use nom::error::{ErrorKind, FromExternalError, ParseError};
 use nom::multi::{separated_list0, separated_list1};
 use nom::sequence::{delimited, tuple};
 use nom::{Finish, IResult, Parser};
@@ -15,7 +16,6 @@ use petgraph::visit::Walker;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::str::FromStr;
-use aroma_tokens::id::Id;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum ClassKind {
@@ -29,7 +29,7 @@ pub enum ClassKind {
 pub struct Class {
     vis: Vis,
     kind: ClassKind,
-    name: Id,
+    id: Id,
     generics: Vec<GenericDeclaration>,
     super_class: Option<ClassInst>,
     mixins: Vec<ClassInst>,
@@ -44,7 +44,7 @@ impl Class {
     pub fn new<G, S, M, F, Me, Co, Sub>(
         vis: Vis,
         kind: ClassKind,
-        name: Id,
+        id: Id,
         generics: G,
         super_class: S,
         mixins: M,
@@ -65,7 +65,7 @@ impl Class {
         Self {
             vis,
             kind,
-            name,
+            id: id,
             generics: generics.into_iter().collect(),
             super_class: super_class.into(),
             mixins: mixins.into_iter().collect(),
@@ -81,13 +81,13 @@ impl Class {
     where
         Fn: FnOnce(ClassRef) -> Self,
     {
-        let class_ref = ClassRef(name.as_ref().to_string());
+        let class_ref = ClassRef(Id::new_call_site([name.as_ref().to_string()]).unwrap());
         cb(class_ref)
     }
 
     /// Gets a ref to this class
     pub fn get_ref(&self) -> ClassRef {
-        ClassRef(self.name.to_string())
+        ClassRef(self.id.clone())
     }
 
     pub fn vis(&self) -> Vis {
@@ -95,7 +95,7 @@ impl Class {
     }
 
     pub fn id(&self) -> &Id {
-        &self.name
+        &self.id
     }
 
     pub fn generics(&self) -> &[GenericDeclaration] {
@@ -105,9 +105,15 @@ impl Class {
     pub fn super_class(&self) -> Option<&ClassInst> {
         self.super_class.as_ref()
     }
+    pub fn super_class_mut(&mut self) -> Option<&mut ClassInst> {
+        self.super_class.as_mut()
+    }
 
     pub fn mixins(&self) -> &[ClassInst] {
         &self.mixins
+    }
+    pub fn mixins_mut(&mut self) -> &mut Vec<ClassInst> {
+        &mut self.mixins
     }
 
     pub fn kind(&self) -> ClassKind {
@@ -136,10 +142,9 @@ impl Class {
     pub fn generic_inst(&self) -> ClassInst {
         ClassInst::with_generics(
             self.get_ref(),
-            self.generics.iter()
-                .map(|i| {
-                    GenericParameterBound::Invariant(ClassInst::new_generic_param(i.id()))
-                })
+            self.generics
+                .iter()
+                .map(|i| GenericParameterBound::Invariant(ClassInst::new_generic_param(i.id()))),
         )
     }
 }
@@ -162,29 +167,42 @@ impl Visibility for Class {
 
 impl Display for Class {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}[{}]", self.as_class_ref(), self.generics().iter().join(","))
+        write!(
+            f,
+            "{}[{}]",
+            self.as_class_ref(),
+            self.generics().iter().join(",")
+        )
     }
 }
 
 /// A reference to a class
 #[derive(Debug, Eq, PartialEq, Hash, Clone, derive_more::Display)]
-pub struct ClassRef(String);
+pub struct ClassRef(Id);
 
-impl From<String> for ClassRef {
-    fn from(value: String) -> Self {
+impl From<Id> for ClassRef {
+    fn from(value: Id) -> Self {
         Self(value)
     }
 }
 
-impl From<&str> for ClassRef {
-    fn from(value: &str) -> Self {
-        Self(value.to_string())
+impl AsRef<Id> for ClassRef {
+    fn as_ref(&self) -> &Id {
+        &self.0
     }
 }
 
-impl AsRef<str> for ClassRef {
-    fn as_ref(&self) -> &str {
-        &self.0
+impl AsMut<Id> for ClassRef {
+    fn as_mut(&mut self) -> &mut Id {
+        &mut self.0
+    }
+}
+
+impl FromStr for ClassRef {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Id::from_str(s).map(ClassRef)
     }
 }
 
@@ -219,13 +237,20 @@ impl ClassInst {
 
     /// Creates a new class reference with no generics
     pub fn new_generic_param(name: &str) -> Self {
-        Self(ClassRef::from(name), vec![])
+        Self(ClassRef::from(Id::from(name)), vec![])
     }
     pub fn class_ref(&self) -> &ClassRef {
         &self.0
     }
+    pub fn class_ref_mut(&mut self) -> &mut ClassRef {
+        &mut self.0
+    }
+
     pub fn generics(&self) -> &[GenericParameterBound] {
         &self.1
+    }
+    pub fn generics_mut(&mut self) -> &mut Vec<GenericParameterBound> {
+        &mut self.1
     }
 
     /// A class instant is real if all parameter bounds are invariant
@@ -241,8 +266,12 @@ impl ClassInst {
     }
 }
 
-pub fn class_inst_parser<'a, E: ParseError<&'a str>>(v: &'a str) -> IResult<&str, ClassInst, E> {
-    let fqi = recognize(separated_list1(char('.'), recognize_identifier));
+pub fn class_inst_parser<'a, E: ParseError<&'a str> + FromExternalError<&'a str, E>>(v: &'a str) -> IResult<&str, ClassInst, E> {
+    let fqi = map_res(
+        recognize(separated_list1(char('.'), recognize_identifier)),
+        |id_str| Id::from_str(id_str)
+            .map_err(|e| E::from_error_kind(id_str, ErrorKind::Verify)),
+    );
     map(
         tuple((
             fqi,
@@ -311,7 +340,7 @@ impl From<ClassRef> for ClassInst {
 
 impl From<&str> for ClassInst {
     fn from(value: &str) -> Self {
-        ClassInst::new(ClassRef::from(value))
+        ClassInst::new(ClassRef::from(Id::from(value)))
     }
 }
 

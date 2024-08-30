@@ -4,10 +4,10 @@ use crate::class::ClassInst;
 use crate::generic::GenericDeclaration;
 use crate::type_signature::TypeSignature;
 use crate::vis::{Vis, Visibility};
+use itertools::Itertools;
 use std::fmt::{Debug, Display, Formatter};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use itertools::Itertools;
 
 pub type FunctionId = u64;
 
@@ -17,7 +17,7 @@ pub struct FunctionDeclaration {
     vis: Vis,
     name: String,
     generic_declaration: Vec<GenericDeclaration>,
-    return_type: TypeSignature,
+    return_type: Option<ClassInst>,
     parameters: Vec<Parameter>,
     throws: Vec<ClassInst>,
 }
@@ -28,7 +28,7 @@ impl FunctionDeclaration {
         vis: Vis,
         name: impl AsRef<str>,
         generic_declaration: impl IntoIterator<Item = GenericDeclaration>,
-        return_type: impl Into<TypeSignature>,
+        return_type: impl Into<Option<ClassInst>>,
         parameters: impl IntoIterator<Item = Parameter>,
         throws: impl IntoIterator<Item = ClassInst>,
     ) -> Self {
@@ -56,20 +56,33 @@ impl FunctionDeclaration {
         &self.name
     }
 
-    pub fn generic_declaration(&self) -> &[GenericDeclaration] {
+    pub fn generic_declarations(&self) -> &[GenericDeclaration] {
         &self.generic_declaration
     }
+    pub fn generic_declarations_mut(&mut self) -> &mut Vec<GenericDeclaration> {
+        &mut self.generic_declaration
+    }
 
-    pub fn return_type(&self) -> &TypeSignature {
-        &self.return_type
+    pub fn return_type(&self) -> Option<&ClassInst> {
+        self.return_type.as_ref()
+    }
+
+    pub fn return_type_mut(&mut self) -> Option<&mut ClassInst> {
+        self.return_type.as_mut()
     }
 
     pub fn parameters(&self) -> &[Parameter] {
         &self.parameters
     }
+    pub fn parameters_mut(&mut self) -> &mut Vec<Parameter> {
+        &mut self.parameters
+    }
 
     pub fn throws(&self) -> &[ClassInst] {
         &self.throws
+    }
+    pub fn throws_mut(&mut self) -> &mut Vec<ClassInst> {
+        &mut self.throws
     }
 }
 
@@ -77,15 +90,14 @@ impl Display for FunctionDeclaration {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut builder = String::new();
         builder = format!("{builder}{}", self.name);
-        if !self.generic_declaration().is_empty() {
-            builder = format!("{builder}[{}]", self.generic_declaration().iter().join(","));
+        if !self.generic_declarations().is_empty() {
+            builder = format!("{builder}[{}]", self.generic_declarations().iter().join(","));
         }
         builder = format!("{builder}({})", self.parameters().iter().join(","));
 
         match self.return_type() {
-            TypeSignature::Void => {},
-            _ => {
-                let ret = ClassInst::from(self.return_type().clone());
+            None => {}
+            Some(ret) => {
                 builder = format!("{builder} -> {ret}")
             }
         }
@@ -107,17 +119,22 @@ impl Visibility for FunctionDeclaration {
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Parameter {
     pub name: String,
-    pub signature: TypeSignature,
+    pub class: ClassInst,
 }
 
 impl Debug for Parameter {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}: {}", self.name, self.signature)
+        write!(f, "{:?}: {}", self.name, self.class)
     }
 }
 
 impl Display for Parameter {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: {}", self.name, ClassInst::from(self.signature.clone()))
+        write!(
+            f,
+            "{}: {}",
+            self.name,
+            ClassInst::from(self.class.clone())
+        )
     }
 }

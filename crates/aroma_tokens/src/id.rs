@@ -88,7 +88,12 @@ impl Id {
                 unreachable!()
             }
         }
+    }
 
+    /// Checks if this is an empty id
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 
     /// Creates a new identifier of only the namespace this id is part of, effectively
@@ -117,6 +122,11 @@ impl Id {
         self.0.len() >= 2
     }
 
+    /// Gets the length of the id, measured by the number of parts
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
     /// Joins two ids together, changing the span of it's all the children in other to right after this span
     pub fn concat(&self, other: &Self) -> Self {
         let mut inner = self.0.clone();
@@ -143,6 +153,18 @@ impl Id {
     #[inline]
     pub fn join<S: AsRef<str> + ?Sized>(&self, other: &S) -> Self {
         self.concat(&Id::new_call_site([other]).unwrap())
+    }
+}
+
+impl PartialEq<str> for Id {
+    fn eq(&self, other: &str) -> bool {
+        self.to_string() == other
+    }
+}
+
+impl PartialEq<Id> for str {
+    fn eq(&self, other: &Id) -> bool {
+        other == self
     }
 }
 
@@ -176,7 +198,7 @@ impl Debug for Id {
         write!(
             f,
             "Id({:?})",
-            self.0.iter().map(|t| t.to_string()).join(".")
+            self.0.iter().map(|t| t.to_string()).collect::<Vec<_>>()
         )
     }
 }

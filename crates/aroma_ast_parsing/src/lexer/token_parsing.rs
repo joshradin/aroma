@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
-use aroma_tokens::token::TokenKind;
 use aroma_common::nom_helpers::recognize_identifier;
+use aroma_tokens::token::TokenKind;
 use nom::branch::alt;
 use nom::bytes::complete::{is_not, tag, take_till, take_until, take_while_m_n};
 use nom::character::complete::{alpha1, char, digit1, hex_digit1, multispace1, newline, space1};

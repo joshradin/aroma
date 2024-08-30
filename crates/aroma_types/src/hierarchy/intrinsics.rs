@@ -4,9 +4,9 @@ use crate::class::{AsClassRef, Class, ClassInst, ClassKind, ClassRef};
 use crate::field::Field;
 use crate::generic::GenericDeclaration;
 use crate::vis::Vis;
-use std::sync::LazyLock;
 use aroma_tokens::id::Id;
 use std::str::FromStr;
+use std::sync::LazyLock;
 
 use crate::functions::FunctionDeclaration;
 
@@ -102,16 +102,16 @@ fn class() -> Class {
         Id::from_str(CLASS_CLASS_NAME).unwrap(),
         [GenericDeclaration::new(
             "T",
-            ClassInst::with_generics(ClassRef::from(BASE_CLASS_NAME.to_string()), []),
+            ClassInst::with_generics(ClassRef::from(Id::from_str(BASE_CLASS_NAME).expect("could not parse")), []),
         )],
-        ClassInst::with_generics(ClassRef::from(BASE_CLASS_NAME.to_string()), []),
+        ClassInst::with_generics(ClassRef::from(Id::from_str(BASE_CLASS_NAME).expect("could not parse")), []),
         [],
         [],
         [FunctionDeclaration::new(
             Vis::Public,
             "getName",
             [],
-            ClassInst::new(STRING_CLASS_NAME.to_string().into()),
+            ClassInst::new(ClassRef::from(Id::from_str(STRING_CLASS_NAME).unwrap())),
             [],
             [],
         )],
@@ -133,7 +133,7 @@ fn object() -> Class {
             Field::new_final(
                 Vis::Public,
                 "hashcode",
-                ClassInst::new(I32_CLASS_NAME.as_class_ref()),
+                ClassInst::new(Id::from_str(I32_CLASS_NAME).unwrap().into()),
             ),
         ],
         [],

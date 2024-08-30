@@ -50,8 +50,9 @@ impl TranslationData {
     /// Tries to insert a class into this translation data
     pub fn insert_class(&mut self, class: &Class) -> aroma_types::hierarchy::Result<()> {
         let class = class.clone();
-        self.id_resolver.insert_qualified(class.id().clone());
-        let queries = self.id_resolver.query(self.namespace.as_ref().cloned().unwrap_or_default());
+        let queries = self
+            .id_resolver
+            .query(self.namespace.as_ref().cloned().unwrap_or_default());
         self.class_hierarchy.insert(class, &queries)?;
         Ok(())
     }
@@ -79,8 +80,8 @@ impl Default for TranslationData {
 mod tests {
     use crate::resolution::TranslationData;
     use aroma_tokens::id::Id;
-    use std::str::FromStr;
     use aroma_types::hierarchy::intrinsics::BASE_CLASS_NAME;
+    use std::str::FromStr;
 
     #[test]
     fn test_intrinsic_classes_alias() {

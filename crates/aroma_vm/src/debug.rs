@@ -135,7 +135,7 @@ impl<W: Write> ChunkVisitor for DisassemblerVisitor<'_, W> {
         offset: usize,
         opcode: &OpCode,
     ) -> Result<(), Self::Err> {
-        ChunkVisitorFunctions::visit_simple_instruction(self, offset, opcode)?;
+        ChunkVisitorFunctions.visit_simple_instruction(self, offset, opcode)?;
         writeln!(self.w, "{}", opcode.as_ref())
     }
 
@@ -145,7 +145,7 @@ impl<W: Write> ChunkVisitor for DisassemblerVisitor<'_, W> {
         opcode: &OpCode,
         jmp_offset: u16,
     ) -> Result<(), Self::Err> {
-        ChunkVisitorFunctions::visit_jump_instruction(self, offset, opcode, jmp_offset)?;
+        ChunkVisitorFunctions.visit_jump_instruction(self, offset, opcode, jmp_offset)?;
         let jmp_distance =
             u16::from_be_bytes(self.chunk.code()[offset + 1..][..2].try_into().unwrap()) as usize;
         writeln!(
@@ -163,7 +163,7 @@ impl<W: Write> ChunkVisitor for DisassemblerVisitor<'_, W> {
         opcode: &OpCode,
         jmp_offset: i32,
     ) -> Result<(), Self::Err> {
-        ChunkVisitorFunctions::visit_loop_instruction(self, offset, opcode, jmp_offset)?;
+        ChunkVisitorFunctions.visit_loop_instruction(self, offset, opcode, jmp_offset)?;
         let jmp_distance = i32::from(u16::from_be_bytes(
             self.chunk.code()[offset + 1..][..2].try_into().unwrap(),
         )) as isize;
@@ -183,7 +183,7 @@ impl<W: Write> ChunkVisitor for DisassemblerVisitor<'_, W> {
         constant_idx: u8,
         constant: &Constant,
     ) -> Result<(), Self::Err> {
-        ChunkVisitorFunctions::visit_constant_instruction(
+        ChunkVisitorFunctions.visit_constant_instruction(
             self,
             offset,
             opcode,
@@ -203,7 +203,7 @@ impl<W: Write> ChunkVisitor for DisassemblerVisitor<'_, W> {
         opcode: &OpCode,
         global: &str,
     ) -> Result<(), Self::Err> {
-        ChunkVisitorFunctions::visit_global_instruction(self, offset, opcode, global)?;
+        ChunkVisitorFunctions.visit_global_instruction(self, offset, opcode, global)?;
         Ok(())
     }
 
@@ -213,7 +213,7 @@ impl<W: Write> ChunkVisitor for DisassemblerVisitor<'_, W> {
         opcode: &OpCode,
         var_idx: u8,
     ) -> Result<(), Self::Err> {
-        ChunkVisitorFunctions::visit_local_var_instruction(self, offset, opcode, var_idx)?;
+        ChunkVisitorFunctions.visit_local_var_instruction(self, offset, opcode, var_idx)?;
         let var_idx = self.chunk.code()[offset + 1];
         writeln!(self.w, "{:<16} {var_idx:<5}", opcode.as_ref())?;
         Ok(())
@@ -226,7 +226,7 @@ impl<W: Write> ChunkVisitor for DisassemblerVisitor<'_, W> {
         idx: u8,
         constant: &Constant,
     ) -> Result<(), Self::Err> {
-        ChunkVisitorFunctions::visit_closure_instruction(self, offset, opcode, idx, constant)?;
+        ChunkVisitorFunctions.visit_closure_instruction(self, offset, opcode, idx, constant)?;
         let constant_idx = self.chunk.code()[offset + 1];
         write!(self.w, "{:<16} #{constant_idx:<5} // ", opcode.as_ref())?;
         format_constant(self.chunk, constant_idx, constant, &mut self.w)?;

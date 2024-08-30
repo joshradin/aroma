@@ -33,8 +33,12 @@ impl MethodDef {
             this: parent.cloned(),
             name: dec.name().to_string(),
             parameters: Vec::from(dec.parameters()),
-            generic_declaration: Vec::from(dec.generic_declaration()),
-            return_ty: dec.return_type().clone(),
+            generic_declaration: Vec::from(dec.generic_declarations()),
+            return_ty: dec
+                .return_type()
+                .cloned()
+                .map(|inst| TypeSignature::from(inst))
+                .unwrap_or(TypeSignature::Void),
             throws: Vec::from(dec.throws()),
             body,
         }
@@ -48,7 +52,7 @@ impl GetInfoTypeRef<NameType> for MethodDef {
             TypeSignature::Function(
                 self.parameters
                     .iter()
-                    .map(|i| i.signature.clone())
+                    .map(|i| i.class.clone().into())
                     .collect(),
                 Box::new(self.return_ty.clone()),
             ),

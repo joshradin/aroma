@@ -9,8 +9,8 @@ use aroma_common::nom_helpers::recognize_identifier;
 use itertools::Itertools;
 use nom::branch::alt;
 use nom::character::complete::char;
-use nom::combinator::{all_consuming, cut, map, opt, recognize, value};
-use nom::error::{context, VerboseError};
+use nom::combinator::{all_consuming, cut, map, map_res, opt, recognize, value};
+use nom::error::{context, ErrorKind, FromExternalError, VerboseError};
 use nom::multi::{separated_list0, separated_list1};
 use nom::sequence::{delimited, preceded, tuple};
 use nom::{Finish, IResult};
@@ -169,7 +169,7 @@ impl From<TypeSignature> for ClassInst {
 
 fn parse_class_ts(input: &str) -> IResult<&str, TypeSignature, VerboseError<&str>> {
     let fqi = recognize(separated_list1(char('.'), recognize_identifier));
-    map(
+    map_res(
         tuple((
             fqi,
             opt(delimited(
@@ -178,12 +178,14 @@ fn parse_class_ts(input: &str) -> IResult<&str, TypeSignature, VerboseError<&str
                 char(']'),
             )),
         )),
-        |(fqi, generics)| {
-            let fqi = ClassRef::from(fqi);
-            match generics {
+        |(fqi, generics)| -> Result<_, VerboseError<&str>> {
+            let fqi = ClassRef::from_str(fqi).map_err(|e| VerboseError::from_external_error(
+                fqi, ErrorKind::Verify, e
+            ))?;
+            Ok(match generics {
                 Some(generics) => TypeSignature::Invariant(fqi, generics),
                 None => TypeSignature::Invariant(fqi, vec![]),
-            }
+            })
         },
     )(input)
 }

@@ -20,10 +20,7 @@ fn test_compile_single_file() -> eyre::Result<()> {
         .join("aroma_files")
         .join("simple.aroma");
 
-    let c = match aroma_c.compile(&*file) {
-        Ok(ok) => {}
-        Err(e) => return Err(eyre!("{e}")),
-    };
+    aroma_c.compile(&*file)?;
 
     Ok(())
 }

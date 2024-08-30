@@ -41,9 +41,13 @@ impl Field {
         &self.name
     }
 
-    pub fn kind(&self) -> &ClassInst {
+    pub fn class(&self) -> &ClassInst {
         &self.kind
     }
+    pub fn class_mut(&mut self) -> &mut ClassInst {
+        &mut self.kind
+    }
+
 
     pub fn is_final(&self) -> bool {
         self.is_final

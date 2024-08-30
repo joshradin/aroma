@@ -4,11 +4,11 @@ use crate::parser::statement::{ReturnStatement, Statement as ParsedStatement, St
 use crate::parser::transforms::to_mir::expr_hir_to_mir::expr_hir_to_mir;
 use crate::parser::SyntaxError;
 use crate::type_resolution::Bindings;
-use aroma_tokens::id::Id;
 use aroma_ast::block::Block;
 use aroma_ast::method::MethodDef;
 use aroma_ast::statements::{DeclareStmt, ReturnStmt, Stmt, StmtKind};
 use aroma_ast::typed::Typed;
+use aroma_tokens::id::Id;
 use aroma_tokens::spanned::{Span, Spanned};
 use aroma_types::class::ClassInst;
 use aroma_types::field::Field;
@@ -41,7 +41,7 @@ fn transform_fn_body(
     fields.iter().for_each(|field| {
         declared_variables.insert(
             Id::new_call_site(["this", field.name()]).expect("could not create id"),
-            TypeSignature::from(field.kind().clone()),
+            TypeSignature::from(field.class().clone()),
         )
     });
 
@@ -49,10 +49,10 @@ fn transform_fn_body(
 
     dec.parameters()
         .iter()
-        .for_each(|Parameter { name, signature }| {
+        .for_each(|Parameter { name, class: signature }| {
             declared_variables.insert(
                 Id::new_call_site([name]).expect("could not create id"),
-                signature.clone(),
+                signature.clone().into(),
             )
         });
 

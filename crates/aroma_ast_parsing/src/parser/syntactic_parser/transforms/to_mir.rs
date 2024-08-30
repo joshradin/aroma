@@ -2,10 +2,11 @@ use crate::parser::items::{ClassField, ClassMember, ItemFn, Visibility};
 use crate::parser::syntactic_parser::hir::translation_unit::TranslationUnit as ParsedTranslationUnit;
 use crate::parser::{items as parser_items, ErrorKind};
 use crate::parser::{Punctuated, SyntaxError};
-use aroma_tokens::id::Id;
 use aroma_ast::items::{Item, ItemClass};
 use aroma_ast::method::MethodDef;
 use aroma_ast::translation_unit::TranslationUnit;
+use aroma_tokens::id::Id;
+use aroma_tokens::id_resolver::IdResolver;
 use aroma_tokens::spanned::Spanned;
 use aroma_types::class::{AsClassRef, Class, ClassInst, ClassKind, ClassRef};
 use aroma_types::field::Field;
@@ -16,7 +17,6 @@ use aroma_types::vis::Vis;
 use log::debug;
 use method_hir_to_mir::method_hir_to_mir_def;
 use std::collections::HashMap;
-use aroma_tokens::id_resolver::IdResolver;
 
 mod expr_hir_to_mir;
 mod method_hir_to_mir;
@@ -103,7 +103,7 @@ fn class_hir_to_mir(
         .unwrap_or_default();
 
     let class_inst = ClassInst::with_generics(
-        ClassRef::from(id.to_string()),
+        ClassRef::from(id.clone()),
         class_generics
             .iter()
             .map(|i| GenericParameterBound::Invariant(ClassInst::new_generic_param(i.id()))),
@@ -125,7 +125,7 @@ fn class_hir_to_mir(
                 return Err(SyntaxError::new(
                     ErrorKind::AbstractMethodInConcreteClass(
                         abs.id.as_ref().to_string(),
-                        ClassRef::from(cls.ident.as_ref()),
+                        ClassRef::from(cls.ident.id.clone()),
                     ),
                     member.span(),
                     None,
@@ -221,15 +221,14 @@ fn method_hir_to_mir(
 
     let return_type = fn_return
         .as_ref()
-        .map(|i| i.returns.as_type_signature())
-        .unwrap_or_default();
+        .map(|i| i.returns.as_class_inst());
     let parameters = fn_parameters
         .parameters
         .items()
         .into_iter()
         .map(|binding| Parameter {
             name: binding.id.as_ref().to_string(),
-            signature: binding.type_dec.ty.as_type_signature(),
+            class: binding.type_dec.ty.as_class_inst(),
         })
         .collect::<Vec<_>>();
     let throws = fn_throws
@@ -251,7 +250,7 @@ fn method_hir_to_mir(
             0,
             Parameter {
                 name: "this".to_string(),
-                signature: parent_inst.clone().into(),
+                class: parent_inst.clone().into(),
             },
         );
         parameters

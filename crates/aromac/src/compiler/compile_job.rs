@@ -2,14 +2,16 @@
 
 use super::error::*;
 use crate::compiler::compile_job::passes::declaration_discovery::{
-    create_declarations, CreateIdentifierError,
+    create_declarations, CreateDeclarationError,
 };
+use crate::compiler::compile_job::passes::fully_qualify::fully_qualify;
 use crate::resolution::TranslationData;
-use aroma_tokens::id::Id;
 use aroma_ast::translation_unit::TranslationUnit;
 use aroma_ast_parsing::parse_file;
 use aroma_ast_parsing::parser::SyntaxError;
 use aroma_ast_parsing::type_resolution::Bindings;
+use aroma_tokens::id::Id;
+use aroma_tokens::id_resolver::{CreateIdError, IdError, IdResolver, ResolveIdError};
 use itertools::Itertools as _;
 use log::{debug, info};
 use parking_lot::RwLock;
@@ -23,8 +25,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::sync::Arc;
 use std::thread::{Scope, ScopedJoinHandle};
-use aroma_tokens::id_resolver::IdResolver;
-use crate::compiler::compile_job::passes::fully_qualify::fully_qualify;
+use aroma_tokens::spanned::Span;
+use aroma_tokens::SpannedError;
 
 pub mod passes;
 
@@ -109,7 +111,7 @@ impl CompileJob {
             if let Some(command) = self.receiver.try_recv().ok() {
                 debug!("got command: {command:?}");
                 match command {
-                    CompileJobCommand::Cancel => return Err(CompileError::Cancelled),
+                    CompileJobCommand::Cancel => return Err(CompileErrorKind::Cancelled.into()),
                     CompileJobCommand::UpdatingBindings => {}
                 }
             }
@@ -154,7 +156,7 @@ impl CompileJob {
             }
             Ok(())
         } else {
-            Err(CompileError::NoState)
+            Err(CompileErrorKind::NoState.into())
         }
     }
 }
@@ -251,17 +253,60 @@ pub enum CompileJobCommand {
     UpdatingBindings,
 }
 
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct CompileError(#[from] SpannedError<CompileErrorKind, CompileError>);
+
+impl CompileError {
+    pub fn new(error: impl Into<CompileErrorKind>, span: impl Into<Option<Span>>, cause: impl Into<Option<Self>>) -> Self {
+        Self(SpannedError::new(
+            error.into(),
+            span,
+            cause
+        ))
+    }
+}
+
 /// A compile error
 #[derive(Debug, thiserror::Error)]
-pub enum CompileError {
+pub enum CompileErrorKind {
     #[error(transparent)]
     Syntax(#[from] SyntaxError),
     #[error(transparent)]
-    CreateIdentifier(#[from] CreateIdentifierError),
+    CreateIdentifier(#[from] CreateDeclarationError),
+    #[error(transparent)]
+    ResolveIdError(#[from] ResolveIdError),
+    #[error(transparent)]
+    CreateIdError(#[from] CreateIdError),
     #[error("undefined identifiers: {}", .0.iter().map(|id| id.to_string()).join(","))]
     UndefinedIdentifiers(Vec<Id>),
     #[error("no state")]
     NoState,
     #[error("job was cancelled")]
     Cancelled,
+}
+
+impl<V : Into<CompileErrorKind>> From<V> for CompileError {
+    fn from(value: V) -> Self {
+        CompileError::from(
+            SpannedError::new(
+                value.into(),
+                None,
+                None
+            )
+        )
+    }
+}
+
+impl From<IdError> for CompileErrorKind {
+    fn from(value: IdError) -> Self {
+        match value {
+            IdError::Resolve(r) => {
+                Self::from(r)
+            }
+            IdError::Create(c) => {
+                Self::from(c)
+            }
+        }
+    }
 }

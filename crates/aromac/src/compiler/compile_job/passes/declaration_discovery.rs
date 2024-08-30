@@ -13,7 +13,7 @@ use thiserror::Error;
 pub fn create_declarations(
     job: &mut CompileJob,
     tu: TranslationUnit,
-) -> Result<CompileJobState, CreateIdentifierError> {
+) -> Result<CompileJobState, CreateDeclarationError> {
     debug!("tu: {tu:#?}");
     let mut translation_data = TranslationData::new();
 
@@ -29,7 +29,7 @@ pub fn create_declarations(
 }
 
 #[derive(Debug, Error)]
-pub enum CreateIdentifierError {
+pub enum CreateDeclarationError {
     #[error(transparent)]
     HierarchyError(#[from] aroma_types::hierarchy::Error),
 }

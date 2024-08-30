@@ -5,13 +5,12 @@ use aroma_tokens::token::Token;
 use aroma_types::class::{ClassInst, ClassRef};
 use std::fmt::{Display, Formatter};
 use std::io;
+use aroma_tokens::SpannedError;
 
 /// Represents an error occurring during parsing
 #[derive(Debug, thiserror::Error)]
 pub struct SyntaxError {
-    pub location: Option<Span>,
-    pub kind: ErrorKind,
-    pub cause: Option<Box<Self>>,
+    pub kind: SpannedError<ErrorKind, SyntaxError>,
     pub non_terminal_stack: Option<Vec<&'static str>>,
     // line_col: Cell<Option<(usize, usize)>>,
 }
@@ -25,9 +24,11 @@ impl SyntaxError {
         non_terminals: impl Into<Option<Vec<&'static str>>>,
     ) -> Self {
         Self {
-            location: location.into(),
-            kind,
-            cause: cause.into().map(Box::new),
+            kind: SpannedError::new(
+                kind,
+                location,
+                cause
+            ),
             non_terminal_stack: non_terminals.into(),
             // line_col: Cell::new(None),
         }
@@ -37,46 +38,6 @@ impl SyntaxError {
 impl Display for SyntaxError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "syntax error: {}", self.kind)?;
-        if let Some(location) = &self.location {
-            write!(
-                f,
-                "  -> {}",
-                std::fs::canonicalize(location.file())
-                    .unwrap_or(location.file().to_path_buf())
-                    .to_string_lossy()
-            )?;
-            let (lines, base_line) = LineReader::new(2, 2)
-                .lines(location)
-                .map_err(|_| std::fmt::Error)?;
-            let col = lines
-                .iter()
-                .find(|line| line.line == base_line)
-                .expect("base line should always be present")
-                .col;
-            writeln!(f, ":{base_line}:{col}")?;
-            let width = lines.iter().map(|line| line.line).max().unwrap_or(0) / 10 + 1;
-            for line in &lines {
-                writeln!(f, "{:width$} | {}", line.line, line.src.trim_end())?;
-                if line.line == base_line {
-                    let col = line.col;
-                    if location.len() > 0 {
-                        writeln!(
-                            f,
-                            "{}{}{}",
-                            " ".repeat(width + 3),
-                            " ".repeat(col),
-                            "~".repeat(location.len())
-                        )?;
-                    } else {
-                        writeln!(f, "{}{}^", " ".repeat(width + 3), "-".repeat(col))?;
-                    }
-                }
-            }
-            writeln!(f)?;
-        }
-        if let Some(cause) = &self.cause {
-            cause.fmt(f)?;
-        }
         if let Some(non_terminals) = &self.non_terminal_stack {
             writeln!(f, "non terminal stack:")?;
             for (idx, non_terminal) in non_terminals.iter().enumerate() {
@@ -93,13 +54,12 @@ where
     E: Into<ErrorKind>,
 {
     fn from(value: E) -> Self {
-        Self {
-            location: None,
-            kind: value.into(),
-            cause: None,
-            non_terminal_stack: None,
-            // line_col: Cell::new(None),
-        }
+        Self::new(
+            value.into(),
+            None,
+            None,
+            None
+        )
     }
 }
 

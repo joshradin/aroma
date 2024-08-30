@@ -1,7 +1,7 @@
 //! translation units are the highest level
 
-use aroma_tokens::id::Id;
 use crate::items::Item;
+use aroma_tokens::id::Id;
 use aroma_tokens::spanned::Span;
 
 /// A translation unit

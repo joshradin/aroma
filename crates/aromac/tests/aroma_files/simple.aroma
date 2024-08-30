@@ -1,8 +1,14 @@
 namespace simple.system
 import aroma.system.Object
+import aroma.system.Closure
 
-public class Box[T] {
+
+public class Box[T] delegate T {
+    public static delegate BoxEater(Box[T]) -> T;
+
     private data: T;
+    private ref_count: Long;
+    private func: BoxEater;
 
     public constructor(data: T) {
     }
@@ -15,12 +21,12 @@ public class Box[T] {
         this.data = data;
     }
 
-    public fn toList() -> Box[List[T]] {}
-
     public static fn box[T](data: T) -> Box[T] {
         return Box(data);
     }
 }
+
+
 
 fn main() {
 

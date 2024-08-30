@@ -1,7 +1,7 @@
 use crate::class::ClassInst;
+use crate::hierarchy::intrinsics::{BASE_CLASS_NAME, OBJECT_CLASS};
 use crate::type_signature::TypeSignature;
 use std::fmt::{Display, Formatter};
-use crate::hierarchy::intrinsics::{BASE_CLASS_NAME, OBJECT_CLASS};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct GenericDeclaration {
@@ -33,6 +33,9 @@ impl GenericDeclaration {
 
     pub fn bound(&self) -> &ClassInst {
         &self.bound
+    }
+    pub fn bound_mut(&mut self) -> &mut ClassInst {
+        &mut self.bound
     }
 
     pub fn as_invariant(&self) -> GenericParameterBound {
@@ -78,7 +81,7 @@ impl GenericParameterBound {
             GenericParameterBound::Contravariant(cr) => cr,
         }
     }
-    pub(crate) fn bound_class_instance_mut(&mut self) -> &mut ClassInst {
+    pub fn bound_class_instance_mut(&mut self) -> &mut ClassInst {
         match self {
             GenericParameterBound::Invariant(cr) => cr,
             GenericParameterBound::Covariant(cr) => cr,

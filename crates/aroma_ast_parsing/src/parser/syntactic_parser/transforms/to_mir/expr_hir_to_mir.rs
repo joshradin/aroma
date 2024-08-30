@@ -1,9 +1,9 @@
 use crate::parser::{expr as parsed_exprs, ErrorKind, Punctuated, SyntaxError};
 use crate::type_resolution::Bindings;
-use aroma_tokens::id::Id;
 use aroma_ast::expr::{CallMethodExpr, Expr, ExprThis, FieldExpr, GlobalExpr, VarExpr};
 use aroma_ast::references::{FieldRef, NameType};
 use aroma_ast::typed::TypedMut;
+use aroma_tokens::id::Id;
 use aroma_tokens::spanned::Spanned;
 use aroma_types::class::ClassInst;
 use log::debug;

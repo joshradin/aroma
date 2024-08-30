@@ -42,7 +42,7 @@ impl ObjectLayout {
         offset += size_of::<usize>();
 
         for field in class.fields() {
-            let field_size = match field.kind().class_ref().as_ref() {
+            let field_size = match field.class().class_ref().as_ref() {
                 I32_CLASS_NAME => size_of::<i32>(),
                 I64_CLASS_NAME => size_of::<i64>(),
                 _ => size_of::<usize>(),

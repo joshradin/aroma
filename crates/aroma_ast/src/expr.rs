@@ -1,9 +1,9 @@
 //! MIR expression
 
-use aroma_tokens::id::Id;
 use crate::block::Block;
 use crate::references::{FieldRef, GlobalRef, MethodRef};
 use crate::typed::{TypeError, TypeInfo, TypeState, Typed, TypedMut};
+use aroma_tokens::id::Id;
 use aroma_types::type_signature::TypeSignature;
 
 /// An expression

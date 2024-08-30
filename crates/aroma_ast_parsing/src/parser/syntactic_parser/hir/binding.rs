@@ -14,6 +14,7 @@ use aroma_types::class::{ClassInst, ClassRef};
 use aroma_types::generic::GenericParameterBound;
 use aroma_types::type_signature::TypeSignature;
 use std::io::Read;
+use std::str::FromStr;
 
 /// A binding between an id to a type
 #[derive(Debug, ToTokens)]
@@ -96,7 +97,7 @@ impl Type {
     /// Converts this into a class inst
     pub fn as_class_inst(&self) -> ClassInst {
         ClassInst::with_generics(
-            ClassRef::from(self.id.to_string()),
+            ClassRef::from(self.id.clone()),
             self.generics
                 .as_ref()
                 .map(|i| {
