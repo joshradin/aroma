@@ -212,12 +212,18 @@ fn parse_statement_list<'p, R: Read>(
 ) -> SyntaxResult<StatementList> {
     let mut list = vec![];
     parser.with_ignore_nl(false, |parser| {
-        loop {
+        while !parser.eof() {
             while parser.parse_opt::<End>()?.is_some() {}
-            if RCurly::could_parse(parser)? {
+            if parser.eof() || RCurly::could_parse(parser)? {
                 break;
             }
-            let statement = parser.parse(Statement::parse)?;
+            let statement = match parser.parse(Statement::parse) {
+                Ok(statement) => statement,
+                Err(e) => {
+                    eprintln!("encountered {e:?} while parser is in state {:#?}", &parser.state);
+                    return Err(e);
+                }
+            };
             list.push(statement);
         }
         Ok(())
@@ -422,7 +428,7 @@ mod tests {
             r#"
             let i: Int = 3
             i.method()
-            let b = 2; const c = 3
+            let b = 2; const c = 3;
         "#,
             |parser, _| {
                 let parsed = parser.parse(parse_statement_list).unwrap();
@@ -448,7 +454,7 @@ mod tests {
             |parser, _| {
                 let parsed = parser.parse(parse_statement_list).unwrap_err();
                 assert!(
-                    matches!(parsed, Err::Error(error) if matches!(error.kind, ErrorKind::IllegalStatement { .. }))
+                    matches!(parsed, Err::Error(error) if matches!(error.kind.error(), ErrorKind::IllegalStatement { .. }))
                 );
             },
         );

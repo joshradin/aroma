@@ -12,7 +12,7 @@ use crate::parser::{
 use aroma_tokens::id::Id;
 use aroma_tokens::spanned::Spanned;
 use aroma_tokens::token::{ToTokens, TokenKind};
-use aroma_types::class::AsClassRef;
+use aroma_types::class::{AsClassRef, ClassInst};
 use aroma_types::hierarchy::intrinsics::OBJECT_CLASS;
 use aroma_types::vis::Vis;
 use log::{debug, trace};
@@ -228,6 +228,27 @@ pub struct ClassMembers {
     pub rcurly: RCurly,
 }
 
+/// Delegate item
+#[derive(Debug, ToTokens)]
+pub struct ItemDelegate {
+    pub vis: Option<Visibility>,
+    pub delegate: Delegate,
+    pub generics: Option<GenericDeclarations>,
+    pub receiver: Option<DelegateReceiver>,
+    pub id: VarId,
+    pub parameters: FnParameters,
+    pub fn_return: Option<FnReturn>,
+    pub fn_throws: Option<FnThrows>,
+    pub end: End,
+}
+
+#[derive(Debug, ToTokens)]
+pub struct DelegateReceiver {
+    pub receiver: Type,
+    pub dot: Dot
+}
+
+
 /// An item (interface, class, function) declaration, along with its visibility
 #[derive(Debug, ToTokens)]
 pub enum Item {
@@ -270,6 +291,10 @@ fn parse_item<'p, R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<
         TokenKind::Fn => {
             let func = parse_function(vis, parser).map_err(|e| e.cut())?;
             Item::Func(func)
+        }
+        TokenKind::Delegate => {
+            // delegate parsing
+            todo!("delegate parsing")
         }
         _other => {
             let span = lookahead.span();

@@ -1,5 +1,5 @@
-use std::fmt::{Display, Formatter};
 use crate::spanned::{LineReader, Span};
+use std::fmt::{Display, Formatter};
 
 pub mod id;
 pub mod id_resolver;
@@ -16,11 +16,27 @@ pub struct SpannedError<E, C> {
 
 impl<E, C> SpannedError<E, C> {
     pub fn new(error: E, location: impl Into<Option<Span>>, cause: impl Into<Option<C>>) -> Self {
-        Self { error, location: location.into(), cause: cause.into().map(|i| Box::new(i)) }
+        Self {
+            error,
+            location: location.into(),
+            cause: cause.into().map(|i| Box::new(i)),
+        }
+    }
+
+    pub fn error(&self) -> &E {
+        &self.error
+    }
+
+    pub fn location(&self) -> Option<&Span> {
+        self.location.as_ref()
+    }
+
+    pub fn cause(&self) -> Option<&C> {
+        self.cause.as_ref().map(|c| &**c)
     }
 }
 
-impl<E: Display, C : Display> Display for SpannedError<E, C> {
+impl<E: Display, C: Display> Display for SpannedError<E, C> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "{}", self.error)?;
         if let Some(location) = &self.location {

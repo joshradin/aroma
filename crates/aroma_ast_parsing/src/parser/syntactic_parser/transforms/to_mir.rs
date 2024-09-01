@@ -2,7 +2,7 @@ use crate::parser::items::{ClassField, ClassMember, ItemFn, Visibility};
 use crate::parser::syntactic_parser::hir::translation_unit::TranslationUnit as ParsedTranslationUnit;
 use crate::parser::{items as parser_items, ErrorKind};
 use crate::parser::{Punctuated, SyntaxError};
-use aroma_ast::items::{Item, ItemClass};
+use aroma_ast::items::{Item, ClassItem};
 use aroma_ast::method::MethodDef;
 use aroma_ast::translation_unit::TranslationUnit;
 use aroma_tokens::id::Id;
@@ -17,6 +17,7 @@ use aroma_types::vis::Vis;
 use log::debug;
 use method_hir_to_mir::method_hir_to_mir_def;
 use std::collections::HashMap;
+use crate::parser::singletons::Static;
 
 mod expr_hir_to_mir;
 mod method_hir_to_mir;
@@ -62,7 +63,7 @@ pub fn to_mir(translation_unit: ParsedTranslationUnit) -> Result<TranslationUnit
 fn class_hir_to_mir(
     namespace: Option<&Id>,
     cls: parser_items::ItemClass,
-) -> Result<ItemClass, SyntaxError> {
+) -> Result<ClassItem, SyntaxError> {
     let id = match namespace {
         None => cls.ident.id.clone(),
         Some(namespace) => namespace.resolve(&cls.ident.id),
@@ -177,7 +178,7 @@ fn class_hir_to_mir(
         sub_classes,
     );
 
-    let item = ItemClass::new(span, class, method_defs);
+    let item = ClassItem::new(span, class, method_defs);
     Ok(item)
 }
 
@@ -219,9 +220,7 @@ fn method_hir_to_mir(
         base_generics
     };
 
-    let return_type = fn_return
-        .as_ref()
-        .map(|i| i.returns.as_class_inst());
+    let return_type = fn_return.as_ref().map(|i| i.returns.as_class_inst());
     let parameters = fn_parameters
         .parameters
         .items()
@@ -242,19 +241,12 @@ fn method_hir_to_mir(
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
-    let parameters = if static_tok.is_some() {
-        parameters.clone()
-    } else {
-        let mut parameters = parameters;
-        parameters.insert(
-            0,
-            Parameter {
-                name: "this".to_string(),
-                class: parent_inst.clone().into(),
-            },
-        );
-        parameters
+
+    let delegate = match &static_tok {
+        None => { Some(parent_inst.clone()) }
+        Some(_) => { None }
     };
+
     let method_dec = FunctionDeclaration::new(
         vis,
         &name,
@@ -263,8 +255,9 @@ fn method_hir_to_mir(
         } else {
             func_generics
         },
-        return_type.clone(),
+        delegate,
         parameters.clone(),
+        return_type.clone(),
         throws.clone(),
     );
     debug!("created method_dec = {:#?}", method_dec);

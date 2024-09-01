@@ -2,19 +2,19 @@
 
 use crate::compiler::compile_job::{CompileError, CompileErrorKind, CompileJobState};
 use crate::resolution::TranslationData;
-use aroma_ast::items::ItemClass;
+use aroma_ast::items::ClassItem;
 use aroma_ast::translation_unit::TranslationUnit;
 use aroma_ast::AstVisitorMut;
 use aroma_tokens::id::Id;
 use aroma_tokens::id_resolver::{IdError, IdQueries, IdResolver, NamespaceBuilder, ResolveIdError};
-use aroma_types::class::{Class, ClassInst, ClassRef};
-use log::{debug, error, warn};
-use std::collections::HashSet;
-use itertools::Itertools;
 use aroma_tokens::spanned::Spanned;
 use aroma_tokens::SpannedError;
+use aroma_types::class::{Class, ClassInst, ClassRef};
 use aroma_types::functions::FunctionDeclaration;
 use aroma_types::generic::GenericDeclaration;
+use itertools::Itertools;
+use log::{debug, error, warn};
+use std::collections::HashSet;
 
 /// Attempts to fully qualify a translation unit
 pub fn fully_qualify(
@@ -53,7 +53,7 @@ pub fn fully_qualify(
     let missing = full_qualifier.missing;
     if !missing.is_empty() {
         error!("missing identifiers: {}", missing.iter().join(", "));
-        return Err(CompileErrorKind::UndefinedIdentifiers(Vec::from_iter(missing)).into())
+        return Err(CompileErrorKind::UndefinedIdentifiers(Vec::from_iter(missing)).into());
     }
 
     todo!()
@@ -67,7 +67,11 @@ struct FullQualifier<'a> {
 }
 
 impl<'a> FullQualifier<'a> {
-    fn with_generics<F : FnOnce(&mut Self) -> R, R>(&mut self, generics: Vec<GenericDeclaration>, cb: F) -> R {
+    fn with_generics<F: FnOnce(&mut Self) -> R, R>(
+        &mut self,
+        generics: Vec<GenericDeclaration>,
+        cb: F,
+    ) -> R {
         debug!("setting ignores to {:?}", generics);
         let len = self.ignores.len();
         self.ignores
@@ -81,34 +85,31 @@ impl<'a> FullQualifier<'a> {
 impl AstVisitorMut for FullQualifier<'_> {
     type Err = CompileError;
 
-    fn visit_class_item(&mut self, class: &mut ItemClass) -> Result<(), Self::Err> {
+    fn visit_class_item(&mut self, class: &mut ClassItem) -> Result<(), Self::Err> {
         let x = Vec::from(class.class.generics());
         self.with_generics(x, |visitor| {
             visitor.defaults().visit_class_item(visitor, class)
         })
-
     }
 
     fn visit_class(&mut self, class: &mut Class) -> Result<(), Self::Err> {
         let id = class.id();
-        self.builder.insert_alias(
-            id.most_specific(),
-            id.clone()
-        ).map_err(|e| {
-            CompileError::new(
-                e,
-                id.span(),
-                None
-            )
-        })?;
+        self.builder
+            .insert_alias(id.most_specific(), id.clone())
+            .map_err(|e| CompileError::new(e, id.span(), None))?;
         self.defaults().visit_class(self, class)?;
         Ok(())
     }
 
-    fn visit_function_declaration(&mut self, func_dec: &mut FunctionDeclaration) -> Result<(), Self::Err> {
+    fn visit_function_declaration(
+        &mut self,
+        func_dec: &mut FunctionDeclaration,
+    ) -> Result<(), Self::Err> {
         let generics = Vec::from(func_dec.generic_declarations());
         self.with_generics(generics, |visitor| {
-            visitor.defaults().visit_function_declaration(visitor, func_dec)
+            visitor
+                .defaults()
+                .visit_function_declaration(visitor, func_dec)
         })
     }
 
@@ -129,19 +130,14 @@ impl AstVisitorMut for FullQualifier<'_> {
                 }
                 Ok(())
             }
-            Err(ResolveIdError::NotFound { namespace: _, query }) => {
+            Err(ResolveIdError::NotFound {
+                namespace: _,
+                query,
+            }) => {
                 self.missing.insert(query);
                 Ok(())
-            },
-            Err(e) => {
-               Err(CompileError::new(
-                   e,
-                   id.as_ref().span(),
-                   None
-               ))
             }
+            Err(e) => Err(CompileError::new(e, id.as_ref().span(), None)),
         }
-
-
     }
 }

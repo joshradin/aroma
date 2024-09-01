@@ -22,6 +22,7 @@ pub fn create_declarations(
             Item::Class(cls) => {
                 translation_data.insert_class(&cls.class)?;
             }
+            Item::Delegate(_) => {}
         }
     }
 

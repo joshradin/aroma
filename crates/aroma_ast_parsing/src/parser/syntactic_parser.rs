@@ -277,6 +277,11 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
         self.frames.pop()
     }
 
+    /// Gets if this parser is at EOF
+    pub fn eof(&self) -> bool {
+        matches!(self.state, State::Eof)
+    }
+
     /// Wrapper function for parsing an item
     #[inline]
     pub fn parse<O, E, P: Parser<R, O, E>>(&mut self, mut parser: P) -> result::Result<O, Err<E>>

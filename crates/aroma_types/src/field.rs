@@ -48,7 +48,6 @@ impl Field {
         &mut self.kind
     }
 
-
     pub fn is_final(&self) -> bool {
         self.is_final
     }

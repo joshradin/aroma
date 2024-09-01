@@ -47,14 +47,17 @@ fn transform_fn_body(
 
     declared_variables.new_scope(None);
 
-    dec.parameters()
-        .iter()
-        .for_each(|Parameter { name, class: signature }| {
+    dec.parameters().iter().for_each(
+        |Parameter {
+             name,
+             class: signature,
+         }| {
             declared_variables.insert(
                 Id::new_call_site([name]).expect("could not create id"),
                 signature.clone().into(),
             )
-        });
+        },
+    );
 
     debug!("creating method with initial bindings: {declared_variables:#?}");
     for statement in fn_body.body.list.statements {

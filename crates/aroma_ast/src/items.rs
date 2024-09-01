@@ -3,23 +3,25 @@ use crate::references::{GetInfoTypeRef, NameType};
 use aroma_tokens::spanned::{Span, Spanned};
 use aroma_types::class::Class;
 use std::collections::HashMap;
+use aroma_types::delegate::Delegate;
 
 /// A top level item
 #[derive(Debug)]
 pub enum Item {
     /// A class item
-    Class(ItemClass),
+    Class(ClassItem),
+    Delegate(DelegateItem)
 }
 
 #[derive(Debug)]
-pub struct ItemClass {
+pub struct ClassItem {
     span: Span,
     /// The class definition
     pub class: Class,
     pub method_definitions: HashMap<NameType, MethodDef>,
 }
 
-impl ItemClass {
+impl ClassItem {
     /// Creates an item class
     pub fn new<I: IntoIterator<Item = MethodDef>>(span: Span, class: Class, methods: I) -> Self {
         Self {
@@ -33,8 +35,27 @@ impl ItemClass {
     }
 }
 
-impl Spanned for ItemClass {
+impl Spanned for ClassItem {
     fn span(&self) -> Span {
         self.span.clone()
+    }
+}
+
+#[derive(Debug)]
+pub struct DelegateItem {
+    span: Span,
+    pub delegate: Delegate
+}
+
+impl DelegateItem {
+    /// Creates a new delegate item
+    pub fn new(span: Span, delegate: Delegate) -> Self {
+        Self { span, delegate }
+    }
+}
+
+impl Spanned for DelegateItem {
+    fn span(&self) -> Span {
+        self.span.span()
     }
 }

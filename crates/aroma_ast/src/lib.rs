@@ -1,14 +1,14 @@
 #![doc = include_str!("../README.md")]
 
+use crate::items::{Item, ClassItem};
+use crate::method::MethodDef;
+use crate::translation_unit::TranslationUnit;
 use aroma_tokens::id::Id;
 use aroma_types::class::{Class, ClassInst, ClassRef};
 use aroma_types::field::Field;
 use aroma_types::functions::{FunctionDeclaration, Parameter};
 use aroma_types::generic::{GenericDeclaration, GenericParameterBound, GenericParameterBounds};
-use crate::items::{Item, ItemClass};
-use crate::translation_unit::TranslationUnit;
 use aroma_visitor_gen::visitor;
-use crate::method::MethodDef;
 
 pub mod block;
 pub mod expr;
@@ -35,10 +35,11 @@ visitor! {
                 Item::Class(cls) => {
                     v.visit_class(cls)
                 }
+                Item::Delegate(_) => {todo!()}
             }
         }
 
-        visit fn class(v, class: &ItemClass) -> Result<()> {
+        visit fn class(v, class: &ClassItem) -> Result<()> {
             Ok(())
         }
     }
@@ -60,10 +61,11 @@ visitor! {
                 Item::Class(cls) => {
                     v.visit_class_item(cls)
                 }
+                Item::Delegate(_) => {todo!()}
             }
         }
 
-        visit fn class_item(v, class: &mut ItemClass) -> Result<()> {
+        visit fn class_item(v, class: &mut ClassItem) -> Result<()> {
             v.visit_class(&mut class.class)?;
             class.method_definitions.values_mut().try_for_each(|m| v.visit_method_definition(m))?;
             Ok(())
@@ -149,4 +151,3 @@ visitor! {
         }
     }
 }
-

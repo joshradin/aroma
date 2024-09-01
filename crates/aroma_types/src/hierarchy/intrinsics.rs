@@ -102,17 +102,24 @@ fn class() -> Class {
         Id::from_str(CLASS_CLASS_NAME).unwrap(),
         [GenericDeclaration::new(
             "T",
-            ClassInst::with_generics(ClassRef::from(Id::from_str(BASE_CLASS_NAME).expect("could not parse")), []),
+            ClassInst::with_generics(
+                ClassRef::from(Id::from_str(BASE_CLASS_NAME).expect("could not parse")),
+                [],
+            ),
         )],
-        ClassInst::with_generics(ClassRef::from(Id::from_str(BASE_CLASS_NAME).expect("could not parse")), []),
+        ClassInst::with_generics(
+            ClassRef::from(Id::from_str(BASE_CLASS_NAME).expect("could not parse")),
+            [],
+        ),
         [],
         [],
         [FunctionDeclaration::new(
             Vis::Public,
             "getName",
             [],
-            ClassInst::new(ClassRef::from(Id::from_str(STRING_CLASS_NAME).unwrap())),
+            ClassInst::from_str(STRING_CLASS_NAME).unwrap(),
             [],
+            ClassInst::new(ClassRef::from(Id::from_str(STRING_CLASS_NAME).unwrap())),
             [],
         )],
         [],

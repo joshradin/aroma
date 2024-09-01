@@ -17,8 +17,9 @@ pub struct FunctionDeclaration {
     vis: Vis,
     name: String,
     generic_declaration: Vec<GenericDeclaration>,
-    return_type: Option<ClassInst>,
+    delegate: Option<ClassInst>,
     parameters: Vec<Parameter>,
+    return_type: Option<ClassInst>,
     throws: Vec<ClassInst>,
 }
 
@@ -28,8 +29,9 @@ impl FunctionDeclaration {
         vis: Vis,
         name: impl AsRef<str>,
         generic_declaration: impl IntoIterator<Item = GenericDeclaration>,
-        return_type: impl Into<Option<ClassInst>>,
+        delegate: impl Into<Option<ClassInst>>,
         parameters: impl IntoIterator<Item = Parameter>,
+        return_type: impl Into<Option<ClassInst>>,
         throws: impl IntoIterator<Item = ClassInst>,
     ) -> Self {
         Self {
@@ -40,6 +42,7 @@ impl FunctionDeclaration {
             return_type: return_type.into(),
             parameters: parameters.into_iter().collect(),
             throws: throws.into_iter().collect(),
+            delegate: delegate.into(),
         }
     }
 
@@ -91,15 +94,16 @@ impl Display for FunctionDeclaration {
         let mut builder = String::new();
         builder = format!("{builder}{}", self.name);
         if !self.generic_declarations().is_empty() {
-            builder = format!("{builder}[{}]", self.generic_declarations().iter().join(","));
+            builder = format!(
+                "{builder}[{}]",
+                self.generic_declarations().iter().join(",")
+            );
         }
         builder = format!("{builder}({})", self.parameters().iter().join(","));
 
         match self.return_type() {
             None => {}
-            Some(ret) => {
-                builder = format!("{builder} -> {ret}")
-            }
+            Some(ret) => builder = format!("{builder} -> {ret}"),
         }
 
         write!(f, "{}", builder)
@@ -130,11 +134,6 @@ impl Debug for Parameter {
 
 impl Display for Parameter {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}: {}",
-            self.name,
-            ClassInst::from(self.class.clone())
-        )
+        write!(f, "{}: {}", self.name, ClassInst::from(self.class.clone()))
     }
 }

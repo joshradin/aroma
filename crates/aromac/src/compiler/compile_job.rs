@@ -12,6 +12,8 @@ use aroma_ast_parsing::parser::SyntaxError;
 use aroma_ast_parsing::type_resolution::Bindings;
 use aroma_tokens::id::Id;
 use aroma_tokens::id_resolver::{CreateIdError, IdError, IdResolver, ResolveIdError};
+use aroma_tokens::spanned::Span;
+use aroma_tokens::SpannedError;
 use itertools::Itertools as _;
 use log::{debug, info};
 use parking_lot::RwLock;
@@ -25,8 +27,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::sync::Arc;
 use std::thread::{Scope, ScopedJoinHandle};
-use aroma_tokens::spanned::Span;
-use aroma_tokens::SpannedError;
 
 pub mod passes;
 
@@ -258,12 +258,12 @@ pub enum CompileJobCommand {
 pub struct CompileError(#[from] SpannedError<CompileErrorKind, CompileError>);
 
 impl CompileError {
-    pub fn new(error: impl Into<CompileErrorKind>, span: impl Into<Option<Span>>, cause: impl Into<Option<Self>>) -> Self {
-        Self(SpannedError::new(
-            error.into(),
-            span,
-            cause
-        ))
+    pub fn new(
+        error: impl Into<CompileErrorKind>,
+        span: impl Into<Option<Span>>,
+        cause: impl Into<Option<Self>>,
+    ) -> Self {
+        Self(SpannedError::new(error.into(), span, cause))
     }
 }
 
@@ -286,27 +286,17 @@ pub enum CompileErrorKind {
     Cancelled,
 }
 
-impl<V : Into<CompileErrorKind>> From<V> for CompileError {
+impl<V: Into<CompileErrorKind>> From<V> for CompileError {
     fn from(value: V) -> Self {
-        CompileError::from(
-            SpannedError::new(
-                value.into(),
-                None,
-                None
-            )
-        )
+        CompileError::from(SpannedError::new(value.into(), None, None))
     }
 }
 
 impl From<IdError> for CompileErrorKind {
     fn from(value: IdError) -> Self {
         match value {
-            IdError::Resolve(r) => {
-                Self::from(r)
-            }
-            IdError::Create(c) => {
-                Self::from(c)
-            }
+            IdError::Resolve(r) => Self::from(r),
+            IdError::Create(c) => Self::from(c),
         }
     }
 }

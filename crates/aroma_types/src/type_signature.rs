@@ -179,9 +179,8 @@ fn parse_class_ts(input: &str) -> IResult<&str, TypeSignature, VerboseError<&str
             )),
         )),
         |(fqi, generics)| -> Result<_, VerboseError<&str>> {
-            let fqi = ClassRef::from_str(fqi).map_err(|e| VerboseError::from_external_error(
-                fqi, ErrorKind::Verify, e
-            ))?;
+            let fqi = ClassRef::from_str(fqi)
+                .map_err(|e| VerboseError::from_external_error(fqi, ErrorKind::Verify, e))?;
             Ok(match generics {
                 Some(generics) => TypeSignature::Invariant(fqi, generics),
                 None => TypeSignature::Invariant(fqi, vec![]),

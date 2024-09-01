@@ -3,7 +3,7 @@
 use aroma_tokens::id::Id;
 use aroma_tokens::id_resolver::IdResolver;
 use aroma_types::class::Class;
-use aroma_types::hierarchy::ClassHierarchy;
+use aroma_types::hierarchy::Hierarchy;
 use aroma_types::type_signature::TypeSignature;
 use std::collections::HashMap;
 
@@ -12,14 +12,14 @@ use std::collections::HashMap;
 pub struct TranslationData {
     namespace: Option<Id>,
     id_resolver: IdResolver,
-    class_hierarchy: ClassHierarchy,
+    class_hierarchy: Hierarchy,
     globals: HashMap<Id, TypeSignature>,
 }
 
 impl TranslationData {
     /// Creates the new translation data instance, with only defaults available
     pub fn new() -> Self {
-        let hierarchy: ClassHierarchy = ClassHierarchy::new();
+        let hierarchy: Hierarchy = Hierarchy::new();
         let mut resolver: IdResolver = IdResolver::new();
         for class in hierarchy.classes() {
             resolver.insert_qualified(class.id().clone());
@@ -89,9 +89,8 @@ mod tests {
         let resolved = data
             .id_resolver()
             .query(Id::from_str("simply.package").unwrap())
-            .resolve(&Id::from_str("Object").unwrap());
-        assert_eq!(resolved.len(), 1);
-        let resolved = resolved[0];
+            .resolve(&Id::from_str("Object").unwrap())
+            .unwrap();
         assert_eq!(resolved.to_string(), BASE_CLASS_NAME);
     }
 }

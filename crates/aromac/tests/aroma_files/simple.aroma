@@ -2,10 +2,8 @@ namespace simple.system
 import aroma.system.Object
 import aroma.system.Closure
 
-
-public class Box[T] delegate T {
-    public static delegate BoxEater(Box[T]) -> T;
-
+public delegate [T] T.Action();
+public class Box[T] {
     private data: T;
     private ref_count: Long;
     private func: BoxEater;
@@ -25,8 +23,6 @@ public class Box[T] delegate T {
         return Box(data);
     }
 }
-
-
 
 fn main() {
 

@@ -2,10 +2,10 @@ use crate::lexer::LexingError;
 use aroma_tokens::id::Id;
 use aroma_tokens::spanned::{LineReader, Span};
 use aroma_tokens::token::Token;
+use aroma_tokens::SpannedError;
 use aroma_types::class::{ClassInst, ClassRef};
 use std::fmt::{Display, Formatter};
 use std::io;
-use aroma_tokens::SpannedError;
 
 /// Represents an error occurring during parsing
 #[derive(Debug, thiserror::Error)]
@@ -24,11 +24,7 @@ impl SyntaxError {
         non_terminals: impl Into<Option<Vec<&'static str>>>,
     ) -> Self {
         Self {
-            kind: SpannedError::new(
-                kind,
-                location,
-                cause
-            ),
+            kind: SpannedError::new(kind, location, cause),
             non_terminal_stack: non_terminals.into(),
             // line_col: Cell::new(None),
         }
@@ -54,12 +50,7 @@ where
     E: Into<ErrorKind>,
 {
     fn from(value: E) -> Self {
-        Self::new(
-            value.into(),
-            None,
-            None,
-            None
-        )
+        Self::new(value.into(), None, None, None)
     }
 }
 

@@ -90,6 +90,12 @@ impl Class {
         ClassRef(self.id.clone())
     }
 
+    /// Checks if this is a mixin class
+    #[inline]
+    pub fn is_mixin(&self) -> bool {
+        self.kind() == ClassKind::Interface
+    }
+
     pub fn vis(&self) -> Vis {
         self.vis
     }
@@ -266,11 +272,12 @@ impl ClassInst {
     }
 }
 
-pub fn class_inst_parser<'a, E: ParseError<&'a str> + FromExternalError<&'a str, E>>(v: &'a str) -> IResult<&str, ClassInst, E> {
+pub fn class_inst_parser<'a, E: ParseError<&'a str> + FromExternalError<&'a str, E>>(
+    v: &'a str,
+) -> IResult<&str, ClassInst, E> {
     let fqi = map_res(
         recognize(separated_list1(char('.'), recognize_identifier)),
-        |id_str| Id::from_str(id_str)
-            .map_err(|e| E::from_error_kind(id_str, ErrorKind::Verify)),
+        |id_str| Id::from_str(id_str).map_err(|e| E::from_error_kind(id_str, ErrorKind::Verify)),
     );
     map(
         tuple((
@@ -350,6 +357,7 @@ pub struct ParseClassInstError(Box<dyn Error>);
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
     use crate::class::{ClassInst, ClassRef};
     use crate::generic::GenericParameterBound;
 
@@ -359,7 +367,7 @@ mod tests {
         let class_inst: ClassInst = t.parse().expect("could not parse");
         assert_eq!(
             class_inst,
-            ClassInst::new(ClassRef::from("aroma.system.Object"))
+            ClassInst::from_str("aroma.system.Object").unwrap()
         )
     }
 
@@ -370,9 +378,9 @@ mod tests {
         assert_eq!(
             class_inst,
             ClassInst::with_generics(
-                ClassRef::from("aroma.system.Class"),
+                ClassRef::from_str("aroma.system.Class").unwrap(),
                 [GenericParameterBound::Invariant(
-                    ClassRef::from("aroma.system.Object").into()
+                    ClassRef::from_str("aroma.system.Object").unwrap().into()
                 )]
             )
         )
@@ -385,10 +393,10 @@ mod tests {
         assert_eq!(
             class_inst,
             ClassInst::with_generics(
-                ClassRef::from("aroma.system.Tuple2"),
+                ClassRef::from_str("aroma.system.Tuple2").unwrap(),
                 [
-                    GenericParameterBound::Invariant(ClassRef::from("aroma.system.Object").into()),
-                    GenericParameterBound::Invariant(ClassRef::from("aroma.system.Object").into())
+                    GenericParameterBound::Invariant(ClassRef::from_str("aroma.system.Object").unwrap().into()),
+                    GenericParameterBound::Invariant(ClassRef::from_str("aroma.system.Object").unwrap().into())
                 ]
             )
         )

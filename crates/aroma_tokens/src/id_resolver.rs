@@ -1,9 +1,9 @@
 //! responsible for resolving identifiers
 
 use crate::id::Id;
-use std::collections::{BTreeMap, HashMap};
-use std::collections::hash_map::Entry;
 use itertools::Itertools as _;
+use std::collections::hash_map::Entry;
+use std::collections::{BTreeMap, HashMap};
 
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
 struct DeclaredId {
@@ -27,9 +27,9 @@ impl IdResolver {
     }
 
     /// Inserts an id that's already considered fully qualified
-    pub fn insert_qualified(&mut self, id: Id) {
+    pub fn insert_qualified(&mut self, id: Id) -> Result<Id, CreateIdError> {
         let namespace = id.namespace().unwrap_or_default();
-        self.build_namespace(namespace).insert(id.most_specific());
+        self.build_namespace(namespace).insert(id.most_specific())
     }
 
     /// Gets a collection of all namespaces in this id resolver
@@ -79,18 +79,18 @@ impl NamespaceBuilder<'_> {
             short: id.clone(),
             full: full.clone(),
         };
-        match self.resolver
-                  .namespaces
-                  .get_mut(&self.namespace)
-                  .unwrap()
-                  .entry(id) {
+        match self
+            .resolver
+            .namespaces
+            .get_mut(&self.namespace)
+            .unwrap()
+            .entry(id)
+        {
             Entry::Occupied(occ) => {
-                return Err(
-                    CreateIdError {
-                        short: occ.get().short.clone(),
-                        full: occ.get().full.clone(),
-                    }
-                )
+                return Err(CreateIdError {
+                    short: occ.get().short.clone(),
+                    full: occ.get().full.clone(),
+                })
             }
             Entry::Vacant(vac) => {
                 vac.insert(declared);
@@ -106,18 +106,18 @@ impl NamespaceBuilder<'_> {
             short: id.clone(),
             full: fqi.clone(),
         };
-        match self.resolver
-                  .namespaces
-                  .get_mut(&self.namespace)
-                  .unwrap()
-                  .entry(id) {
+        match self
+            .resolver
+            .namespaces
+            .get_mut(&self.namespace)
+            .unwrap()
+            .entry(id)
+        {
             Entry::Occupied(occ) => {
-                return Err(
-                    CreateIdError {
-                        short: occ.get().short.clone(),
-                        full: occ.get().full.clone(),
-                    }
-                )
+                return Err(CreateIdError {
+                    short: occ.get().short.clone(),
+                    full: occ.get().full.clone(),
+                })
             }
             Entry::Vacant(vac) => {
                 vac.insert(declared);
@@ -144,7 +144,7 @@ pub struct IdQueries<'a> {
 
 impl<'a> IdQueries<'a> {
     /// Try to resolve an id query, returning all matching
-    pub fn resolve(&self, query: &Id) -> Result<&Id, ResolveIdError> {
+    pub fn resolve(&self, query: &Id) -> Result<&'a Id, ResolveIdError> {
         let mut resolved = vec![];
         // fast path - check directly for this
         let direct_namespace = query.namespace().unwrap_or_default();
@@ -171,26 +171,36 @@ impl<'a> IdQueries<'a> {
 
         match resolved.as_slice() {
             [] => Err(ResolveIdError::NotFound {
-                namespace: if self.namespace.is_empty() { None } else { Some(self.namespace.clone())},
+                namespace: if self.namespace.is_empty() {
+                    None
+                } else {
+                    Some(self.namespace.clone())
+                },
                 query: query.clone(),
             }),
             [resolved] => Ok(*resolved),
-            more => Err(
-                ResolveIdError::Ambiguous {
-                    namespace: if self.namespace.is_empty() { None } else { Some(self.namespace.clone())},
-                    query: query.clone(),
-                    results: more.into_iter()
-                        .map(|i| (**i).to_owned())
-                        .sorted_by_key(|i| i.len())
-                        .collect()
-                }
-            )
+            more => Err(ResolveIdError::Ambiguous {
+                namespace: if self.namespace.is_empty() {
+                    None
+                } else {
+                    Some(self.namespace.clone())
+                },
+                query: query.clone(),
+                results: more
+                    .into_iter()
+                    .map(|i| (**i).to_owned())
+                    .sorted_by_key(|i| i.len())
+                    .collect(),
+            }),
         }
     }
 }
 
 fn format_namespace(namespace: &Option<Id>) -> String {
-    namespace.as_ref().map(|i| format!("in namespace {i}, ")).unwrap_or_default()
+    namespace
+        .as_ref()
+        .map(|i| format!("in namespace {i}, "))
+        .unwrap_or_default()
 }
 /// An error occurred while trying to resolve some identifier
 #[derive(Debug, thiserror::Error)]
@@ -202,10 +212,7 @@ pub enum ResolveIdError {
         results: Vec<Id>,
     },
     #[error("{}{query} not found", format_namespace(namespace))]
-    NotFound {
-        namespace: Option<Id>,
-        query: Id,
-    },
+    NotFound { namespace: Option<Id>, query: Id },
 }
 
 /// An error occurred while trying to resolve some identifier
@@ -213,7 +220,7 @@ pub enum ResolveIdError {
 #[error("Trying to create id {short} but it is already present ({full})")]
 pub struct CreateIdError {
     pub short: Id,
-    pub full: Id
+    pub full: Id,
 }
 
 /// Any id error
@@ -222,7 +229,7 @@ pub enum IdError {
     #[error(transparent)]
     Resolve(#[from] ResolveIdError),
     #[error(transparent)]
-    Create(#[from] CreateIdError)
+    Create(#[from] CreateIdError),
 }
 
 #[cfg(test)]
@@ -243,7 +250,7 @@ mod tests {
         let namespace = Id::from_str("std").unwrap();
         let mut builder = id_resolver.build_namespace(namespace.clone());
         let id = Id::new_call_site(["b"]).unwrap();
-        let fqi = builder.insert(id.clone());
+        let fqi = builder.insert(id.clone()).unwrap();
         assert_eq!(fqi, Id::new_call_site(["std", "b"]).unwrap());
 
         let resolved = Vec::from_iter(id_resolver.query(namespace).resolve(&id).iter().cloned());
@@ -256,36 +263,34 @@ mod tests {
         let namespace = Id::from_str("aroma.system").unwrap();
         let mut builder = id_resolver.build_namespace(namespace.clone());
         let id = Id::new_call_site(["Object"]).unwrap();
-        let fqi = builder.insert(id.clone());
+        let fqi = builder.insert(id.clone()).unwrap();
         assert_eq!(
             fqi,
             Id::new_call_site(["aroma", "system", "Object"]).unwrap()
         );
 
-        let resolved = id_resolver
+        let _resolved = id_resolver
             .query(namespace.namespace().unwrap())
-            .resolve(&Id::from_str("system.Object").unwrap());
-        assert_eq!(resolved.len(), 1);
+            .resolve(&Id::from_str("system.Object").unwrap()).unwrap();
     }
 
     #[test]
     fn test_resolve_alias() {
         let mut id_resolver = IdResolver::new();
         let fqi_object = Id::from_str("aroma.system.Object").unwrap();
-        id_resolver.insert_qualified(fqi_object.clone());
+        id_resolver.insert_qualified(fqi_object.clone()).unwrap();
         let mut namespace_builder =
             id_resolver.build_namespace(Id::from_str("industries.vandaley").unwrap());
         namespace_builder.insert_alias(
             Id::new_call_site(["Object"]).unwrap(), // import Object
             fqi_object.clone(),
-        );
+        ).unwrap();
 
         let resolved = namespace_builder
             .query()
-            .resolve(&Id::new_call_site(["Object"]).unwrap());
+            .resolve(&Id::new_call_site(["Object"]).unwrap()).unwrap();
 
-        assert_eq!(resolved.len(), 1);
-        assert_eq!(resolved[0], &fqi_object);
+        assert_eq!(resolved, &fqi_object);
         println!("resolver: {id_resolver:#?}");
     }
 }

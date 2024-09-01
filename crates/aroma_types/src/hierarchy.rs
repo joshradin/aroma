@@ -14,9 +14,10 @@ use std::ops::Index;
 
 pub mod intrinsics;
 
+
 /// The type hierarchy.
 #[derive(Debug)]
-pub struct ClassHierarchy {
+pub struct Hierarchy {
     graph: DiGraph<ClassRef, GenericParameterBounds>,
     class_ref_map: HashMap<ClassRef, (NodeIndex, Class)>,
     base_class: ClassRef,
@@ -24,13 +25,13 @@ pub struct ClassHierarchy {
     validated: RwLock<HashSet<ClassInst>>,
 }
 
-impl Default for ClassHierarchy {
+impl Default for Hierarchy {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl ClassHierarchy {
+impl Hierarchy {
     /// Creates a new class hierarchy with all intrinsic classes already inserted.
     pub fn new() -> Self {
         let mut hierarchy = Self {
@@ -68,7 +69,7 @@ impl ClassHierarchy {
             let generics = class.generics();
             if let Some(super_class) = class.super_class() {
                 self.validate_with_generics(super_class, &generics)?;
-            } else {
+            } else if !class.is_mixin() {
                 return Err(Error::AllClassesMustHaveParent(class.get_ref()));
             }
             for mixin in class.mixins() {
@@ -93,11 +94,8 @@ impl ClassHierarchy {
                         Error::MethodInvalid(class.generic_inst(), method.to_string(), Box::new(e))
                     })?;
                 }
-                let parameters: Vec<&ClassInst> = method
-                    .parameters()
-                    .iter()
-                    .map(|p| &p.class)
-                    .collect();
+                let parameters: Vec<&ClassInst> =
+                    method.parameters().iter().map(|p| &p.class).collect();
                 for param in parameters {
                     validate(param).map_err(|e| {
                         Error::MethodInvalid(class.generic_inst(), method.to_string(), Box::new(e))
@@ -460,8 +458,8 @@ impl ClassHierarchy {
     /// Gets an iterator over all the classes in this hierarchy in no particular order.
     ///
     /// ```rust
-    /// # use aroma_types::hierarchy::ClassHierarchy;
-    /// let v = ClassHierarchy::new();
+    /// # use aroma_types::hierarchy::Hierarchy;
+    /// let v = Hierarchy::new();
     /// assert!(v.classes().count() > 0, "class hierarchy will always have intrinsic types");
     /// ```
     pub fn classes(&self) -> ClassIterator {
@@ -479,7 +477,7 @@ impl ClassHierarchy {
     }
 }
 
-impl Index<&ClassRef> for ClassHierarchy {
+impl Index<&ClassRef> for Hierarchy {
     type Output = Class;
 
     fn index(&self, index: &ClassRef) -> &Self::Output {
@@ -487,7 +485,7 @@ impl Index<&ClassRef> for ClassHierarchy {
     }
 }
 
-impl Index<&ClassInst> for ClassHierarchy {
+impl Index<&ClassInst> for Hierarchy {
     type Output = Class;
 
     fn index(&self, index: &ClassInst) -> &Self::Output {
@@ -543,7 +541,7 @@ mod tests {
 
     #[test]
     fn test_all_classes_covariant_with_base_class() {
-        let hierarchy = ClassHierarchy::new();
+        let hierarchy = Hierarchy::new();
         println!("hierarchy: {:#?}", hierarchy);
         let base_class = &hierarchy
             .instantiate_default(&hierarchy.base_class().get_ref())
@@ -559,7 +557,7 @@ mod tests {
 
     #[test]
     fn test_covariance() {
-        let hierarchy = ClassHierarchy::new();
+        let hierarchy = Hierarchy::new();
         let inner = hierarchy
             .instantiate(
                 &CLASS_CLASS.get_ref(),
@@ -581,7 +579,7 @@ mod tests {
 
     #[test]
     fn test_assignability() {
-        let hierarchy = ClassHierarchy::new();
+        let hierarchy = Hierarchy::new();
         let target = hierarchy
             .instantiate(
                 &CLASS_CLASS.get_ref(),
@@ -612,7 +610,7 @@ mod tests {
 
     #[test]
     fn test_checked_instantiate() {
-        let hierarchy = ClassHierarchy::new();
+        let hierarchy = Hierarchy::new();
         let string = hierarchy
             .instantiate(&*STRING_CLASS, [])
             .expect("could not create string ty");
