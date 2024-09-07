@@ -1,19 +1,1 @@
 native function print();
-
-public class String {
-    private Array[Byte] utf8;
-
-    public fn toString() -> String {
-        return this;
-    }
-}
-
-s.mixin {
-    int: Int = 3;
-}
-
-s = new String[asd]() {
-    public fn toString() -> String throws E[E] {
-        return this + this;
-    }
-};

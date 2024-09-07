@@ -120,7 +120,7 @@ impl AromaCBuilder {
     }
 
     /// Builds an [AromaC] instance from this builder
-    pub fn build(self) -> std::result::Result<AromaC, BuildAromaCError> {
+    pub fn build(self) -> Result<AromaC, BuildAromaCError> {
         if self.jobs == 0 {
             return Err(BuildAromaCError::ZeroJobs);
         }
@@ -145,6 +145,7 @@ impl Default for AromaCBuilder {
         Self {
             jobs: num_cpus::get(),
             included: vec![],
+            to_compile: vec![],
             output_directory: PathBuf::from("."),
         }
     }

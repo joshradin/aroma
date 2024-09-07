@@ -2,7 +2,11 @@ namespace simple.system
 import aroma.system.Object
 import aroma.system.Closure
 
-public delegate [T] T.Action();
+public delegate Action<T> = fn T.();
+let action: Action<Long> = {
+    _
+};
+
 public class Box[T] {
     private data: T;
     private ref_count: Long;

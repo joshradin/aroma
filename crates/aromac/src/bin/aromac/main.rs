@@ -1,12 +1,13 @@
+use std::collections::HashSet;
 use std::io::{stderr, stdout};
-
+use std::path::Path;
 use cfg_if::cfg_if;
 use clap::Parser;
 use fern::Dispatch;
 use log::{debug, error, trace, warn, Level, LevelFilter};
 use owo_colors::OwoColorize;
 use owo_colors::Stream::Stdout;
-
+use aromac::{AromaC, AromaCBuilder};
 use crate::args::Args;
 
 mod args;
@@ -16,16 +17,30 @@ fn main() -> eyre::Result<()> {
     let args = Args::parse();
     init_logging(args.log_level_filter())?;
     trace!("starting aromac with args: {args:?}");
+
+    let mut aroma_compiler_builder = AromaC::builder();
+
     debug!("included paths:");
     for included in args.included() {
-        debug!("  - {included:?}")
+        debug!("  - {included:?}");
+        aroma_compiler_builder.included.push(included.to_path_buf());
     }
+    let mut to_compile = vec![];
     debug!("paths to compile:");
     for file in &args.files {
-        debug!("  - {file:?}")
+        debug!("  - {file:?}");
+
     }
 
+    let mut aroma_c = aroma_compiler_builder.build()?;
+
+
     Ok(())
+}
+
+/// flattens the given path
+fn files(path: &Path) -> HashSet<Path> {
+    
 }
 
 fn init_logging(level_filter: LevelFilter) -> eyre::Result<()> {
