@@ -79,6 +79,8 @@ pub enum ErrorKind {
     AbstractMethodInConcreteClass(String, ClassRef),
     #[error("undeclared variable {0:?}")]
     UndeclaredVariable(Id),
+    #[error("Interfaces can not have object fields (only statically declared fields are allowed)")]
+    InterfacesCanNotHaveObjectFields,
 }
 
 impl ErrorKind {

@@ -91,6 +91,7 @@ primitives! {
     f64 => "aroma.primitive.Double",
     bool => "aroma.primitive.Bool",
     u8 => "aroma.primitive.Byte",
+    char => "aroma.primitive.Char",
     Void => "aroma.primitive.Void",
     String => "aroma.lang.String"
 }

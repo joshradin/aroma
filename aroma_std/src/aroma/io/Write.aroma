@@ -1,0 +1,6 @@
+namespace aroma.io
+
+
+public interface Write {
+   fn write(buffer: Array[out Char]) -> Int throws IOException;
+}

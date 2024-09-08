@@ -1,8 +1,9 @@
 use crate::parser::expr::Expr;
-use crate::parser::items::FnBody;
+use crate::parser::syntactic_parser::hir::items::ItemFn;
 use crate::parser::statement::{ReturnStatement, Statement as ParsedStatement, Statement};
+use crate::parser::transforms::to_mir;
 use crate::parser::transforms::to_mir::expr_hir_to_mir::expr_hir_to_mir;
-use crate::parser::SyntaxError;
+use crate::parser::{Punctuated, SyntaxError};
 use crate::type_resolution::Bindings;
 use aroma_ast::block::Block;
 use aroma_ast::method::MethodDef;
@@ -13,9 +14,179 @@ use aroma_tokens::spanned::{Span, Spanned};
 use aroma_types::class::ClassInst;
 use aroma_types::field::Field;
 use aroma_types::functions::{FunctionDeclaration, Parameter};
+use aroma_types::generic::GenericDeclaration;
 use aroma_types::type_signature::TypeSignature;
 use log::debug;
 use std::collections::HashSet;
+use crate::parser::syntactic_parser::hir::items::{FnBody, ItemAbstractFn};
+
+pub fn method_hir_to_mir(
+    parent_inst: &ClassInst,
+    fields: &[Field],
+    class_generics: &[GenericDeclaration],
+    method: ItemFn,
+) -> Result<(FunctionDeclaration, MethodDef), SyntaxError> {
+    let span = method.span();
+    debug!("creating method from {method:#?}");
+    let ItemFn {
+        vis,
+        static_tok,
+        fn_tok: _,
+        ident,
+        generics,
+        fn_parameters,
+        fn_return,
+        fn_throws,
+        body,
+    } = method;
+
+    let vis = to_mir::vis_hir_to_mir(vis);
+    let name = ident.as_ref().to_string();
+
+    let mut func_generics: Vec<GenericDeclaration> = vec![];
+    let full_generics = {
+        let mut base_generics = Vec::from(class_generics);
+        if let Some(generics) = generics {
+            func_generics = generics
+                .bounds
+                .items()
+                .into_iter()
+                .map(|i| i.into())
+                .collect();
+            base_generics.extend(func_generics.clone());
+        }
+        base_generics
+    };
+
+    let return_type = fn_return.as_ref().map(|i| i.returns.as_class_inst());
+    let parameters = fn_parameters
+        .parameters
+        .items()
+        .into_iter()
+        .map(|binding| Parameter {
+            name: binding.id.as_ref().to_string(),
+            class: binding.type_dec.ty.as_class_inst(),
+        })
+        .collect::<Vec<_>>();
+    let throws = fn_throws
+        .as_ref()
+        .map(|throws| {
+            throws
+                .types
+                .items()
+                .into_iter()
+                .map(|t| t.as_class_inst())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    let delegate = match &static_tok {
+        None => Some(parent_inst.clone()),
+        Some(_) => None,
+    };
+
+    let method_dec = FunctionDeclaration::new(
+        vis,
+        &name,
+        if static_tok.is_none() {
+            full_generics
+        } else {
+            func_generics
+        },
+        delegate,
+        parameters.clone(),
+        return_type.clone(),
+        throws.clone(),
+    );
+    debug!("created method_dec = {:#?}", method_dec);
+    let method_def = method_hir_to_mir_def(
+        span,
+        if static_tok.is_some() {
+            None
+        } else {
+            Some(parent_inst)
+        },
+        fields,
+        &method_dec,
+        body,
+    )?;
+
+    Ok((method_dec, method_def))
+}
+
+pub fn abstract_method_hir_to_mir(
+    parent_inst: &ClassInst,
+    class_generics: &[GenericDeclaration],
+    method: ItemAbstractFn,
+) -> Result<FunctionDeclaration, SyntaxError> {
+    debug!("creating method from {method:#?}");
+    let ItemAbstractFn {
+        vis,
+        abstract_tok: _,
+        fn_tok: _,
+        ident,
+        generics,
+        fn_parameters,
+        fn_return,
+        fn_throws,
+        end: _
+    } = method;
+
+    let vis = to_mir::vis_hir_to_mir(vis);
+    let name = ident.as_ref().to_string();
+
+    let mut func_generics: Vec<GenericDeclaration> = vec![];
+    let full_generics = {
+        let mut base_generics = Vec::from(class_generics);
+        if let Some(generics) = generics {
+            func_generics = generics
+                .bounds
+                .items()
+                .into_iter()
+                .map(|i| i.into())
+                .collect();
+            base_generics.extend(func_generics.clone());
+        }
+        base_generics
+    };
+
+    let return_type = fn_return.as_ref().map(|i| i.returns.as_class_inst());
+    let parameters = fn_parameters
+        .parameters
+        .items()
+        .into_iter()
+        .map(|binding| Parameter {
+            name: binding.id.as_ref().to_string(),
+            class: binding.type_dec.ty.as_class_inst(),
+        })
+        .collect::<Vec<_>>();
+    let throws = fn_throws
+        .as_ref()
+        .map(|throws| {
+            throws
+                .types
+                .items()
+                .into_iter()
+                .map(|t| t.as_class_inst())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+
+    let method_dec = FunctionDeclaration::new(
+        vis,
+        &name,
+        full_generics,
+        parent_inst.clone(),
+        parameters.clone(),
+        return_type.clone(),
+        throws.clone(),
+    );
+    debug!("created method_dec = {:#?}", method_dec);
+
+    Ok(method_dec)
+}
+
 
 pub fn method_hir_to_mir_def<'a>(
     span: Span,

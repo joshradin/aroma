@@ -45,6 +45,7 @@ visitor! {
             match item {
                 Item::Class(cls) => { v.visit_class(cls)}
                 Item::Func(func) => { v.visit_func(func)}
+                Item::Interface(i) => { v.visit_interface(i) }
             }
         }
 
@@ -65,7 +66,19 @@ visitor! {
             Ok(())
         }
 
+        visit fn interface(v, class: &ItemInterface) -> Result<()> {
+            v.visit_var_id(&class.ident)?;
+            class.members.members.iter().try_for_each(|member| {
+                v.visit_interface_member(member)
+            })?;
+            Ok(())
+        }
+
         visit fn class_member(v, class_member: &ClassMember) -> Result<()> {
+            Ok(())
+        }
+
+        visit fn interface_member(v, interface_member: &InterfaceMember) -> Result<()> {
             Ok(())
         }
 

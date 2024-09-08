@@ -30,6 +30,13 @@ pub struct TranslationUnit {
     pub items: Vec<Item>,
 }
 
+impl TranslationUnit {
+    /// Checks if this translation unit has any items
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+}
+
 impl Parsable for TranslationUnit {
     type Err = SyntaxError;
 

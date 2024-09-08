@@ -102,7 +102,10 @@ impl CompileJob {
 
     fn run(&mut self, path: &Path) -> StdResult<(), CompileError> {
         *self.status.write() = CompileJobStatus::Parsing;
-        let u = parse_file(path)?;
+        let Some(u) = parse_file(path)? else {
+            debug!("got empty translation unit, skipping to end");
+            return Ok(());
+        };
         // debug!("compiled {:?} to {} units", path, u.items.len());
         self.state = Some(CompileJobState::Parsed(u));
         *self.status.write() = CompileJobStatus::Parsed;

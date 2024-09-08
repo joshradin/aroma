@@ -237,6 +237,7 @@ dependencies = [
  "aroma_ast",
  "aroma_ast_parsing",
  "aroma_bytecode",
+ "aroma_files",
  "aroma_tokens",
  "aroma_types",
  "aroma_visitor_gen",

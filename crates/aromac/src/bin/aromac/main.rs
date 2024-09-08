@@ -1,14 +1,15 @@
-use std::collections::HashSet;
-use std::io::{stderr, stdout};
-use std::path::Path;
+use crate::args::Args;
+use aroma_files::prelude::*;
+use aromac::{AromaC, AromaCBuilder};
 use cfg_if::cfg_if;
 use clap::Parser;
 use fern::Dispatch;
 use log::{debug, error, trace, warn, Level, LevelFilter};
 use owo_colors::OwoColorize;
 use owo_colors::Stream::Stdout;
-use aromac::{AromaC, AromaCBuilder};
-use crate::args::Args;
+use std::collections::HashSet;
+use std::io::{stderr, stdout};
+use std::path::{Path, PathBuf};
 
 mod args;
 
@@ -17,31 +18,34 @@ fn main() -> eyre::Result<()> {
     let args = Args::parse();
     init_logging(args.log_level_filter())?;
     trace!("starting aromac with args: {args:?}");
+    debug!("aromac version: {}", env!("CARGO_PKG_VERSION"));
 
     let mut aroma_compiler_builder = AromaC::builder();
 
-    debug!("included paths:");
-    for included in args.included() {
-        debug!("  - {included:?}");
-        aroma_compiler_builder.included.push(included.to_path_buf());
-    }
-    let mut to_compile = vec![];
-    debug!("paths to compile:");
-    for file in &args.files {
-        debug!("  - {file:?}");
+    let included = args
+        .included()
+        .iter()
+        .map(|file| file_tree(file))
+        .flat_map(|b| b.files())
+        .collect::<Vec<_>>();
 
-    }
+    let to_compile = args
+        .files
+        .iter()
+        .map(|file| file_tree(file))
+        .flat_map(|b| b.files())
+        .collect::<Vec<_>>();
+
+    debug!("paths to compile: {to_compile:#?}");
 
     let mut aroma_c = aroma_compiler_builder.build()?;
-
+    aroma_c.compile_all(
+        to_compile.iter().map(|path| path.as_ref()),
+    )?;
 
     Ok(())
 }
 
-/// flattens the given path
-fn files(path: &Path) -> HashSet<Path> {
-    
-}
 
 fn init_logging(level_filter: LevelFilter) -> eyre::Result<()> {
     Dispatch::new()

@@ -145,7 +145,6 @@ impl Default for AromaCBuilder {
         Self {
             jobs: num_cpus::get(),
             included: vec![],
-            to_compile: vec![],
             output_directory: PathBuf::from("."),
         }
     }

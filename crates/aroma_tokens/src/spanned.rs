@@ -1,10 +1,21 @@
 //! A trait that can provide the [Span] of the complete context of an ir node
 
+use std::convert::Infallible;
 use std::io;
 use std::io::ErrorKind;
 use std::panic::Location;
 use std::path::Path;
 use std::sync::Arc;
+
+
+/// A trait that can provide the [Span] of the complete context of an ir node, fallibly
+///
+/// This is automatically implemented for all types that implemented [Spanned]
+pub trait TrySpanned {
+    type Error;
+
+    fn try_span(&self) -> Result<Span, Self::Error>;
+}
 
 /// A trait that can provide the [Span] of the complete context of an ir node
 ///
@@ -12,6 +23,14 @@ use std::sync::Arc;
 /// [Span] itself.
 pub trait Spanned {
     fn span(&self) -> Span;
+}
+
+impl<S : Spanned> TrySpanned for S {
+    type Error = Infallible;
+
+    fn try_span(&self) -> Result<Span, Self::Error> {
+        Ok(self.span())
+    }
 }
 
 /// The span, representing

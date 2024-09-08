@@ -12,7 +12,7 @@ pub mod type_resolution;
 /// Parses a path syntactically, performing no analysis transformations.
 ///
 /// This creates the baseline AST for aroma source code.
-pub fn parse_file(path: &Path) -> Result<TranslationUnit, parser::SyntaxError> {
+pub fn parse_file(path: &Path) -> Result<Option<TranslationUnit>, parser::SyntaxError> {
     let mut parser = SyntacticParser::with_file(path)?;
     let unit = parser
         .parse(parser::translation_unit::TranslationUnit::parse)
@@ -21,7 +21,10 @@ pub fn parse_file(path: &Path) -> Result<TranslationUnit, parser::SyntaxError> {
             Err::Failure(e) => e,
         })?;
 
+    if unit.is_empty() {
+        return Ok(None)
+    }
     let translated = transform(unit)?;
 
-    Ok(translated)
+    Ok(Some(translated))
 }
