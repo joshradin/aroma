@@ -4,7 +4,8 @@ import aroma.io.IOException
 #[lang = "Write"]
 /// Write interface
 public interface Write {
+
     /// Writes values from the given buffer
     fn write(buffer: Array[out Char]) -> Int throws IOException;
-    static fn write_all() -> Int {}
+
 }

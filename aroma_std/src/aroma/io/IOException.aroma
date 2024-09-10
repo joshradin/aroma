@@ -1,6 +1,7 @@
 namespace aroma.io
+import aroma.lang.Exception
 
-/// A
+/// An io exception
 public class IOException extends Exception {
 
 }

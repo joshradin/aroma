@@ -2,6 +2,7 @@
 
 use crate::compiler::compile_job::{
     CompileError, CompileJob, CompileJobCommand, CompileJobHandle, CompileJobId, CompileJobStatus,
+    SharedBindings,
 };
 use error::AromaCError;
 use itertools::Itertools;
@@ -22,6 +23,7 @@ pub mod error;
 pub struct AromaC {
     max_jobs: usize,
     output_directory: PathBuf,
+    bindings: SharedBindings,
 }
 
 impl AromaC {
@@ -65,11 +67,8 @@ impl AromaC {
                                 running_jobs.insert(next.clone(), handle);
                             }
                         } else {
-                            warn!("no resume-able jobs found!");
                             if running_jobs.is_empty() {
-                                errors.push(
-                                    AromaCError::AllJobsPaused
-                                );
+                                errors.push(AromaCError::AllJobsPaused);
                                 return errors;
                             }
                             break;
@@ -94,6 +93,13 @@ impl AromaC {
                             }
                             _ => {}
                         }
+
+                        self.bindings.write().extend(
+                            job.bindings()
+                                .read()
+                                .iter()
+                                .map(|(k, v)| (k.clone(), v.clone())),
+                        );
 
                         if job.is_finished() {
                             info!("job {:?} thread finished", job.id());
@@ -122,6 +128,34 @@ impl AromaC {
                             errors.push(AromaCError::from(e));
                         } else {
                             paused_jobs.insert(j.id(), j);
+                        }
+                    }
+                    let mut to_unpause = HashSet::<CompileJobId>::new();
+                    for (paused_job_id, paused_job) in &paused_jobs {
+                        if let CompileJobStatus::WaitingForIdentifiers(ids) =
+                            &*paused_job.status().read()
+                        {
+                            if ids.iter().all(|i| self.bindings.read().contains_key(i)) {
+                                if let Err(e) =
+                                    paused_job.send(CompileJobCommand::UpdatingBindings(
+                                        paused_job.bindings().read().clone(),
+                                    ))
+                                {
+                                    errors.push(AromaCError::from(e));
+                                } else {
+                                    to_unpause.insert(*paused_job_id);
+                                }
+                            }
+                        }
+                    }
+                    for to_unpause in to_unpause {
+                        let job = paused_jobs.remove(&to_unpause).unwrap();
+                        if let Err(e) =
+                            job.send(CompileJobCommand::Resume)
+                        {
+                            errors.push(AromaCError::from(e));
+                        } else {
+                            running_jobs.insert(to_unpause, job);
                         }
                     }
                 }
@@ -190,6 +224,7 @@ impl AromaCBuilder {
         Ok(AromaC {
             max_jobs: self.jobs,
             output_directory: self.output_directory,
+            bindings: Default::default(),
         })
     }
 }

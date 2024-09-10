@@ -3,11 +3,10 @@ use crate::resolution::TranslationData;
 use aroma_ast::translation_unit::TranslationUnit;
 use aroma_ast::AstVisitorMut;
 use aroma_tokens::id::Id;
-use aroma_tokens::spanned::Spanned;
-use aroma_tokens::SpannedError;
 use aroma_types::class::{ClassInst, ClassRef};
+use aroma_types::hierarchy::Error;
 use std::collections::HashSet;
-use tracing::instrument;
+use tracing::{debug, instrument, warn};
 
 #[derive(Debug)]
 pub struct TypeCheckPass {
@@ -31,13 +30,15 @@ impl TypeCheckPass {
             Ok(this) => this,
             Err(state) => return Ok(state),
         };
-        let mut type_checker = TypeChecker { td: &this.data };
+        let mut type_checker = TypeChecker {
+            td: &this.data,
+            missing: &mut this.missing,
+        };
         let unit = &mut this.tu;
         type_checker.visit_translation_unit(unit)?;
 
-        //todo: type check
         if this.missing.is_empty() {
-            todo!("okay")
+            Ok(CompileJobState::TypesChecked(this.tu, this.data))
         } else {
             let missing_clone = this.missing.clone();
             Ok(CompileJobState::WaitingForIdentifiers(this, missing_clone))
@@ -63,21 +64,39 @@ impl TypeCheckPass {
         }
         Ok(self)
     }
+
+    pub fn data(&self) -> &TranslationData {
+        &self.data
+    }
+
+    pub fn data_mut(&mut self) -> &mut TranslationData {
+        &mut self.data
+    }
 }
 
 struct TypeChecker<'a> {
     td: &'a TranslationData,
+    missing: &'a mut HashSet<Id>,
 }
 
 impl AstVisitorMut for TypeChecker<'_> {
     type Err = CompileError;
 
     fn visit_class_inst(&mut self, id: &mut ClassInst) -> Result<(), Self::Err> {
-        let _ = self
+        match self
             .td
             .class_hierarchy()
             .instantiate(id.class_ref(), id.generics().iter().cloned())
-            .map_err(|e| SpannedError::new(e.into(), id.span(), None))?;
+        {
+            Ok(_) => {}
+            Err(e) => match e {
+                Error::ClassNotDefined(not_defined) => {
+                    warn!("class not defined: {not_defined}");
+                    self.missing.insert(not_defined.as_ref().clone());
+                }
+                _ => {}
+            },
+        }
         Ok(())
     }
 }

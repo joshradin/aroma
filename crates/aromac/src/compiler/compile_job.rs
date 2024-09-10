@@ -5,8 +5,10 @@ use crate::compiler::compile_job::passes::declaration_discovery::{
     create_declarations, CreateDeclarationError,
 };
 use crate::compiler::compile_job::passes::fully_qualify::fully_qualify;
+use crate::compiler::compile_job::passes::type_check::TypeCheckPass;
 use crate::resolution::TranslationData;
 use aroma_ast::translation_unit::TranslationUnit;
+use aroma_ast::typed::TypeError;
 use aroma_ast_parsing::parse_file;
 use aroma_ast_parsing::parser::SyntaxError;
 use aroma_ast_parsing::type_resolution::Bindings;
@@ -14,9 +16,11 @@ use aroma_tokens::id::Id;
 use aroma_tokens::id_resolver::{CreateIdError, IdError, IdResolver, ResolveIdError};
 use aroma_tokens::spanned::Span;
 use aroma_tokens::SpannedError;
+use aroma_types::class::Class;
+use aroma_types::type_signature::TypeSignature;
 use itertools::Itertools as _;
 use parking_lot::RwLock;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::num::NonZeroUsize;
@@ -27,8 +31,6 @@ use std::sync::mpsc::{sync_channel, Receiver, RecvError, SyncSender, TryRecvErro
 use std::sync::Arc;
 use std::thread::{Scope, ScopedJoinHandle};
 use tracing::{debug, info, instrument, warn};
-use aroma_ast::typed::TypeError;
-use crate::compiler::compile_job::passes::type_check::TypeCheckPass;
 
 pub mod passes;
 
@@ -38,7 +40,7 @@ pub struct CompileJobId(NonZeroUsize);
 static COMPILE_JOB_ID: AtomicUsize = AtomicUsize::new(1);
 pub type Shared<T> = Arc<RwLock<T>>;
 pub type SharedJobStatus = Shared<CompileJobStatus>;
-pub type SharedBindings = Shared<Bindings>;
+pub type SharedBindings = Shared<HashMap<Id, TypeData>>;
 
 #[derive(Debug)]
 pub struct CompileJob {
@@ -125,7 +127,8 @@ impl CompileJob {
                 debug!("got command: {command:?}");
                 match command {
                     CompileJobCommand::Cancel => return Err(CompileErrorKind::Cancelled.into()),
-                    CompileJobCommand::UpdatingBindings => {
+                    CompileJobCommand::UpdatingBindings(bindings) => {
+                        self.update_bindings(bindings)?;
                     }
                     CompileJobCommand::Pause => {
                         self.paused = true;
@@ -140,8 +143,17 @@ impl CompileJob {
                 debug!("paused");
                 while self.paused {
                     let t = self.receiver.recv()?;
-                    if let CompileJobCommand::Resume = t {
-                        self.paused = false;
+                    match t {
+                        CompileJobCommand::Resume => {
+                            self.paused = false;
+                        }
+                        CompileJobCommand::Cancel => {
+                            return Err(CompileErrorKind::Cancelled.into());
+                        }
+                        CompileJobCommand::UpdatingBindings(bindings) => {
+                            self.update_bindings(bindings)?;
+                        }
+                        _ => {}
                     }
                 }
                 debug!("resumed");
@@ -163,13 +175,34 @@ impl CompileJob {
         Ok(())
     }
 
+    fn update_bindings(&mut self, bindings: HashMap<Id, TypeData>) -> std::result::Result<(), CompileError>{
+        debug!("updating bindings...");
+        let mut td = match &mut self.state {
+            Some(CompileJobState::WaitingForIdentifiers(pass, waiting)) => {
+                pass.data_mut()
+            }
+            _ => panic!("must be in waiting for identifiers state"),
+        };
+        for (id, binding) in bindings {
+            match binding {
+                TypeData::Class(class) => {
+                    td.insert_class(&class)?;
+                }
+                TypeData::Global(_) => {}
+            }
+        }
+        Ok(())
+    }
+
     fn pass(&mut self) -> StdResult<(), CompileError> {
         if let Some(state) = self.state.take() {
             let next_state: Option<CompileJobState> = match state {
                 CompileJobState::Done => None,
                 CompileJobState::Parsed(unit) => Some(fully_qualify(unit)?),
                 CompileJobState::FullyQualified(tu, data) => Some(create_declarations(tu, data)?),
-                CompileJobState::IdentifiersCreated(unit, created) => {
+                CompileJobState::IdentifiersCreated(unit, created, ids) => {
+                    debug!("compile job {:?} created ids: {ids:#?}", self.id);
+                    self.bindings.write().extend(ids);
                     let pass = TypeCheckPass::new(unit, created);
                     Some(pass.pass()?)
                 }
@@ -184,6 +217,7 @@ impl CompileJob {
                     debug!("compiled {:?} to {} units", path, u.items.len());
                     Some(CompileJobState::Parsed(u))
                 }
+                CompileJobState::TypesChecked(_, _) => None,
             };
             if let Some(next_state) = next_state {
                 *self.status.write() = next_state.status();
@@ -257,6 +291,7 @@ pub enum CompileJobStatus {
     Parsed,
     IdentifiersCreated,
     FullyQualified,
+    TypesChecked,
     WaitingForIdentifiers(HashSet<Id>),
     Failed(CompileError),
     Done,
@@ -267,10 +302,17 @@ pub enum CompileJobStatus {
 enum CompileJobState {
     NotStarted(PathBuf),
     Parsed(TranslationUnit),
-    IdentifiersCreated(TranslationUnit, TranslationData),
+    IdentifiersCreated(TranslationUnit, TranslationData, HashMap<Id, TypeData>),
     FullyQualified(TranslationUnit, TranslationData),
+    TypesChecked(TranslationUnit, TranslationData),
     WaitingForIdentifiers(TypeCheckPass, HashSet<Id>),
     Done,
+}
+
+#[derive(Debug, Clone)]
+pub enum TypeData {
+    Class(Class),
+    Global(TypeSignature),
 }
 
 impl CompileJobState {
@@ -281,8 +323,9 @@ impl CompileJobState {
             CompileJobState::FullyQualified(_, _) => FullyQualified,
             CompileJobState::WaitingForIdentifiers(_, ids) => WaitingForIdentifiers(ids.clone()),
             CompileJobState::Done => Done,
-            CompileJobState::IdentifiersCreated(_, _) => IdentifiersCreated,
+            CompileJobState::IdentifiersCreated(_, _, _) => IdentifiersCreated,
             CompileJobState::NotStarted(_) => NotStarted,
+            CompileJobState::TypesChecked(_, _) => TypesChecked,
         }
     }
 }
@@ -292,7 +335,7 @@ pub enum CompileJobCommand {
     Pause,
     Resume,
     Cancel,
-    UpdatingBindings,
+    UpdatingBindings(HashMap<Id, TypeData>),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -331,7 +374,7 @@ pub enum CompileErrorKind {
     #[error("Compile job daemon disconnected")]
     Disconnected(#[from] RecvError),
     #[error("{}", .0.iter().join("\n"))]
-    Multi(Vec<CompileError>)
+    Multi(Vec<CompileError>),
 }
 
 impl<V: Into<CompileErrorKind>> From<V> for CompileError {
