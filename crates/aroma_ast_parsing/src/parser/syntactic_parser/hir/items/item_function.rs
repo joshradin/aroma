@@ -1,14 +1,20 @@
-use std::io::Read;
-use aroma_tokens::token::ToTokens;
-use crate::parser::items::{parse_generics, FnBody, FnReturn, FnThrows, GenericDeclarations, Visibility};
-use crate::parser::{cut, singletons, CouldParse, Parsable, Punctuated1, SyntacticParser, SyntaxResult};
+use crate::parser::annotation::Annotation;
 use crate::parser::binding::{FnParameters, Type};
+use crate::parser::items::{
+    parse_generics, FnBody, FnReturn, FnThrows, GenericDeclarations, Visibility,
+};
 use crate::parser::singletons::{Arrow, Comma, Static, Throws, VarId};
 use crate::parser::statement::BlockStatement;
+use crate::parser::{
+    cut, singletons, CouldParse, Parsable, Punctuated1, SyntacticParser, SyntaxResult,
+};
+use aroma_tokens::token::ToTokens;
+use std::io::Read;
 
 /// A function declaration
 #[derive(Debug, ToTokens)]
 pub struct ItemFn {
+    pub annotations: Vec<Annotation>,
     pub vis: Option<Visibility>,
     pub static_tok: Option<Static>,
     pub fn_tok: singletons::Fn,
@@ -21,6 +27,7 @@ pub struct ItemFn {
 }
 
 pub fn parse_function<R: Read>(
+    annotations: Vec<Annotation>,
     visibility: Option<Visibility>,
     parser: &mut SyntacticParser<'_, R>,
 ) -> SyntaxResult<ItemFn> {
@@ -48,6 +55,7 @@ pub fn parse_function<R: Read>(
         body: parser.parse(BlockStatement::parse)?,
     };
     let fn_ = ItemFn {
+        annotations,
         vis: visibility,
         static_tok: None,
         fn_tok,

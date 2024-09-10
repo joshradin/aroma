@@ -135,6 +135,7 @@ pub enum TokenKind {
     Throws,
     Constructor,
     Import,
+    DocComment(String),
 }
 
 /// A stream of tokens
@@ -181,7 +182,7 @@ impl<T: ToTokens> Spanned for T {
     fn span(&self) -> Span {
         self.to_tokens()
             .map::<Span, _>(|token| token.span())
-            .reduce(|a, b| a.join(b).expect("could not join spans"))
+            .reduce(|a, b| a.join(b))
             .expect("Spanned has no tokens despite implementing ToTokens")
     }
 }

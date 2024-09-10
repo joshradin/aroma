@@ -1,17 +1,25 @@
-use aroma_tokens::token::{ToTokens, TokenKind};
-use std::io::Read;
-use log::{debug, trace};
-use crate::parser::items::{GenericDeclaration, GenericDeclarations, Visibility};
-use crate::parser::singletons::{Abstract, Arrow, Assign, Class, Comma, Constructor, Extends, Final, Implements, LBracket, LCurly, RBracket, RCurly, Static, Throws, VarId};
-use crate::parser::{cut, seperated_list1, singletons, CouldParse, End, ErrorKind, Parsable, Punctuated1, SyntacticParser, SyntaxResult};
+use crate::parser::annotation::Annotation;
 use crate::parser::binding::{Binding, FnParameters, Type};
 use crate::parser::expr::Expr;
+use crate::parser::items::{GenericDeclaration, GenericDeclarations, Visibility};
+use crate::parser::singletons::{
+    Abstract, Arrow, Assign, Class, Comma, Constructor, Extends, Final, Implements, LBracket,
+    LCurly, RBracket, RCurly, Static, Throws, VarId,
+};
 use crate::parser::statement::BlockStatement;
 use crate::parser::syntactic_parser::hir::items::item_function::ItemFn;
+use crate::parser::{
+    cut, seperated_list1, singletons, CouldParse, End, ErrorKind, Parsable, Punctuated1,
+    SyntacticParser, SyntaxResult,
+};
+use aroma_tokens::token::{ToTokens, TokenKind};
+use log::{debug, trace};
+use std::io::Read;
 
 /// A class declaration
 #[derive(Debug, ToTokens)]
 pub struct ItemClass {
+    pub annotations: Vec<Annotation>,
     pub vis: Option<Visibility>,
     pub abstract_tok: Option<Abstract>,
     pub class: Class,
@@ -118,6 +126,7 @@ pub struct ClassMembers {
 }
 
 pub fn parse_class<R: Read>(
+    annotations: Vec<Annotation>,
     visibility: Option<Visibility>,
     static_tok: Option<Static>,
     parser: &mut SyntacticParser<'_, R>,
@@ -154,6 +163,7 @@ pub fn parse_class<R: Read>(
 
     let members = parse_class_members(&id, parser)?;
     Ok(ItemClass {
+        annotations,
         vis: visibility,
         abstract_tok,
         class,
@@ -203,9 +213,10 @@ fn parse_class_members<'p, R: Read>(
     let mut members = vec![];
     while !RCurly::could_parse(parser)? {
         parser.with_ignore_nl(false, |parser| {
+            let annotations = parser.parse(Vec::<Annotation>::parse)?;
             let visibility = parser.parse_opt::<Visibility>()?;
             let is_static = parser.parse_opt::<Static>()?;
-            let member = parse_class_member(owner, visibility, is_static, parser)?;
+            let member = parse_class_member(annotations, owner, visibility, is_static, parser)?;
             members.push(member);
             Ok(())
         })?;
@@ -219,6 +230,7 @@ fn parse_class_members<'p, R: Read>(
 }
 
 fn parse_class_member<R: Read>(
+    annotations: Vec<Annotation>,
     owner: &VarId,
     visibility: Option<Visibility>,
     is_static: Option<Static>,
@@ -232,15 +244,17 @@ fn parse_class_member<R: Read>(
     })?;
     match lookahead.kind() {
         TokenKind::Identifier(_) | TokenKind::Final => {
-            parse_field(owner, visibility, is_static, parser)
+            parse_field(annotations, owner, visibility, is_static, parser)
         }
         TokenKind::Constructor if is_static.is_none() => {
-            parse_constructor(owner, visibility, parser)
+            parse_constructor(annotations, owner, visibility, parser)
         }
         TokenKind::Constructor if is_static.is_some() => {
             Err(parser.error(ErrorKind::ConstructorsCanNotBeStatic, None))
         }
-        TokenKind::Fn | TokenKind::Abstract => parse_method(owner, visibility, is_static, parser),
+        TokenKind::Fn | TokenKind::Abstract => {
+            parse_method(annotations, owner, visibility, is_static, parser)
+        }
         _ => Err(parser.error(
             ErrorKind::expected_token(["fn", "class", "id", "constructor"], lookahead),
             None,
@@ -249,6 +263,7 @@ fn parse_class_member<R: Read>(
 }
 
 fn parse_field<R: Read>(
+    annotations: Vec<Annotation>,
     owner: &VarId,
     visibility: Option<Visibility>,
     is_static: Option<Static>,
@@ -277,6 +292,7 @@ fn parse_field<R: Read>(
 }
 
 fn parse_method<R: Read>(
+    annotations: Vec<Annotation>,
     owner: &VarId,
     visibility: Option<Visibility>,
     is_static: Option<Static>,
@@ -290,7 +306,7 @@ fn parse_method<R: Read>(
     let name = parser.parse(VarId::parse)?;
     let generics = parser.parse(parse_generics)?;
     let parameters = parser.parse(cut(FnParameters::parse))?;
-    debug!("trying to parse return");
+    trace!("trying to parse return");
     let fn_return = if Arrow::could_parse(parser)? {
         let arrow = parser.parse(Arrow::parse)?;
         let returns = parser.parse(Type::parse)?;
@@ -298,8 +314,8 @@ fn parse_method<R: Read>(
     } else {
         None
     };
-    debug!("returns: {fn_return:?}");
-    debug!("trying to parse throws");
+    trace!("returns: {fn_return:?}");
+    trace!("trying to parse throws");
     let fn_throws = if Throws::could_parse(parser)? {
         trace!("found throws token");
         let throws = parser.parse(Throws::parse)?;
@@ -308,7 +324,7 @@ fn parse_method<R: Read>(
     } else {
         None
     };
-    debug!("throws: {fn_throws:?}");
+    trace!("throws: {fn_throws:?}");
 
     if let Some(abstract_tok) = abstract_tok {
         let end = parser.parse(End::parse)?;
@@ -329,6 +345,7 @@ fn parse_method<R: Read>(
             body: parser.parse(BlockStatement::parse)?,
         };
         let fn_ = ItemFn {
+            annotations,
             vis: visibility,
             static_tok: is_static,
             fn_tok,
@@ -344,6 +361,7 @@ fn parse_method<R: Read>(
 }
 
 fn parse_constructor<'p, R: Read>(
+    annotations: Vec<Annotation>,
     owner: &VarId,
     visibility: Option<Visibility>,
     parser: &mut SyntacticParser<'_, R>,

@@ -4,6 +4,7 @@ use aroma_tokens::spanned::{Span, Spanned};
 use aroma_tokens::token::{ToTokens, Token, TokenKind};
 use std::any::type_name;
 use std::collections::VecDeque;
+use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::fs::File;
 use std::io::Read;
@@ -50,15 +51,40 @@ pub trait Parsable: ToTokens + Sized {
     type Err;
 
     /// Attempt to parse some syntax tree part
-    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> result::Result<Self, Err<Self::Err>>;
+    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> Result<Self, Err<Self::Err>>;
 }
 
 /// A sub trait that determines if this type could be parsed without doing the parsing
 pub trait CouldParse: Parsable {
     /// Attempt to parse some syntax tree part
-    fn could_parse<R: Read>(
-        parser: &mut SyntacticParser<'_, R>,
-    ) -> result::Result<bool, Err<Self::Err>>;
+    fn could_parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> Result<bool, Err<Self::Err>>;
+}
+
+impl<P: Parsable + CouldParse> Parsable for Vec<P>
+where
+    P::Err: Error,
+{
+    type Err = P::Err;
+
+    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> Result<Self, Err<Self::Err>> {
+        let mut result = Vec::new();
+        while let Some(item) = parser.parse_opt::<P>()? {
+            result.push(item);
+        }
+
+        Ok(result)
+    }
+}
+
+impl<P: Parsable + CouldParse> Parsable for Option<P>
+where
+    P::Err: Error,
+{
+    type Err = P::Err;
+
+    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> Result<Self, Err<Self::Err>> {
+        parser.parse_opt::<P>()
+    }
 }
 
 #[derive(Debug, Default)]

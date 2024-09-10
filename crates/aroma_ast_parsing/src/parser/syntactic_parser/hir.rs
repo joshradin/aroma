@@ -8,6 +8,7 @@ use aroma_visitor_gen::visitor;
 use std::fmt::Debug;
 use std::io::Read;
 
+pub mod annotation;
 pub mod binding;
 pub mod constants;
 pub mod expr;

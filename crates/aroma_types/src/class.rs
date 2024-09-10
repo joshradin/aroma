@@ -16,6 +16,7 @@ use petgraph::visit::Walker;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::str::FromStr;
+use aroma_tokens::spanned::{Span, Spanned};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum ClassKind {
@@ -272,6 +273,17 @@ impl ClassInst {
     }
 }
 
+impl Spanned for ClassInst {
+    fn span(&self) -> Span {
+        let mut span = self.0.0.span();
+        for generic in self.generics() {
+            let inner = generic.bound_class_instance().span();
+            span = span.join(inner);
+        }
+        span
+    }
+}
+
 pub fn class_inst_parser<'a, E: ParseError<&'a str> + FromExternalError<&'a str, E>>(
     v: &'a str,
 ) -> IResult<&str, ClassInst, E> {
@@ -357,9 +369,9 @@ pub struct ParseClassInstError(Box<dyn Error>);
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
     use crate::class::{ClassInst, ClassRef};
     use crate::generic::GenericParameterBound;
+    use std::str::FromStr;
 
     #[test]
     fn test_parse_basic_class_inst() {
@@ -395,8 +407,12 @@ mod tests {
             ClassInst::with_generics(
                 ClassRef::from_str("aroma.system.Tuple2").unwrap(),
                 [
-                    GenericParameterBound::Invariant(ClassRef::from_str("aroma.system.Object").unwrap().into()),
-                    GenericParameterBound::Invariant(ClassRef::from_str("aroma.system.Object").unwrap().into())
+                    GenericParameterBound::Invariant(
+                        ClassRef::from_str("aroma.system.Object").unwrap().into()
+                    ),
+                    GenericParameterBound::Invariant(
+                        ClassRef::from_str("aroma.system.Object").unwrap().into()
+                    )
                 ]
             )
         )

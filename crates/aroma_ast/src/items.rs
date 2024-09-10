@@ -2,15 +2,15 @@ use crate::method::MethodDef;
 use crate::references::{GetInfoTypeRef, NameType};
 use aroma_tokens::spanned::{Span, Spanned};
 use aroma_types::class::Class;
-use std::collections::HashMap;
 use aroma_types::delegate::Delegate;
+use std::collections::HashMap;
 
 /// A top level item
 #[derive(Debug)]
 pub enum Item {
     /// A class item
     Class(ClassItem),
-    Delegate(DelegateItem)
+    Delegate(DelegateItem),
 }
 
 #[derive(Debug)]
@@ -44,7 +44,7 @@ impl Spanned for ClassItem {
 #[derive(Debug)]
 pub struct DelegateItem {
     span: Span,
-    pub delegate: Delegate
+    pub delegate: Delegate,
 }
 
 impl DelegateItem {

@@ -1,6 +1,6 @@
 #![doc = include_str!("../README.md")]
 
-use crate::items::{Item, ClassItem};
+use crate::items::{ClassItem, Item};
 use crate::method::MethodDef;
 use crate::translation_unit::TranslationUnit;
 use aroma_tokens::id::Id;

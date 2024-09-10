@@ -47,6 +47,7 @@ fn _parse_token(src: &str) -> Result<TokenKind> {
         parse_eof,
         parse_word,
         parse_literal,
+        parse_doc_comment,
         parse_punctuation,
         parse_operator,
         parse_newline,
@@ -55,6 +56,16 @@ fn _parse_token(src: &str) -> Result<TokenKind> {
 
 fn parse_eof(src: &str) -> Result<TokenKind> {
     context("eof", value(TokenKind::Eof, eof))(src)
+}
+
+fn parse_doc_comment(src: &str) -> Result<TokenKind> {
+    context(
+        "doc_comment",
+        map(
+            terminated(preceded(tag("///"), is_not("\n")), newline),
+            |r: &str| TokenKind::DocComment(r.to_string()),
+        ),
+    )(src)
 }
 
 fn parse_operator(src: &str) -> Result<TokenKind> {
@@ -83,7 +94,6 @@ fn parse_operator(src: &str) -> Result<TokenKind> {
                 value(TokenKind::LParen, char('(')),
                 value(TokenKind::RParen, char(')')),
                 value(TokenKind::Dot, char('.')),
-                value(TokenKind::Hash, char('#')),
                 alt((
                     value(TokenKind::And, tag("&&")),
                     value(TokenKind::BitwiseAnd, char('&')),
@@ -96,6 +106,7 @@ fn parse_operator(src: &str) -> Result<TokenKind> {
                     value(TokenKind::Lt, char('<')),
                     value(TokenKind::Gte, tag(">=")),
                     value(TokenKind::Gt, char('>')),
+                    value(TokenKind::Hash, char('#')),
                 )),
             )),
         )),
@@ -360,13 +371,21 @@ fn parse_insignificant(src: &str) -> Result<()> {
                     ),
                     context(
                         "line comment",
-                        recognize(delimited(
-                            tag("//"),
-                            take_till(|s| is_newline(s as u8)),
-                            newline,
-                        )),
+                        verify(
+                            recognize(delimited(
+                                tag("//"),
+                                take_till(|s| is_newline(s as u8)),
+                                newline,
+                            )),
+                            |line: &str| !line.starts_with("///"),
+                        ),
                     ),
-                    context("line comment", recognize(preceded(tag("//"), rest))),
+                    context(
+                        "line comment",
+                        verify(recognize(preceded(tag("//"), rest)), |line: &str| {
+                            !line.contains("\n")
+                        }),
+                    ),
                 )))),
             )),
             |_| (),

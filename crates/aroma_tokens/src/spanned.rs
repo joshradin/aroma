@@ -7,7 +7,6 @@ use std::panic::Location;
 use std::path::Path;
 use std::sync::Arc;
 
-
 /// A trait that can provide the [Span] of the complete context of an ir node, fallibly
 ///
 /// This is automatically implemented for all types that implemented [Spanned]
@@ -25,7 +24,7 @@ pub trait Spanned {
     fn span(&self) -> Span;
 }
 
-impl<S : Spanned> TrySpanned for S {
+impl<S: Spanned> TrySpanned for S {
     type Error = Infallible;
 
     fn try_span(&self) -> Result<Span, Self::Error> {
@@ -141,18 +140,14 @@ impl Span {
     }
 
     /// Creates a span that encompasses both
-    pub fn join(&self, other: Self) -> Option<Self> {
-        if self.path != other.path {
-            None
-        } else {
-            let min = self.offset.min(other.offset);
-            let max = (self.offset + self.len).max(other.offset + other.len);
-            let len = max - min;
-            Some(Self {
-                path: self.path.clone(),
-                offset: min,
-                len,
-            })
+    pub fn join(&self, other: Self) -> Self {
+        let min = self.offset.min(other.offset);
+        let max = (self.offset + self.len).max(other.offset + other.len);
+        let len = max - min;
+        Self {
+            path: self.path.clone(),
+            offset: min,
+            len,
         }
     }
 

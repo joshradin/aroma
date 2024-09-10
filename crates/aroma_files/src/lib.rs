@@ -3,24 +3,21 @@
 mod file_collection;
 mod file_tree;
 
-use std::path::{Path, PathBuf};
-use file_tree::SimpleFileTree;
+pub use self::{file_collection::FileCollection, file_tree::FileTree};
 use crate::file_collection::SimpleFileCollection;
-pub use self::{
-    file_collection::FileCollection,
-    file_tree::FileTree
-};
+use file_tree::SimpleFileTree;
+use std::path::{Path, PathBuf};
 
 /// Creates a file tree from a starting file
-pub fn file_tree<'a>(src: &'a Path) -> impl FileTree<Path=PathBuf> + 'a {
+pub fn file_tree<'a>(src: &'a Path) -> impl FileTree<Path = PathBuf> + 'a {
     SimpleFileTree::new(src)
 }
 
 /// Creates a file collection from an iterator of paths
-pub fn files<'a, I : IntoIterator<Item=&'a Path>>(src: I) -> impl FileCollection<Path=&'a Path> + 'a {
-    SimpleFileCollection::from_iter(
-        src
-    )
+pub fn files<'a, I: IntoIterator<Item = &'a Path>>(
+    src: I,
+) -> impl FileCollection<Path = &'a Path> + 'a {
+    SimpleFileCollection::from_iter(src)
 }
 
 /// re-exports everything
@@ -30,8 +27,8 @@ pub mod prelude {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
     use crate::{file_tree, FileCollection};
+    use std::path::Path;
 
     #[test]
     fn test_file_tree() {

@@ -22,7 +22,7 @@ pub fn parse_file(path: &Path) -> Result<Option<TranslationUnit>, parser::Syntax
         })?;
 
     if unit.is_empty() {
-        return Ok(None)
+        return Ok(None);
     }
     let translated = transform(unit)?;
 

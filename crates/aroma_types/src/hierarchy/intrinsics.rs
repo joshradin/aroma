@@ -83,6 +83,8 @@ macro_rules! primitives {
 /// Void type, used to represent void
 #[derive(Debug)]
 pub enum Void {}
+#[derive(Debug)]
+pub struct Throwable;
 
 primitives! {
     i32 => "aroma.primitive.Int",
@@ -93,7 +95,8 @@ primitives! {
     u8 => "aroma.primitive.Byte",
     char => "aroma.primitive.Char",
     Void => "aroma.primitive.Void",
-    String => "aroma.lang.String"
+    String => "aroma.lang.String",
+    Throwable => "aroma.lang.Throwable",
 }
 
 fn class() -> Class {

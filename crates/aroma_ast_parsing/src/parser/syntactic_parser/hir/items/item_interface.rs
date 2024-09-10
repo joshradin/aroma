@@ -1,12 +1,24 @@
-use aroma_tokens::token::{ToTokens, TokenKind};
-use std::io::Read;
-use log::{debug, trace};
+use crate::parser::annotation::Annotation;
 use crate::parser::binding::{Binding, FnParameters, Type};
-use crate::parser::items::{parse_generics, ClassFieldDefaultValue, ClassMember, FnBody, GenericDeclarations, ItemAbstractFn, ItemFn, Visibility};
-use crate::parser::{cut, singletons, CouldParse, End, ErrorKind, Parsable, Punctuated1, SyntacticParser, SyntaxResult};
-use crate::parser::singletons::{Abstract, Arrow, Comma, Extends, Final, Interface, LCurly, Public, RCurly, Static, Throws, VarId};
+use crate::parser::items::{
+    parse_generics, ClassFieldDefaultValue, ClassMember, FnBody, GenericDeclarations,
+    ItemAbstractFn, ItemFn, Visibility,
+};
+use crate::parser::singletons::{
+    Abstract, Arrow, Comma, Extends, Final, Interface, LCurly, Public, RCurly, Static, Throws,
+    VarId,
+};
 use crate::parser::statement::BlockStatement;
-use crate::parser::syntactic_parser::hir::items::item_class::{ClassExtends, ClassMembers, FnReturn, FnThrows, ItemClass};
+use crate::parser::syntactic_parser::hir::items::item_class::{
+    ClassExtends, ClassMembers, FnReturn, FnThrows, ItemClass,
+};
+use crate::parser::{
+    cut, singletons, CouldParse, End, ErrorKind, Parsable, Punctuated1, SyntacticParser,
+    SyntaxResult,
+};
+use aroma_tokens::token::{ToTokens, TokenKind};
+use log::{debug, trace};
+use std::io::Read;
 
 /// An interface declaration
 #[derive(Debug, ToTokens)]
@@ -15,8 +27,15 @@ pub struct ItemInterface {
     pub interface: Interface,
     pub ident: VarId,
     pub generics: Option<GenericDeclarations>,
-    pub extends: Option<ClassExtends>,
+    pub extends: Option<InterfaceExtends>,
     pub members: InterfaceMembers,
+}
+
+/// Class extends clause
+#[derive(Debug, ToTokens)]
+pub struct InterfaceExtends {
+    pub extends: Extends,
+    pub types: Punctuated1<Type, Comma>,
 }
 
 /// An abstract function declared in an interface declaration
@@ -71,10 +90,10 @@ pub fn parse_interface<R: Read>(
     let extends = if Extends::could_parse(parser)? {
         Some(parser.parse(|p: &mut SyntacticParser<'_, R>| {
             let extends = p.parse(Extends::parse)?;
-            let ty = p.parse(Type::parse)?;
-            Ok(ClassExtends {
+            let extended = p.parse(Punctuated1::parse)?;
+            Ok(InterfaceExtends {
                 extends,
-                extended: ty,
+                types: extended
             })
         })?)
     } else {
@@ -100,9 +119,10 @@ fn parse_interface_members<R: Read>(
     let mut members = vec![];
     while !RCurly::could_parse(parser)? {
         parser.with_ignore_nl(false, |parser| {
+            let annotations = parser.parse(Vec::<Annotation>::parse)?;
             let visibility = parser.parse_opt::<Public>()?;
             let is_static = parser.parse_opt::<Static>()?;
-            let member = parse_interface_member(owner, visibility, is_static, parser)?;
+            let member = parse_interface_member(annotations, owner, visibility, is_static, parser)?;
             members.push(member);
             Ok(())
         })?;
@@ -116,6 +136,7 @@ fn parse_interface_members<R: Read>(
 }
 
 fn parse_interface_member<R: Read>(
+    annotations: Vec<Annotation>,
     owner_id: &VarId,
     pub_vis: Option<Public>,
     static_tok: Option<Static>,
@@ -132,19 +153,12 @@ fn parse_interface_member<R: Read>(
             if let Some(static_tok) = static_tok {
                 todo!("static field")
             } else {
-                Err(parser.error(
-                    ErrorKind::InterfacesCanNotHaveObjectFields,
-                    None
-                ))
+                Err(parser.error(ErrorKind::InterfacesCanNotHaveObjectFields, None))
             }
         }
         TokenKind::Fn => {
-            let method = parse_interface_method(
-                owner_id,
-                pub_vis,
-                static_tok,
-                parser
-            )?;
+            let method =
+                parse_interface_method(annotations, owner_id, pub_vis, static_tok, parser)?;
             Ok(method)
         }
         _ => Err(parser.error(
@@ -155,6 +169,7 @@ fn parse_interface_member<R: Read>(
 }
 
 fn parse_interface_method<R: Read>(
+    annotations: Vec<Annotation>,
     owner: &VarId,
     visibility: Option<Public>,
     is_static: Option<Static>,
@@ -164,7 +179,7 @@ fn parse_interface_method<R: Read>(
     let name = parser.parse(VarId::parse)?;
     let generics = parser.parse(parse_generics)?;
     let parameters = parser.parse(cut(FnParameters::parse))?;
-    debug!("trying to parse return");
+    trace!("trying to parse return");
     let fn_return = if Arrow::could_parse(parser)? {
         let arrow = parser.parse(Arrow::parse)?;
         let returns = parser.parse(Type::parse)?;
@@ -172,8 +187,8 @@ fn parse_interface_method<R: Read>(
     } else {
         None
     };
-    debug!("returns: {fn_return:?}");
-    debug!("trying to parse throws");
+    trace!("returns: {fn_return:?}");
+    trace!("trying to parse throws");
     let fn_throws = if Throws::could_parse(parser)? {
         trace!("found throws token");
         let throws = parser.parse(Throws::parse)?;
@@ -182,13 +197,14 @@ fn parse_interface_method<R: Read>(
     } else {
         None
     };
-    debug!("throws: {fn_throws:?}");
+    trace!("throws: {fn_throws:?}");
 
     if let Some(static_tok) = is_static {
         let body = FnBody {
             body: parser.parse(BlockStatement::parse)?,
         };
         let fn_ = ItemFn {
+            annotations,
             vis: visibility.map(Visibility::Public),
             static_tok: Some(static_tok),
             fn_tok,

@@ -1,28 +1,27 @@
 //! items, like functions, and classes
 
+use crate::parser::annotation::Annotation;
 use crate::parser::binding::{FnParameters, Type};
 use crate::parser::expr::remove_nl;
 use crate::parser::singletons::{Private, Protected, Public};
 use crate::parser::syntactic_parser::hir::helpers::End;
 use crate::parser::{
-    singletons::*, CouldParse, ErrorKind, Parsable, Punctuated1,
-    SyntacticParser, SyntaxError, SyntaxResult,
+    cut, singletons::*, CouldParse, ErrorKind, Parsable, Punctuated1, SyntacticParser, SyntaxError,
+    SyntaxResult,
 };
 use aroma_tokens::spanned::Spanned;
 use aroma_tokens::token::{ToTokens, TokenKind};
 use aroma_types::class::AsClassRef;
 use aroma_types::hierarchy::intrinsics::OBJECT_CLASS;
 use aroma_types::vis::Vis;
+use log::{debug, trace};
 use std::io::Read;
-mod item_class;
-mod item_interface;
-mod item_function;
 
-pub use self::{
-    item_class::*,
-    item_function::*,
-    item_interface::*,
-};
+mod item_class;
+mod item_function;
+mod item_interface;
+
+pub use self::{item_class::*, item_function::*, item_interface::*};
 
 #[derive(Debug, ToTokens)]
 pub enum Visibility {
@@ -149,6 +148,10 @@ impl Parsable for Item {
 
 fn parse_item<'p, R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Item> {
     parser.parse(remove_nl)?;
+    let annotations =
+        parser.with_ignore_nl(true, |parser| parser.parse(cut(Vec::<Annotation>::parse)))?;
+    trace!("annotations {:?}", annotations);
+    parser.parse(remove_nl)?;
     let vis = parser.parse_opt::<Visibility>()?;
     parser.parse(remove_nl)?;
     let lookahead = match parser.peek()?.cloned() {
@@ -165,15 +168,15 @@ fn parse_item<'p, R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<
 
     let item = match lookahead.kind() {
         TokenKind::Abstract | TokenKind::Class => {
-            let class = parse_class(vis, None, parser).map_err(|e| e.cut())?;
+            let class = parse_class(annotations, vis, None, parser).map_err(|e| e.cut())?;
             Item::Class(class)
         }
         TokenKind::Interface => {
-            let interface = parse_interface(vis, parser)?;
+            let interface = parse_interface(vis, parser).map_err(|e| e.cut())?;
             Item::Interface(interface)
         }
         TokenKind::Fn => {
-            let func = parse_function(vis, parser).map_err(|e| e.cut())?;
+            let func = parse_function(annotations, vis, parser).map_err(|e| e.cut())?;
             Item::Func(func)
         }
         TokenKind::Delegate => {

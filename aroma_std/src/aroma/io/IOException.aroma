@@ -1,0 +1,6 @@
+namespace aroma.io
+
+/// A
+public class IOException extends Exception {
+
+}

@@ -15,18 +15,20 @@ use aroma_tokens::id_resolver::{CreateIdError, IdError, IdResolver, ResolveIdErr
 use aroma_tokens::spanned::Span;
 use aroma_tokens::SpannedError;
 use itertools::Itertools as _;
-use log::{debug, info};
 use parking_lot::RwLock;
 use std::collections::HashSet;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::num::NonZeroUsize;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::result::Result as StdResult;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::mpsc::{sync_channel, Receiver, RecvError, SyncSender, TryRecvError};
 use std::sync::Arc;
 use std::thread::{Scope, ScopedJoinHandle};
+use tracing::{debug, info, instrument, warn};
+use aroma_ast::typed::TypeError;
+use crate::compiler::compile_job::passes::type_check::TypeCheckPass;
 
 pub mod passes;
 
@@ -40,6 +42,7 @@ pub type SharedBindings = Shared<Bindings>;
 
 #[derive(Debug)]
 pub struct CompileJob {
+    paused: bool,
     id: CompileJobId,
     status: SharedJobStatus,
     bindings: SharedBindings,
@@ -50,8 +53,10 @@ pub struct CompileJob {
 impl CompileJob {
     /// Start a compile job
     pub fn start<'scope>(
+        span: tracing::Span,
         scope: &'scope Scope<'scope, '_>,
         path: &'scope Path,
+        is_paused: bool,
     ) -> CompileJobHandle<'scope> {
         let status = Arc::new(RwLock::new(CompileJobStatus::NotStarted));
         let bindings = SharedBindings::default();
@@ -64,12 +69,13 @@ impl CompileJob {
 
             let handle = scope.spawn(move || {
                 let path = path;
-                let mut job = CompileJob::new(id, status, bindings, rx);
-                match job.run(path) {
+                let mut job = CompileJob::new(id, status, bindings, rx, is_paused);
+                match span.in_scope(|| job.run(path)) {
                     Ok(()) => {
                         *job.status.write() = CompileJobStatus::Done;
                     }
                     Err(err) => {
+                        warn!("job finally failed: {err}");
                         *job.status.write() = CompileJobStatus::Failed(err);
                     }
                 }
@@ -90,8 +96,10 @@ impl CompileJob {
         status: SharedJobStatus,
         bindings: SharedBindings,
         receiver: Receiver<CompileJobCommand>,
+        paused: bool,
     ) -> Self {
         Self {
+            paused,
             id,
             status,
             bindings,
@@ -100,23 +108,43 @@ impl CompileJob {
         }
     }
 
+    #[instrument(skip(self), name = "job", fields(id=?self.id))]
     fn run(&mut self, path: &Path) -> StdResult<(), CompileError> {
-        *self.status.write() = CompileJobStatus::Parsing;
-        let Some(u) = parse_file(path)? else {
-            debug!("got empty translation unit, skipping to end");
-            return Ok(());
-        };
-        // debug!("compiled {:?} to {} units", path, u.items.len());
-        self.state = Some(CompileJobState::Parsed(u));
-        *self.status.write() = CompileJobStatus::Parsed;
+        debug!("started running compile job for {:?}", path);
+        self.state = Some(CompileJobState::NotStarted(path.to_path_buf()));
 
         loop {
-            if let Some(command) = self.receiver.try_recv().ok() {
+            let command = match self.receiver.try_recv() {
+                Ok(command) => Some(command),
+                Err(TryRecvError::Empty) => None,
+                Err(TryRecvError::Disconnected) => {
+                    break;
+                }
+            };
+            if let Some(command) = command {
                 debug!("got command: {command:?}");
                 match command {
                     CompileJobCommand::Cancel => return Err(CompileErrorKind::Cancelled.into()),
-                    CompileJobCommand::UpdatingBindings => {}
+                    CompileJobCommand::UpdatingBindings => {
+                    }
+                    CompileJobCommand::Pause => {
+                        self.paused = true;
+                    }
+                    CompileJobCommand::Resume => {
+                        self.paused = false;
+                    }
                 }
+            };
+
+            if self.paused {
+                debug!("paused");
+                while self.paused {
+                    let t = self.receiver.recv()?;
+                    if let CompileJobCommand::Resume = t {
+                        self.paused = false;
+                    }
+                }
+                debug!("resumed");
             }
 
             let finished = {
@@ -140,14 +168,21 @@ impl CompileJob {
             let next_state: Option<CompileJobState> = match state {
                 CompileJobState::Done => None,
                 CompileJobState::Parsed(unit) => Some(fully_qualify(unit)?),
+                CompileJobState::FullyQualified(tu, data) => Some(create_declarations(tu, data)?),
                 CompileJobState::IdentifiersCreated(unit, created) => {
-                    todo!()
+                    let pass = TypeCheckPass::new(unit, created);
+                    Some(pass.pass()?)
                 }
-                CompileJobState::WaitingForIdentifiers(_, _, _) => {
-                    todo!()
+                CompileJobState::WaitingForIdentifiers(pass, waiting) => {
+                    Some(CompileJobState::WaitingForIdentifiers(pass, waiting))
                 }
-                CompileJobState::FullyQualified(_, _) => {
-                    todo!()
+                CompileJobState::NotStarted(path) => {
+                    let Some(u) = parse_file(&path)? else {
+                        debug!("got empty translation unit, skipping to end");
+                        return Ok(());
+                    };
+                    debug!("compiled {:?} to {} units", path, u.items.len());
+                    Some(CompileJobState::Parsed(u))
                 }
             };
             if let Some(next_state) = next_state {
@@ -230,10 +265,11 @@ pub enum CompileJobStatus {
 /// Compile job state
 #[derive(Debug)]
 enum CompileJobState {
+    NotStarted(PathBuf),
     Parsed(TranslationUnit),
     IdentifiersCreated(TranslationUnit, TranslationData),
-    FullyQualified(TranslationData, TranslationData),
-    WaitingForIdentifiers(TranslationUnit, TranslationData, HashSet<Id>),
+    FullyQualified(TranslationUnit, TranslationData),
+    WaitingForIdentifiers(TypeCheckPass, HashSet<Id>),
     Done,
 }
 
@@ -243,15 +279,18 @@ impl CompileJobState {
         match self {
             CompileJobState::Parsed(_) => Parsing,
             CompileJobState::FullyQualified(_, _) => FullyQualified,
-            CompileJobState::WaitingForIdentifiers(_, _, ids) => WaitingForIdentifiers(ids.clone()),
+            CompileJobState::WaitingForIdentifiers(_, ids) => WaitingForIdentifiers(ids.clone()),
             CompileJobState::Done => Done,
             CompileJobState::IdentifiersCreated(_, _) => IdentifiersCreated,
+            CompileJobState::NotStarted(_) => NotStarted,
         }
     }
 }
 
 #[derive(Debug)]
 pub enum CompileJobCommand {
+    Pause,
+    Resume,
     Cancel,
     UpdatingBindings,
 }
@@ -281,17 +320,29 @@ pub enum CompileErrorKind {
     ResolveIdError(#[from] ResolveIdError),
     #[error(transparent)]
     CreateIdError(#[from] CreateIdError),
-    #[error("undefined identifiers: {}", .0.iter().map(|id| id.to_string()).join(","))]
-    UndefinedIdentifiers(Vec<Id>),
+    #[error(transparent)]
+    TypeError(#[from] aroma_types::hierarchy::Error),
+    #[error("undefined identifiers: {0}")]
+    UndefinedIdentifier(Id),
     #[error("no state")]
     NoState,
     #[error("job was cancelled")]
     Cancelled,
+    #[error("Compile job daemon disconnected")]
+    Disconnected(#[from] RecvError),
+    #[error("{}", .0.iter().join("\n"))]
+    Multi(Vec<CompileError>)
 }
 
 impl<V: Into<CompileErrorKind>> From<V> for CompileError {
     fn from(value: V) -> Self {
         CompileError::from(SpannedError::new(value.into(), None, None))
+    }
+}
+
+impl From<Vec<CompileError>> for CompileErrorKind {
+    fn from(value: Vec<CompileError>) -> Self {
+        Self::Multi(value)
     }
 }
 

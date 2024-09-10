@@ -1,6 +1,9 @@
 //! full qualifies everything in the MIR
 
-use crate::compiler::compile_job::{CompileError, CompileErrorKind, CompileJobState};
+use crate::compiler::compile_job::{
+    CompileError, CompileErrorKind, CompileJobState, CompileJobStatus,
+};
+use crate::error::AromaCError;
 use crate::resolution::TranslationData;
 use aroma_ast::items::ClassItem;
 use aroma_ast::translation_unit::TranslationUnit;
@@ -13,10 +16,11 @@ use aroma_types::class::{Class, ClassInst, ClassRef};
 use aroma_types::functions::FunctionDeclaration;
 use aroma_types::generic::GenericDeclaration;
 use itertools::Itertools;
-use log::{debug, error, warn};
 use std::collections::HashSet;
+use tracing::{debug, error, instrument, trace, warn};
 
 /// Attempts to fully qualify a translation unit
+#[instrument(skip_all)]
 pub fn fully_qualify(
     mut translation_unit: TranslationUnit,
 ) -> Result<CompileJobState, CompileError> {
@@ -34,7 +38,7 @@ pub fn fully_qualify(
             .insert_alias(import.most_specific(), import.clone())?;
     }
 
-    debug!(
+    trace!(
         "starting id fqi conversion process with id resolver: {id_resolver:#?}",
         id_resolver = translation_data.id_resolver()
     );
@@ -49,14 +53,28 @@ pub fn fully_qualify(
     };
     full_qualifier.visit_translation_unit(&mut translation_unit)?;
 
-    debug!("post-qualified: {translation_unit:#?}");
+    trace!("post-qualified: {translation_unit:#?}");
     let missing = full_qualifier.missing;
     if !missing.is_empty() {
         error!("missing identifiers: {}", missing.iter().join(", "));
-        return Err(CompileErrorKind::UndefinedIdentifiers(Vec::from_iter(missing)).into());
+        return Err(missing
+            .into_iter()
+            .map(|id| {
+                CompileError::new(
+                    CompileErrorKind::UndefinedIdentifier(id.clone()),
+                    id.span(),
+                    None,
+                )
+            })
+            .collect::<Vec<_>>()
+            .into()
+        );
     }
 
-    todo!()
+    Ok(CompileJobState::FullyQualified(
+        translation_unit,
+        translation_data,
+    ))
 }
 
 #[derive(Debug)]

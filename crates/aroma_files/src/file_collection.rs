@@ -33,7 +33,7 @@ pub trait FileCollection {
     fn into_file_tree(self) -> impl FileTree
     where
         Self: Sized,
-        <Self as FileCollection>::Path: 'static
+        <Self as FileCollection>::Path: 'static,
     {
         self.files()
             .into_iter()
@@ -43,11 +43,11 @@ pub trait FileCollection {
 }
 
 #[derive(Debug, Default)]
-pub struct SimpleFileCollection<P : AsRef<Path> + Eq + Hash> {
+pub struct SimpleFileCollection<P: AsRef<Path> + Eq + Hash> {
     paths: HashSet<P>,
 }
 
-impl<P : AsRef<Path> + Eq + Hash + Clone> FromIterator<P> for SimpleFileCollection<P> {
+impl<P: AsRef<Path> + Eq + Hash + Clone> FromIterator<P> for SimpleFileCollection<P> {
     fn from_iter<T: IntoIterator<Item = P>>(iter: T) -> Self {
         Self {
             paths: iter.into_iter().collect(),
@@ -55,7 +55,7 @@ impl<P : AsRef<Path> + Eq + Hash + Clone> FromIterator<P> for SimpleFileCollecti
     }
 }
 
-impl<P : AsRef<Path> + Eq + Hash + Clone> FileCollection for SimpleFileCollection<P> {
+impl<P: AsRef<Path> + Eq + Hash + Clone> FileCollection for SimpleFileCollection<P> {
     type Path = P;
 
     fn files(&self) -> HashSet<Self::Path> {

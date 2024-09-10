@@ -220,7 +220,10 @@ fn parse_statement_list<'p, R: Read>(
             let statement = match parser.parse(Statement::parse) {
                 Ok(statement) => statement,
                 Err(e) => {
-                    eprintln!("encountered {e:?} while parser is in state {:#?}", &parser.state);
+                    eprintln!(
+                        "encountered {e:?} while parser is in state {:#?}",
+                        &parser.state
+                    );
                     return Err(e);
                 }
             };

@@ -57,6 +57,8 @@ impl TranslationData {
         Ok(())
     }
 
+
+
     /// Merges the contents of another translation into this
     ///
     /// # Examples
@@ -67,6 +69,14 @@ impl TranslationData {
     /// ```
     pub fn merge(&mut self, other: &Self) -> &mut Self {
         self
+    }
+
+    pub fn class_hierarchy(&self) -> &Hierarchy {
+        &self.class_hierarchy
+    }
+
+    pub fn globals(&self) -> &HashMap<Id, TypeSignature> {
+        &self.globals
     }
 }
 

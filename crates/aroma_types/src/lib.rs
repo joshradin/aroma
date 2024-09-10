@@ -2,13 +2,13 @@
 
 pub mod class;
 pub mod constructor;
+pub mod delegate;
 pub mod field;
 pub mod functions;
 pub mod generic;
 pub mod hierarchy;
 pub mod type_signature;
 pub mod vis;
-pub mod delegate;
 
 #[cfg(test)]
 mod tests {

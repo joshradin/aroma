@@ -1,3 +1,7 @@
+use crate::parser::syntactic_parser::hir::items::{ClassField, ClassMember};
+use crate::parser::syntactic_parser::transforms::to_mir::method_hir_to_mir;
+use crate::parser::transforms::to_mir;
+use crate::parser::{items, ErrorKind, Punctuated, SyntaxError};
 use aroma_ast::items::ClassItem;
 use aroma_tokens::id::Id;
 use aroma_tokens::spanned::Spanned;
@@ -5,10 +9,7 @@ use aroma_types::class::{AsClassRef, Class, ClassInst, ClassKind, ClassRef};
 use aroma_types::field::Field;
 use aroma_types::generic::{GenericDeclaration, GenericParameterBound};
 use aroma_types::hierarchy::intrinsics::OBJECT_CLASS;
-use crate::parser::{items, ErrorKind, Punctuated, SyntaxError};
-use crate::parser::syntactic_parser::hir::items::{ClassField, ClassMember};
-use crate::parser::syntactic_parser::transforms::to_mir::method_hir_to_mir;
-use crate::parser::transforms::to_mir;
+
 pub fn class_hir_to_mir(
     namespace: Option<&Id>,
     cls: items::ItemClass,
@@ -67,7 +68,12 @@ pub fn class_hir_to_mir(
     cls.members.members.into_iter().try_for_each(|member| {
         match member {
             ClassMember::Method(method) => {
-                let (dec, def) = method_hir_to_mir::method_hir_to_mir(&class_inst, &fields, &class_generics, method)?;
+                let (dec, def) = method_hir_to_mir::method_hir_to_mir(
+                    &class_inst,
+                    &fields,
+                    &class_generics,
+                    method,
+                )?;
                 methods.push(dec);
                 method_defs.push(def);
             }
@@ -86,7 +92,7 @@ pub fn class_hir_to_mir(
                 let dec = method_hir_to_mir::abstract_method_hir_to_mir(
                     &class_inst,
                     &class_generics,
-                    abs
+                    abs,
                 )?;
 
                 methods.push(dec);

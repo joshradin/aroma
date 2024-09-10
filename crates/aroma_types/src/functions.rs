@@ -17,7 +17,7 @@ pub struct FunctionDeclaration {
     vis: Vis,
     name: String,
     generic_declaration: Vec<GenericDeclaration>,
-    delegate: Option<ClassInst>,
+    receiver: Option<ClassInst>,
     parameters: Vec<Parameter>,
     return_type: Option<ClassInst>,
     throws: Vec<ClassInst>,
@@ -29,7 +29,7 @@ impl FunctionDeclaration {
         vis: Vis,
         name: impl AsRef<str>,
         generic_declaration: impl IntoIterator<Item = GenericDeclaration>,
-        delegate: impl Into<Option<ClassInst>>,
+        receiver: impl Into<Option<ClassInst>>,
         parameters: impl IntoIterator<Item = Parameter>,
         return_type: impl Into<Option<ClassInst>>,
         throws: impl IntoIterator<Item = ClassInst>,
@@ -42,7 +42,7 @@ impl FunctionDeclaration {
             return_type: return_type.into(),
             parameters: parameters.into_iter().collect(),
             throws: throws.into_iter().collect(),
-            delegate: delegate.into(),
+            receiver: receiver.into(),
         }
     }
 

@@ -37,17 +37,17 @@ impl<F: FileTree> FileCollection for F {
 }
 
 #[derive(Debug)]
-pub struct SimpleFileTree<P : AsRef<Path>> {
+pub struct SimpleFileTree<P: AsRef<Path>> {
     src: P,
 }
 
-impl<P : AsRef<Path>> SimpleFileTree<P> {
+impl<P: AsRef<Path>> SimpleFileTree<P> {
     pub fn new(src: P) -> Self {
         Self { src }
     }
 }
 
-impl<P : AsRef<Path>> FileTree for SimpleFileTree<P> {
+impl<P: AsRef<Path>> FileTree for SimpleFileTree<P> {
     type Path = PathBuf;
 
     fn flatten(&self) -> HashSet<Self::Path> {
@@ -86,11 +86,14 @@ pub struct UnionFileTree<'a, P: AsRef<Path> + Eq + Hash + 'a> {
 impl<'a, P, F> FromIterator<F> for UnionFileTree<'a, P>
 where
     P: AsRef<Path> + Eq + Hash + 'a,
-    F: FileTree<Path=P> + 'a
+    F: FileTree<Path = P> + 'a,
 {
-    fn from_iter<T: IntoIterator<Item=F>>(iter: T) -> Self {
+    fn from_iter<T: IntoIterator<Item = F>>(iter: T) -> Self {
         Self {
-            trees: iter.into_iter().map(|f| Box::new(f) as Box<dyn FileTree<Path=P>>).collect(),
+            trees: iter
+                .into_iter()
+                .map(|f| Box::new(f) as Box<dyn FileTree<Path = P>>)
+                .collect(),
         }
     }
 }
@@ -104,15 +107,10 @@ where
     }
 }
 
-
-
 impl<'a, P: AsRef<Path> + Eq + Hash + 'a> FileTree for UnionFileTree<'a, P> {
     type Path = P;
 
     fn flatten(&self) -> HashSet<Self::Path> {
-        self.trees
-            .iter()
-            .flat_map(|t| t.flatten())
-            .collect()
+        self.trees.iter().flat_map(|t| t.flatten()).collect()
     }
 }

@@ -1,0 +1,6 @@
+namespace aroma.lang
+
+#[lang = "Exception"]
+public class Exception extends Throwable {
+
+}

@@ -14,7 +14,6 @@ use std::ops::Index;
 
 pub mod intrinsics;
 
-
 /// The type hierarchy.
 #[derive(Debug)]
 pub struct Hierarchy {

@@ -1,6 +1,7 @@
 use crate::parser::expr::Expr;
-use crate::parser::syntactic_parser::hir::items::ItemFn;
 use crate::parser::statement::{ReturnStatement, Statement as ParsedStatement, Statement};
+use crate::parser::syntactic_parser::hir::items::ItemFn;
+use crate::parser::syntactic_parser::hir::items::{FnBody, ItemAbstractFn};
 use crate::parser::transforms::to_mir;
 use crate::parser::transforms::to_mir::expr_hir_to_mir::expr_hir_to_mir;
 use crate::parser::{Punctuated, SyntaxError};
@@ -18,7 +19,9 @@ use aroma_types::generic::GenericDeclaration;
 use aroma_types::type_signature::TypeSignature;
 use log::debug;
 use std::collections::HashSet;
-use crate::parser::syntactic_parser::hir::items::{FnBody, ItemAbstractFn};
+use crate::parser::binding::FnParameters;
+use crate::parser::items::{FnReturn, FnThrows, GenericDeclarations, ItemInterfaceFn, Visibility};
+use crate::parser::singletons::VarId;
 
 pub fn method_hir_to_mir(
     parent_inst: &ClassInst,
@@ -29,6 +32,7 @@ pub fn method_hir_to_mir(
     let span = method.span();
     debug!("creating method from {method:#?}");
     let ItemFn {
+        annotations: _,
         vis,
         static_tok,
         fn_tok: _,
@@ -129,9 +133,35 @@ pub fn abstract_method_hir_to_mir(
         fn_parameters,
         fn_return,
         fn_throws,
-        end: _
+        end: _,
     } = method;
 
+    non_concrete_method_to_hair(parent_inst, class_generics, vis, ident, generics, fn_parameters, fn_return, fn_throws)
+}
+
+pub fn interface_method_hir_to_mir(
+    parent_inst: &ClassInst,
+    class_generics: &[GenericDeclaration],
+    method: ItemInterfaceFn,
+) -> Result<FunctionDeclaration, SyntaxError> {
+    debug!("creating method from {method:#?}");
+    let ItemInterfaceFn {
+        vis,
+        fn_tok: _,
+        ident,
+        generics,
+        fn_parameters,
+        fn_return,
+        fn_throws,
+        end: _,
+    } = method;
+
+    non_concrete_method_to_hair(parent_inst, class_generics,
+                                vis.map(Visibility::Public), ident, generics, fn_parameters, fn_return, fn_throws)
+}
+
+
+fn non_concrete_method_to_hair(parent_inst: &ClassInst, class_generics: &[GenericDeclaration], vis: Option<Visibility>, ident: VarId, generics: Option<GenericDeclarations>, fn_parameters: FnParameters, fn_return: Option<FnReturn>, fn_throws: Option<FnThrows>) -> Result<FunctionDeclaration, SyntaxError> {
     let vis = to_mir::vis_hir_to_mir(vis);
     let name = ident.as_ref().to_string();
 
@@ -172,7 +202,6 @@ pub fn abstract_method_hir_to_mir(
         })
         .unwrap_or_default();
 
-
     let method_dec = FunctionDeclaration::new(
         vis,
         &name,
@@ -186,7 +215,6 @@ pub fn abstract_method_hir_to_mir(
 
     Ok(method_dec)
 }
-
 
 pub fn method_hir_to_mir_def<'a>(
     span: Span,

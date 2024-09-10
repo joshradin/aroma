@@ -169,6 +169,8 @@ impl<'a> IdQueries<'a> {
             }
         }
 
+        resolved.dedup();
+
         match resolved.as_slice() {
             [] => Err(ResolveIdError::NotFound {
                 namespace: if self.namespace.is_empty() {
@@ -271,7 +273,8 @@ mod tests {
 
         let _resolved = id_resolver
             .query(namespace.namespace().unwrap())
-            .resolve(&Id::from_str("system.Object").unwrap()).unwrap();
+            .resolve(&Id::from_str("system.Object").unwrap())
+            .unwrap();
     }
 
     #[test]
@@ -281,14 +284,17 @@ mod tests {
         id_resolver.insert_qualified(fqi_object.clone()).unwrap();
         let mut namespace_builder =
             id_resolver.build_namespace(Id::from_str("industries.vandaley").unwrap());
-        namespace_builder.insert_alias(
-            Id::new_call_site(["Object"]).unwrap(), // import Object
-            fqi_object.clone(),
-        ).unwrap();
+        namespace_builder
+            .insert_alias(
+                Id::new_call_site(["Object"]).unwrap(), // import Object
+                fqi_object.clone(),
+            )
+            .unwrap();
 
         let resolved = namespace_builder
             .query()
-            .resolve(&Id::new_call_site(["Object"]).unwrap()).unwrap();
+            .resolve(&Id::new_call_site(["Object"]).unwrap())
+            .unwrap();
 
         assert_eq!(resolved, &fqi_object);
         println!("resolver: {id_resolver:#?}");

@@ -1,4 +1,7 @@
 use crate::parser::items::Visibility;
+use crate::parser::singletons::Static;
+use crate::parser::syntactic_parser::hir::items::ItemFn;
+use crate::parser::syntactic_parser::hir::items::{ClassField, ClassMember};
 use crate::parser::syntactic_parser::hir::translation_unit::TranslationUnit as ParsedTranslationUnit;
 use crate::parser::{items as parser_items, ErrorKind};
 use crate::parser::{Punctuated, SyntaxError};
@@ -17,13 +20,11 @@ use aroma_types::vis::Vis;
 use log::debug;
 use method_hir_to_mir::method_hir_to_mir_def;
 use std::collections::HashMap;
-use crate::parser::singletons::Static;
-use crate::parser::syntactic_parser::hir::items::{ClassField, ClassMember};
-use crate::parser::syntactic_parser::hir::items::ItemFn;
 
 mod class_hir_to_mir;
 mod expr_hir_to_mir;
 mod method_hir_to_mir;
+mod interface_hir_to_mir;
 
 /// Runs the initial conversion to mir, removing most tokens while keeping spans
 pub fn to_mir(translation_unit: ParsedTranslationUnit) -> Result<TranslationUnit, SyntaxError> {
@@ -49,7 +50,11 @@ pub fn to_mir(translation_unit: ParsedTranslationUnit) -> Result<TranslationUnit
                     items.push(Item::Class(class));
                 }
                 parser_items::Item::Func(_func) => {}
-                parser_items::Item::Interface(_) => {}
+                parser_items::Item::Interface(interface) => {
+                    let interface = interface_hir_to_mir::interface_hir_to_mir(namespace, interface)?;
+                    debug!("parsed interface {interface:#?}");
+                    items.push(Item::Class(interface));
+                }
             }
             Ok(items)
         },

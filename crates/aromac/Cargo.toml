@@ -8,12 +8,13 @@ readme.workspace = true
 repository.workspace = true
 
 [dependencies]
+tracing-subscriber = "0.3.18"
+tracing-error = "0.2.0"
+tracing = "0.1.40"
 clap = { workspace = true, features = ["derive", "env"] }
 color-eyre = { workspace = true }
 eyre = { workspace = true }
 chrono = { workspace = true, features = ["alloc", "std", "clock"] }
-fern = { workspace = true }
-log = { workspace = true }
 owo-colors = { workspace = true, features = ["supports-colors"] }
 aroma_bytecode = { version = "0.0.0", path = "../aroma_bytecode" }
 aroma_visitor_gen = { version = "0.0.0", path = "../aroma_visitor_gen" }

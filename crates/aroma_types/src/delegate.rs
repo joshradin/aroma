@@ -7,15 +7,16 @@ use crate::class::ClassInst;
 pub struct Delegate {
     receiver: Option<ClassInst>,
     args: Vec<ClassInst>,
-    return_type: Option<ClassInst>
+    return_type: Option<ClassInst>,
 }
 
 impl Delegate {
     /// Creates a new delegate type
     pub fn new<Rec, Args, Ret>(delegate: Rec, args: Args, ret: Ret) -> Self
-        where Rec: Into<Option<ClassInst>>,
-              Args: IntoIterator<Item=ClassInst>,
-              Ret: Into<Option<ClassInst>>
+    where
+        Rec: Into<Option<ClassInst>>,
+        Args: IntoIterator<Item = ClassInst>,
+        Ret: Into<Option<ClassInst>>,
     {
         Self {
             receiver: delegate.into(),

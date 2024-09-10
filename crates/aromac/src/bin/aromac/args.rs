@@ -2,8 +2,8 @@
 
 use clap::value_parser;
 use clap::ArgAction;
-use log::LevelFilter;
 use std::path::{Path, PathBuf};
+use tracing::metadata::LevelFilter;
 
 use aromac::os::PATH_DELIMITER;
 
@@ -34,11 +34,11 @@ impl Args {
     pub fn log_level_filter(&self) -> LevelFilter {
         let sum = self.verbose as i8 - self.quiet as i8;
         match sum {
-            -2 => LevelFilter::Off,
-            -1 => LevelFilter::Error,
-            0 => LevelFilter::Info,
-            1 => LevelFilter::Debug,
-            2 => LevelFilter::Trace,
+            -2 => LevelFilter::OFF,
+            -1 => LevelFilter::ERROR,
+            0 => LevelFilter::INFO,
+            1 => LevelFilter::DEBUG,
+            2 => LevelFilter::TRACE,
             _ => unreachable!(),
         }
     }

@@ -9,7 +9,6 @@ use aroma_tokens::token::Token;
 use aroma_tokens::token::TokenKind;
 use aroma_tokens::token::TokenStream;
 use std::io::Read;
-use std::result;
 
 /// A variable id, an Id with a signle id
 #[derive(Debug, ToTokens)]
@@ -36,6 +35,57 @@ impl Parsable for VarId {
 impl AsRef<str> for VarId {
     fn as_ref(&self) -> &str {
         self.id.try_as_ref().unwrap()
+    }
+}
+
+#[derive(Debug)]
+pub struct DocComment {
+    pub token: Token,
+}
+
+impl DocComment {
+    pub fn comment(&self) -> &str {
+        let TokenKind::DocComment(comment) = self.token.kind() else {
+            unreachable!()
+        };
+        comment.as_str()
+    }
+}
+
+impl ToTokens for DocComment {
+    fn to_tokens(&self) -> TokenStream {
+        TokenStream::from_iter([self.token.clone()])
+    }
+}
+
+impl Parsable for DocComment {
+    type Err = SyntaxError;
+
+    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> Result<Self, Err<Self::Err>> {
+        parser.parse(remove_nl)?;
+        if let Some(tok) =
+            parser.consume_if(|token| matches!(token.kind(), TokenKind::DocComment(_)))?
+        {
+            Ok(Self { token: tok })
+        } else {
+            let tok = parser.consume()?;
+            let span = tok.as_ref().map(|t| t.span());
+            let kind = ErrorKind::expected_token([stringify!(DocComment)], tok);
+            match span {
+                Some(span) => Err(parser.error_with_span(kind, None, span)),
+                None => Err(parser.error(kind, None)),
+            }
+        }
+    }
+}
+
+impl CouldParse for DocComment {
+    fn could_parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> Result<bool, Err<Self::Err>> {
+        if let Some(peek) = parser.peek()? {
+            Ok(matches!(peek.kind(), TokenKind::DocComment(_)))
+        } else {
+            Ok(false)
+        }
     }
 }
 
@@ -200,3 +250,4 @@ token_singleton!(Constructor, TokenKind::Constructor);
 
 token_singleton!(Namespace, TokenKind::Namespace);
 token_singleton!(Import, TokenKind::Import);
+token_singleton!(Hash, TokenKind::Hash);

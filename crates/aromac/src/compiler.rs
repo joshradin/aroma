@@ -1,14 +1,16 @@
 //! Responsible with compiling aroma files into aroma object files
 
-use crate::compiler::compile_job::{CompileError, CompileJob, CompileJobId, CompileJobStatus};
+use crate::compiler::compile_job::{
+    CompileError, CompileJob, CompileJobCommand, CompileJobHandle, CompileJobId, CompileJobStatus,
+};
 use error::AromaCError;
 use itertools::Itertools;
-use log::{error, info};
 use std::collections::{HashMap, HashSet};
 use std::panic::resume_unwind;
 use std::path::{Path, PathBuf};
 use std::{io, thread};
 use thiserror::Error;
+use tracing::{debug, error, error_span, info, instrument, trace_span, warn};
 
 mod compile_job;
 pub mod error;
@@ -40,60 +42,112 @@ impl AromaC {
     where
         I: IntoIterator<Item = &'p Path>,
     {
-        let paths = paths.into_iter().collect::<HashSet<&'p Path>>();
-        let mut errors = thread::scope::<'p, _, _>(|scope| {
-            let mut errors: Vec<AromaCError> = Default::default();
-            let mut jobs = HashMap::new();
-            for path in paths {
-                let job = CompileJob::start(scope, path);
-                jobs.insert(job.id(), job);
-            }
-            while !jobs.is_empty() {
-                let mut completed = HashSet::<CompileJobId>::new();
-                for job in jobs.values() {
-                    let status = job.status().read();
-                    match *status {
-                        CompileJobStatus::Failed(ref f) => {
-                            error!("job {:?} failed: {f}", job.id());
-                            completed.insert(job.id());
+        let span = error_span!("compiling");
+        span.in_scope(|| {
+            let paths = paths.into_iter().collect::<HashSet<&'p Path>>();
+            let mut errors = thread::scope::<'p, _, _>(|scope| {
+                let mut errors: Vec<AromaCError> = Default::default();
+                let mut running_jobs: HashMap<CompileJobId, CompileJobHandle> = HashMap::new();
+                let mut paused_jobs: HashMap<CompileJobId, CompileJobHandle> = HashMap::new();
+                for path in paths {
+                    debug!("creating compile job for {path:?}");
+                    let job = CompileJob::start(span.clone(), scope, path, true);
+                    paused_jobs.insert(job.id(), job);
+                }
+                while !(running_jobs.is_empty() && paused_jobs.is_empty()) {
+                    while running_jobs.len() < self.max_jobs && !paused_jobs.is_empty() {
+                        if let Some(next) = Self::select_next(&mut paused_jobs) {
+                            let handle = paused_jobs.remove(&next).unwrap();
+                            debug!("resuming {next:?}");
+                            if let Err(e) = handle.send(CompileJobCommand::Resume) {
+                                errors.push(AromaCError::from(e));
+                            } else {
+                                running_jobs.insert(next.clone(), handle);
+                            }
+                        } else {
+                            warn!("no resume-able jobs found!");
+                            if running_jobs.is_empty() {
+                                errors.push(
+                                    AromaCError::AllJobsPaused
+                                );
+                                return errors;
+                            }
+                            break;
                         }
-                        CompileJobStatus::Done => {
-                            completed.insert(job.id());
-                        }
-                        _ => {}
                     }
 
-                    if job.is_finished() {
-                        info!("job {:?} thread finished", job.id());
-                        completed.insert(job.id());
-                    }
-                }
-                for completed_job in completed {
-                    let j = jobs.remove(&completed_job).unwrap();
-                    if let Some(error) = j.take_error() {
-                        errors.push(AromaCError::from(error));
-                    }
-                    if let Err(e) = j.join() {
-                        match e.downcast::<CompileError>() {
-                            Ok(compile_error) => {
-                                errors.push(AromaCError::from(*compile_error));
+                    let mut completed = HashSet::<CompileJobId>::new();
+                    let mut to_pause = HashSet::<CompileJobId>::new();
+                    for job in running_jobs.values() {
+                        let status = job.status().read();
+                        match *status {
+                            CompileJobStatus::Failed(ref f) => {
+                                error!("job {:?} failed: {f}", job.id());
+                                completed.insert(job.id());
                             }
-                            Err(e) => {
-                                resume_unwind(e);
+                            CompileJobStatus::WaitingForIdentifiers(ref ids) => {
+                                warn!("found job {:?} waiting for identifiers: {ids:?}", job.id());
+                                to_pause.insert(job.id());
+                            }
+                            CompileJobStatus::Done => {
+                                completed.insert(job.id());
+                            }
+                            _ => {}
+                        }
+
+                        if job.is_finished() {
+                            info!("job {:?} thread finished", job.id());
+                            completed.insert(job.id());
+                        }
+                    }
+                    for completed_job in completed {
+                        let j = running_jobs.remove(&completed_job).unwrap();
+                        if let Some(error) = j.take_error() {
+                            errors.push(AromaCError::from(error));
+                        }
+                        if let Err(e) = j.join() {
+                            match e.downcast::<CompileError>() {
+                                Ok(compile_error) => {
+                                    errors.push(AromaCError::from(*compile_error));
+                                }
+                                Err(e) => {
+                                    resume_unwind(e);
+                                }
                             }
                         }
                     }
+                    for paused_job in to_pause {
+                        let j = running_jobs.remove(&paused_job).unwrap();
+                        if let Err(e) = j.send(CompileJobCommand::Pause) {
+                            errors.push(AromaCError::from(e));
+                        } else {
+                            paused_jobs.insert(j.id(), j);
+                        }
+                    }
                 }
+                errors
+            });
+            if errors.is_empty() {
+                Ok(())
+            } else if errors.len() == 1 {
+                Err(errors.remove(0))
+            } else {
+                Err(AromaCError::Errors(errors))
             }
-            errors
-        });
-        if errors.is_empty() {
-            Ok(())
-        } else if errors.len() == 1 {
-            Err(errors.remove(0))
-        } else {
-            Err(AromaCError::Errors(errors))
-        }
+        })
+    }
+
+    fn select_next(
+        mut paused_jobs: &mut HashMap<CompileJobId, CompileJobHandle>,
+    ) -> Option<CompileJobId> {
+        paused_jobs
+            .iter()
+            .filter(|(k, v)| match &*v.status().read() {
+                CompileJobStatus::WaitingForIdentifiers(_) => false,
+                _ => true,
+            })
+            .map(|(k, _)| k.clone())
+            .next()
     }
 }
 

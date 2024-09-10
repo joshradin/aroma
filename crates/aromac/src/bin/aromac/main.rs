@@ -2,14 +2,21 @@ use crate::args::Args;
 use aroma_files::prelude::*;
 use aromac::{AromaC, AromaCBuilder};
 use cfg_if::cfg_if;
+use chrono::{DateTime, NaiveDateTime};
 use clap::Parser;
-use fern::Dispatch;
-use log::{debug, error, trace, warn, Level, LevelFilter};
-use owo_colors::OwoColorize;
-use owo_colors::Stream::Stdout;
+use eyre::eyre;
 use std::collections::HashSet;
-use std::io::{stderr, stdout};
+use std::io;
+use std::io::{stderr, stdout, Stderr, StderrLock, Stdout, StdoutLock};
 use std::path::{Path, PathBuf};
+use tracing::metadata::LevelFilter;
+use tracing::{debug, error, trace, warn, Level};
+use tracing::{Metadata, Subscriber};
+use tracing_error::ErrorLayer;
+use tracing_subscriber::fmt::{format, MakeWriter};
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::{Layer, Registry};
 
 mod args;
 
@@ -39,50 +46,74 @@ fn main() -> eyre::Result<()> {
     debug!("paths to compile: {to_compile:#?}");
 
     let mut aroma_c = aroma_compiler_builder.build()?;
-    aroma_c.compile_all(
-        to_compile.iter().map(|path| path.as_ref()),
-    )?;
+    aroma_c.compile_all(to_compile.iter().map(|path| path.as_ref()))?;
 
     Ok(())
 }
 
+struct MyWriter {
+    stdout: Stdout,
+    stderr: Stderr,
+}
+
+enum StdioLock<'a> {
+    Stdout(StdoutLock<'a>),
+    Stderr(StderrLock<'a>),
+}
+
+impl<'a> io::Write for StdioLock<'a> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        match self {
+            StdioLock::Stdout(stdout) => stdout.write(buf),
+            StdioLock::Stderr(stderr) => stderr.write(buf),
+        }
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        match self {
+            StdioLock::Stdout(stdout) => stdout.flush(),
+            StdioLock::Stderr(stderr) => stderr.flush(),
+        }
+    }
+
+    fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
+        match self {
+            StdioLock::Stdout(stdout) => stdout.write_all(buf),
+            StdioLock::Stderr(stderr) => stderr.write_all(buf),
+        }
+    }
+}
+
+impl<'a> MakeWriter<'a> for MyWriter {
+    type Writer = StdioLock<'a>;
+
+    fn make_writer(&'a self) -> Self::Writer {
+        StdioLock::Stdout(self.stdout.lock())
+    }
+
+    fn make_writer_for(&'a self, meta: &Metadata<'_>) -> Self::Writer {
+        if meta.level() < &Level::WARN {
+            StdioLock::Stderr(self.stderr.lock())
+        } else {
+            StdioLock::Stdout(self.stdout.lock())
+        }
+    }
+}
 
 fn init_logging(level_filter: LevelFilter) -> eyre::Result<()> {
-    Dispatch::new()
-        .format(|out, message, record| {
-            out.finish(format_args!(
-                "[{}]: {}",
-                record.level().if_supports_color(Stdout, |text| match text {
-                    Level::Error => {
-                        text.bright_red().to_string()
-                    }
-                    Level::Warn => {
-                        text.bright_yellow().to_string()
-                    }
-                    Level::Info => {
-                        text.green().to_string()
-                    }
-                    Level::Debug => {
-                        text.blue().to_string()
-                    }
-                    Level::Trace => {
-                        text.purple().to_string()
-                    }
-                }),
-                message
-            ))
-        })
-        .level(level_filter)
-        .chain(
-            Dispatch::new()
-                .filter(|l| l.level() > Level::Error)
-                .chain(stdout()),
+    let registry = Registry::default()
+        .with(
+            tracing_subscriber::fmt::layer()
+                .event_format(format().with_thread_names(true))
+                .with_writer(MyWriter {
+                    stdout: stdout(),
+                    stderr: stderr(),
+                })
+                .with_filter(level_filter),
         )
-        .chain(
-            Dispatch::new()
-                .filter(|l| l.level() == Level::Error)
-                .chain(stderr()),
-        )
-        .apply()?;
+        .with(ErrorLayer::default());
+
+    tracing::subscriber::set_global_default(registry)?;
+
     Ok(())
 }
