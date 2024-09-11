@@ -20,7 +20,8 @@ use tracing_subscriber::{Layer, Registry};
 
 mod args;
 
-fn main() -> eyre::Result<()> {
+#[tokio::main]
+async fn main() -> eyre::Result<()> {
     color_eyre::install()?;
     let args = Args::parse();
     init_logging(args.log_level_filter())?;
@@ -46,7 +47,9 @@ fn main() -> eyre::Result<()> {
     debug!("paths to compile: {to_compile:#?}");
 
     let mut aroma_c = aroma_compiler_builder.build()?;
-    aroma_c.compile_all(to_compile.iter().map(|path| path.as_ref()))?;
+    aroma_c
+        .compile_all(to_compile.iter().map(|path| path.clone()).collect())
+        .await?;
 
     Ok(())
 }
@@ -104,7 +107,7 @@ fn init_logging(level_filter: LevelFilter) -> eyre::Result<()> {
     let registry = Registry::default()
         .with(
             tracing_subscriber::fmt::layer()
-                .event_format(format().with_thread_names(true))
+                .event_format(format().with_thread_ids(true))
                 .with_writer(MyWriter {
                     stdout: stdout(),
                     stderr: stderr(),

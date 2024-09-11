@@ -4,6 +4,7 @@ use crate::parser::{Err, Parsable, SyntacticParser};
 use aroma_ast::translation_unit::TranslationUnit;
 use parser::transforms::{transform, Transformer};
 use std::path::Path;
+use tracing::trace;
 
 pub mod lexer;
 pub mod parser;
@@ -13,6 +14,7 @@ pub mod type_resolution;
 ///
 /// This creates the baseline AST for aroma source code.
 pub fn parse_file(path: &Path) -> Result<Option<TranslationUnit>, parser::SyntaxError> {
+    trace!("parsing {path:?}");
     let mut parser = SyntacticParser::with_file(path)?;
     let unit = parser
         .parse(parser::translation_unit::TranslationUnit::parse)

@@ -6,7 +6,7 @@ use aroma_ast::typed::TypedMut;
 use aroma_tokens::id::Id;
 use aroma_tokens::spanned::Spanned;
 use aroma_types::class::ClassInst;
-use log::debug;
+use tracing::debug;
 use parsed_exprs::Expr as ParsedExpr;
 
 pub fn expr_hir_to_mir(

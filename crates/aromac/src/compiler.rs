@@ -1,20 +1,26 @@
 //! Responsible with compiling aroma files into aroma object files
 
-use crate::compiler::compile_job::{
-    CompileError, CompileJob, CompileJobCommand, CompileJobHandle, CompileJobId, CompileJobStatus,
-    SharedBindings,
-};
-use error::AromaCError;
+use crate::resolution::TranslationData;
+use aroma_ast::translation_unit::TranslationUnit;
+use aroma_ast_parsing::parse_file;
+use aroma_ast_parsing::parser::SyntaxError;
 use itertools::Itertools;
-use std::collections::{HashMap, HashSet};
-use std::panic::resume_unwind;
+use prelude::*;
+use std::io;
 use std::path::{Path, PathBuf};
-use std::{io, thread};
 use thiserror::Error;
-use tracing::{debug, error, error_span, info, instrument, trace_span, warn};
+use tokio::task::JoinSet;
+use tracing::{error, error_span, info_span, Instrument};
 
-mod compile_job;
 pub mod error;
+mod passes;
+pub mod virtual_header;
+
+/// Prelude that can be used in inner modules.
+mod prelude {
+    use super::*;
+    pub use error::{AromaCError, AromaCErrorKind, AromaCResult};
+}
 
 /// Responsible with compiling aroma files into aroma object files.
 ///
@@ -23,7 +29,6 @@ pub mod error;
 pub struct AromaC {
     max_jobs: usize,
     output_directory: PathBuf,
-    bindings: SharedBindings,
 }
 
 impl AromaC {
@@ -35,153 +40,36 @@ impl AromaC {
 
     /// Compile a file at a given path
     #[inline]
-    pub fn compile(&mut self, path: &Path) -> Result<(), AromaCError> {
-        self.compile_all([path])
+    pub async fn compile(&mut self, path: &Path) -> AromaCResult<()> {
+        self.compile_all(vec![path.to_path_buf()]).await
     }
 
     /// Compile a file at a given path
-    pub fn compile_all<'p, I>(&mut self, paths: I) -> Result<(), AromaCError>
-    where
-        I: IntoIterator<Item = &'p Path>,
-    {
-        let span = error_span!("compiling");
-        span.in_scope(|| {
-            let paths = paths.into_iter().collect::<HashSet<&'p Path>>();
-            let mut errors = thread::scope::<'p, _, _>(|scope| {
-                let mut errors: Vec<AromaCError> = Default::default();
-                let mut running_jobs: HashMap<CompileJobId, CompileJobHandle> = HashMap::new();
-                let mut paused_jobs: HashMap<CompileJobId, CompileJobHandle> = HashMap::new();
-                for path in paths {
-                    debug!("creating compile job for {path:?}");
-                    let job = CompileJob::start(span.clone(), scope, path, true);
-                    paused_jobs.insert(job.id(), job);
-                }
-                while !(running_jobs.is_empty() && paused_jobs.is_empty()) {
-                    while running_jobs.len() < self.max_jobs && !paused_jobs.is_empty() {
-                        if let Some(next) = Self::select_next(&mut paused_jobs) {
-                            let handle = paused_jobs.remove(&next).unwrap();
-                            debug!("resuming {next:?}");
-                            if let Err(e) = handle.send(CompileJobCommand::Resume) {
-                                errors.push(AromaCError::from(e));
-                            } else {
-                                running_jobs.insert(next.clone(), handle);
-                            }
-                        } else {
-                            if running_jobs.is_empty() {
-                                errors.push(AromaCError::AllJobsPaused);
-                                return errors;
-                            }
-                            break;
-                        }
-                    }
-
-                    let mut completed = HashSet::<CompileJobId>::new();
-                    let mut to_pause = HashSet::<CompileJobId>::new();
-                    for job in running_jobs.values() {
-                        let status = job.status().read();
-                        match *status {
-                            CompileJobStatus::Failed(ref f) => {
-                                error!("job {:?} failed: {f}", job.id());
-                                completed.insert(job.id());
-                            }
-                            CompileJobStatus::WaitingForIdentifiers(ref ids) => {
-                                warn!("found job {:?} waiting for identifiers: {ids:?}", job.id());
-                                to_pause.insert(job.id());
-                            }
-                            CompileJobStatus::Done => {
-                                completed.insert(job.id());
-                            }
-                            _ => {}
-                        }
-
-                        self.bindings.write().extend(
-                            job.bindings()
-                                .read()
-                                .iter()
-                                .map(|(k, v)| (k.clone(), v.clone())),
-                        );
-
-                        if job.is_finished() {
-                            info!("job {:?} thread finished", job.id());
-                            completed.insert(job.id());
-                        }
-                    }
-                    for completed_job in completed {
-                        let j = running_jobs.remove(&completed_job).unwrap();
-                        if let Some(error) = j.take_error() {
-                            errors.push(AromaCError::from(error));
-                        }
-                        if let Err(e) = j.join() {
-                            match e.downcast::<CompileError>() {
-                                Ok(compile_error) => {
-                                    errors.push(AromaCError::from(*compile_error));
-                                }
-                                Err(e) => {
-                                    resume_unwind(e);
-                                }
-                            }
-                        }
-                    }
-                    for paused_job in to_pause {
-                        let j = running_jobs.remove(&paused_job).unwrap();
-                        if let Err(e) = j.send(CompileJobCommand::Pause) {
-                            errors.push(AromaCError::from(e));
-                        } else {
-                            paused_jobs.insert(j.id(), j);
-                        }
-                    }
-                    let mut to_unpause = HashSet::<CompileJobId>::new();
-                    for (paused_job_id, paused_job) in &paused_jobs {
-                        if let CompileJobStatus::WaitingForIdentifiers(ids) =
-                            &*paused_job.status().read()
-                        {
-                            if ids.iter().all(|i| self.bindings.read().contains_key(i)) {
-                                if let Err(e) =
-                                    paused_job.send(CompileJobCommand::UpdatingBindings(
-                                        paused_job.bindings().read().clone(),
-                                    ))
-                                {
-                                    errors.push(AromaCError::from(e));
-                                } else {
-                                    to_unpause.insert(*paused_job_id);
-                                }
-                            }
-                        }
-                    }
-                    for to_unpause in to_unpause {
-                        let job = paused_jobs.remove(&to_unpause).unwrap();
-                        if let Err(e) =
-                            job.send(CompileJobCommand::Resume)
-                        {
-                            errors.push(AromaCError::from(e));
-                        } else {
-                            running_jobs.insert(to_unpause, job);
-                        }
-                    }
-                }
-                errors
-            });
-            if errors.is_empty() {
-                Ok(())
-            } else if errors.len() == 1 {
-                Err(errors.remove(0))
-            } else {
-                Err(AromaCError::Errors(errors))
+    pub async fn compile_all(&mut self, paths: Vec<PathBuf>) -> AromaCResult<()> {
+        let mut translation_units = {
+            let mut join_set = JoinSet::new();
+            for path in paths {
+                let path_clone = path.clone();
+                join_set.spawn(
+                    async move { parse_file(&path_clone) }
+                        .instrument(error_span!("parse", path=?path)),
+                );
             }
-        })
-    }
+            join_set.join_all().await.into_iter().try_fold(
+                Vec::new(),
+                |mut accum, next| -> Result<Vec<TranslationUnit>, SyntaxError> {
+                    match next? {
+                        None => {}
+                        Some(tu) => {
+                            accum.push(tu);
+                        }
+                    }
+                    Ok(accum)
+                },
+            )
+        }?;
 
-    fn select_next(
-        mut paused_jobs: &mut HashMap<CompileJobId, CompileJobHandle>,
-    ) -> Option<CompileJobId> {
-        paused_jobs
-            .iter()
-            .filter(|(k, v)| match &*v.status().read() {
-                CompileJobStatus::WaitingForIdentifiers(_) => false,
-                _ => true,
-            })
-            .map(|(k, _)| k.clone())
-            .next()
+        Ok(())
     }
 }
 
@@ -224,7 +112,6 @@ impl AromaCBuilder {
         Ok(AromaC {
             max_jobs: self.jobs,
             output_directory: self.output_directory,
-            bindings: Default::default(),
         })
     }
 }

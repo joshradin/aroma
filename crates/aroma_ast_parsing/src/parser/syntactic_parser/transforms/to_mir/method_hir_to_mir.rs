@@ -17,7 +17,7 @@ use aroma_types::field::Field;
 use aroma_types::functions::{FunctionDeclaration, Parameter};
 use aroma_types::generic::GenericDeclaration;
 use aroma_types::type_signature::TypeSignature;
-use log::debug;
+use tracing::debug;
 use std::collections::HashSet;
 use crate::parser::binding::FnParameters;
 use crate::parser::items::{FnReturn, FnThrows, GenericDeclarations, ItemInterfaceFn, Visibility};

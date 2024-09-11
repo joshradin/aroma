@@ -17,7 +17,7 @@ use crate::parser::{
     SyntaxResult,
 };
 use aroma_tokens::token::{ToTokens, TokenKind};
-use log::{debug, trace};
+use tracing::{debug, trace};
 use std::io::Read;
 
 /// An interface declaration

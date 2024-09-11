@@ -1,9 +1,6 @@
 //! full qualifies everything in the MIR
 
-use crate::compiler::compile_job::{
-    CompileError, CompileErrorKind, CompileJobState, CompileJobStatus,
-};
-use crate::error::AromaCError;
+use crate::compiler::prelude::*;
 use crate::resolution::TranslationData;
 use aroma_ast::items::ClassItem;
 use aroma_ast::translation_unit::TranslationUnit;
@@ -21,9 +18,7 @@ use tracing::{debug, error, instrument, trace, warn};
 
 /// Attempts to fully qualify a translation unit
 #[instrument(skip_all)]
-pub fn fully_qualify(
-    mut translation_unit: TranslationUnit,
-) -> Result<CompileJobState, CompileError> {
+pub fn fully_qualify(mut translation_unit: &mut TranslationUnit) -> AromaCResult<()> {
     let namespace = translation_unit
         .namespace
         .as_ref()
@@ -60,21 +55,20 @@ pub fn fully_qualify(
         return Err(missing
             .into_iter()
             .map(|id| {
-                CompileError::new(
-                    CompileErrorKind::UndefinedIdentifier(id.clone()),
+                AromaCError::new(
+                    ResolveIdError::NotFound {
+                        namespace: Some(namespace.clone()),
+                        query: id.clone(),
+                    },
                     id.span(),
                     None,
                 )
             })
             .collect::<Vec<_>>()
-            .into()
-        );
+            .into());
     }
 
-    Ok(CompileJobState::FullyQualified(
-        translation_unit,
-        translation_data,
-    ))
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -101,7 +95,7 @@ impl<'a> FullQualifier<'a> {
 }
 
 impl AstVisitorMut for FullQualifier<'_> {
-    type Err = CompileError;
+    type Err = AromaCError;
 
     fn visit_class_item(&mut self, class: &mut ClassItem) -> Result<(), Self::Err> {
         let x = Vec::from(class.class.generics());
@@ -112,9 +106,7 @@ impl AstVisitorMut for FullQualifier<'_> {
 
     fn visit_class(&mut self, class: &mut Class) -> Result<(), Self::Err> {
         let id = class.id();
-        self.builder
-            .insert_alias(id.most_specific(), id.clone())
-            .map_err(|e| CompileError::new(e, id.span(), None))?;
+        self.builder.insert_alias(id.most_specific(), id.clone())?;
         self.defaults().visit_class(self, class)?;
         Ok(())
     }
@@ -155,7 +147,7 @@ impl AstVisitorMut for FullQualifier<'_> {
                 self.missing.insert(query);
                 Ok(())
             }
-            Err(e) => Err(CompileError::new(e, id.as_ref().span(), None)),
+            Err(e) => Err(e.into()),
         }
     }
 }

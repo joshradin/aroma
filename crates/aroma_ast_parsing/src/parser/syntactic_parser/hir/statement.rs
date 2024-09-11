@@ -8,7 +8,7 @@ use crate::parser::{
     cut, multi1, CouldParse, ErrorKind, Parsable, SyntacticParser, SyntaxError, SyntaxResult,
 };
 use aroma_tokens::token::{ToTokens, TokenKind};
-use log::debug;
+use tracing::debug;
 use std::io::Read;
 
 /// General statement types

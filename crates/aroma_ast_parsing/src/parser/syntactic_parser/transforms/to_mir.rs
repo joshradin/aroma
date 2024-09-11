@@ -17,7 +17,7 @@ use aroma_types::functions::{FunctionDeclaration, Parameter};
 use aroma_types::generic::{GenericDeclaration, GenericParameterBound};
 use aroma_types::hierarchy::intrinsics::OBJECT_CLASS;
 use aroma_types::vis::Vis;
-use log::debug;
+use tracing::debug;
 use method_hir_to_mir::method_hir_to_mir_def;
 use std::collections::HashMap;
 

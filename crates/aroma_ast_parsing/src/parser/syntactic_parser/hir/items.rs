@@ -14,7 +14,7 @@ use aroma_tokens::token::{ToTokens, TokenKind};
 use aroma_types::class::AsClassRef;
 use aroma_types::hierarchy::intrinsics::OBJECT_CLASS;
 use aroma_types::vis::Vis;
-use log::{debug, trace};
+use tracing::{debug, trace};
 use std::io::Read;
 
 mod item_class;

@@ -19,7 +19,7 @@ use crate::parser::expr::remove_nl;
 use crate::parser::singletons::{Dot, VarId};
 use crate::parser::{map, Punctuated1};
 pub use error::*;
-use log::trace;
+use tracing::trace;
 
 /// Parser for syntax tree items
 pub trait Parser<R: Read, O, E = SyntaxError>: Clone

@@ -217,6 +217,8 @@ pub enum ResolveIdError {
     NotFound { namespace: Option<Id>, query: Id },
 }
 
+
+
 /// An error occurred while trying to resolve some identifier
 #[derive(Debug, thiserror::Error)]
 #[error("Trying to create id {short} but it is already present ({full})")]

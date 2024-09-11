@@ -8,13 +8,14 @@ readme.workspace = true
 repository.workspace = true
 
 [dependencies]
+tokio = { version = "1.40.0", features = ["io-std", "io-util"] }
 aroma_ast = { version = "0.0.0", path = "../aroma_ast" }
 aroma_tokens = { version = "0.0.0", path = "../aroma_tokens", features = ["derive"] }
 aroma_common = { version = "0.0.0", path = "../aroma_common" }
 aroma_types = { version = "0.0.0", path = "../aroma_types" }
 nom.workspace = true
 thiserror.workspace = true
-log.workspace = true
+tracing.workspace = true
 aroma_visitor_gen = { version = "0.0.0", path = "../aroma_visitor_gen" }
 [dev-dependencies]
 tempfile = { workspace = true }
