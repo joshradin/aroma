@@ -288,6 +288,6 @@ mod tests {
     fn test_join() {
         let p1 = Span::new(file!().as_ref(), 0, 8);
         let p2 = Span::new(file!().as_ref(), 16, 8);
-        assert_eq!(p1.join(p2).unwrap(), Span::new(file!().as_ref(), 0, 24));
+        assert_eq!(p1.join(p2), Span::new(file!().as_ref(), 0, 24));
     }
 }

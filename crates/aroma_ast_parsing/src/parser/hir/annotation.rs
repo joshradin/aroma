@@ -1,17 +1,19 @@
 //! annotations are used to mark information in some way
 
-use crate::parser::constants::{Constant, ConstantKind};
-use crate::parser::expr::Expr;
-use crate::parser::singletons::{
+use crate::parser::hir::constants::{Constant, ConstantKind};
+use crate::parser::hir::expr::Expr;
+use crate::parser::hir::singletons::{
     Assign, Comma, DocComment, Hash, LBracket, LParen, RBracket, RParen,
 };
-use crate::parser::{
-    cut, CouldParse, ErrorKind, Parsable, Punctuated0, SyntacticParser, SyntaxError, SyntaxResult,
+use crate::parser::hir::{
+    cut, ErrorKind, Punctuated0,SyntaxError,
 };
 use aroma_tokens::id::Id;
 use aroma_tokens::token::{ToTokens, TokenKind};
 use std::io::Read;
-use tracing::instrument;
+use crate::parser::blocking::SyntacticParser;
+use crate::parser::SyntaxResult;
+use crate::parser::traits::{CouldParse, Parsable};
 
 /// An annotation, used to mark information that would otherwise not be possible to represent
 #[derive(Debug, ToTokens)]

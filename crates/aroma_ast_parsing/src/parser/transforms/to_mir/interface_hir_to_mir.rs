@@ -1,15 +1,16 @@
 //! this mostly just converts to a normal class
 
-use crate::parser::items::{InterfaceMember, ItemInterface};
+use crate::parser::hir::items::{InterfaceMember, ItemInterface};
 use crate::parser::transforms::to_mir;
 use crate::parser::transforms::to_mir::method_hir_to_mir;
-use crate::parser::{Punctuated, SyntaxError};
+use crate::parser::hir::{Punctuated};
 use aroma_ast::items::ClassItem;
 use aroma_tokens::id::Id;
 use aroma_tokens::spanned::Spanned;
 use aroma_types::class::{AsClassRef, Class, ClassInst, ClassKind, ClassRef};
 use aroma_types::generic::{GenericDeclaration, GenericParameterBound};
 use aroma_types::hierarchy::intrinsics::OBJECT_CLASS;
+use crate::parser::SyntaxError;
 
 /// converts interfaces hir to an item class
 pub fn interface_hir_to_mir(

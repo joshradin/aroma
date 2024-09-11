@@ -1,7 +1,8 @@
-use crate::parser::syntactic_parser::hir::items::{ClassField, ClassMember};
-use crate::parser::syntactic_parser::transforms::to_mir::method_hir_to_mir;
+use crate::parser::hir::items::{ClassField, ClassMember};
+use crate::parser::hir::{items, Punctuated};
 use crate::parser::transforms::to_mir;
-use crate::parser::{items, ErrorKind, Punctuated, SyntaxError};
+use crate::parser::transforms::to_mir::method_hir_to_mir;
+use crate::parser::{ErrorKind, SyntaxError};
 use aroma_ast::items::ClassItem;
 use aroma_tokens::id::Id;
 use aroma_tokens::spanned::Spanned;
@@ -9,7 +10,6 @@ use aroma_types::class::{AsClassRef, Class, ClassInst, ClassKind, ClassRef};
 use aroma_types::field::Field;
 use aroma_types::generic::{GenericDeclaration, GenericParameterBound};
 use aroma_types::hierarchy::intrinsics::OBJECT_CLASS;
-use tracing::instrument;
 
 pub fn class_hir_to_mir(
     namespace: Option<&Id>,

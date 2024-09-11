@@ -1,20 +1,22 @@
-use crate::parser::annotation::Annotation;
-use crate::parser::binding::{Binding, FnParameters, Type};
-use crate::parser::expr::Expr;
-use crate::parser::items::{GenericDeclaration, GenericDeclarations, Visibility};
-use crate::parser::singletons::{
+use crate::parser::hir::annotation::Annotation;
+use crate::parser::hir::binding::{Binding, FnParameters, Type};
+use crate::parser::hir::expr::Expr;
+use crate::parser::hir::items::{GenericDeclaration, GenericDeclarations, Visibility};
+use crate::parser::hir::singletons::{
     Abstract, Arrow, Assign, Class, Comma, Constructor, Extends, Final, Implements, LBracket,
     LCurly, RBracket, RCurly, Static, Throws, VarId,
 };
-use crate::parser::statement::BlockStatement;
-use crate::parser::syntactic_parser::hir::items::item_function::ItemFn;
-use crate::parser::{
-    cut, seperated_list1, singletons, CouldParse, End, ErrorKind, Parsable, Punctuated1,
-    SyntacticParser, SyntaxResult,
+use crate::parser::hir::statement::BlockStatement;
+use crate::parser::hir::items::item_function::ItemFn;
+use crate::parser::hir::{
+    cut, seperated_list1, singletons, End, ErrorKind, Punctuated1,
 };
 use aroma_tokens::token::{ToTokens, TokenKind};
 use std::io::Read;
 use tracing::{debug, instrument, trace};
+use crate::parser::blocking::SyntacticParser;
+use crate::parser::SyntaxResult;
+use crate::parser::traits::{CouldParse, Parsable};
 
 /// A class declaration
 #[derive(Debug, ToTokens)]

@@ -3,7 +3,7 @@
 mod to_mir;
 mod transform_combinators;
 
-use crate::parser::syntactic_parser::hir::translation_unit::TranslationUnit as ParsedTranslationUnit;
+use crate::parser::hir::translation_unit::TranslationUnit as ParsedTranslationUnit;
 use crate::parser::transforms::to_mir::to_mir;
 use crate::parser::SyntaxError;
 use aroma_ast::translation_unit::TranslationUnit;
@@ -42,7 +42,7 @@ impl<F: FnMut(I) -> Result<O, E>, I, O, E> Transformer<I, O, E> for F {
 
 #[cfg(test)]
 mod tests {
-    use crate::parser::syntactic_parser::transforms::Transformer;
+    use crate::parser::transforms::Transformer;
     use std::convert::Infallible;
 
     #[test]

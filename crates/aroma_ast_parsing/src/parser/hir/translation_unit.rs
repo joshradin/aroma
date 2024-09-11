@@ -1,10 +1,13 @@
-use crate::parser::expr::remove_nl;
-use crate::parser::items::Item;
-use crate::parser::singletons::{Import, Namespace};
-use crate::parser::{cut, multi0, End, Parsable, SyntacticParser, SyntaxError, SyntaxResult};
+
+use crate::parser::hir::items::Item;
+use crate::parser::hir::singletons::{Import, Namespace};
+use crate::parser::hir::{cut, multi0, End, SyntaxError};
 use aroma_tokens::id::Id;
 use aroma_tokens::token::ToTokens;
 use std::io::Read;
+use crate::parser::blocking::{remove_nl, SyntacticParser};
+use crate::parser::SyntaxResult;
+use crate::parser::traits::Parsable;
 
 /// Declares the current namespace
 #[derive(Debug, ToTokens)]

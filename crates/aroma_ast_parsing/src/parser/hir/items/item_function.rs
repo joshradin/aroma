@@ -1,16 +1,19 @@
-use crate::parser::annotation::Annotation;
-use crate::parser::binding::{FnParameters, Type};
-use crate::parser::items::{
+use crate::parser::hir::annotation::Annotation;
+use crate::parser::hir::binding::{FnParameters, Type};
+use crate::parser::hir::items::{
     parse_generics, FnBody, FnReturn, FnThrows, GenericDeclarations, Visibility,
 };
-use crate::parser::singletons::{Arrow, Comma, Static, Throws, VarId};
-use crate::parser::statement::BlockStatement;
-use crate::parser::{
-    cut, singletons, CouldParse, Parsable, Punctuated1, SyntacticParser, SyntaxResult,
+use crate::parser::hir::singletons::{Arrow, Comma, Static, Throws, VarId};
+use crate::parser::hir::statement::BlockStatement;
+use crate::parser::hir::{
+    cut, singletons, Punctuated1
 };
 use aroma_tokens::token::ToTokens;
 use std::io::Read;
 use tracing::instrument;
+use crate::parser::blocking::SyntacticParser;
+use crate::parser::SyntaxResult;
+use crate::parser::traits::{CouldParse, Parsable};
 
 /// A function declaration
 #[derive(Debug, ToTokens)]

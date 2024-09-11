@@ -1,13 +1,13 @@
-use crate::parser::binding::FnParameters;
-use crate::parser::expr::Expr;
-use crate::parser::items::{FnReturn, FnThrows, GenericDeclarations, ItemInterfaceFn, Visibility};
-use crate::parser::singletons::VarId;
-use crate::parser::statement::{ReturnStatement, Statement as ParsedStatement, Statement};
-use crate::parser::syntactic_parser::hir::items::ItemFn;
-use crate::parser::syntactic_parser::hir::items::{FnBody, ItemAbstractFn};
+use crate::parser::hir::binding::FnParameters;
+use crate::parser::hir::expr::Expr;
+use crate::parser::hir::items::{FnReturn, FnThrows, GenericDeclarations, ItemInterfaceFn, Visibility};
+use crate::parser::hir::singletons::VarId;
+use crate::parser::hir::statement::{ReturnStatement, Statement as ParsedStatement, Statement};
+use crate::parser::hir::items::ItemFn;
+use crate::parser::hir::items::{FnBody, ItemAbstractFn};
 use crate::parser::transforms::to_mir;
 use crate::parser::transforms::to_mir::expr_hir_to_mir::expr_hir_to_mir;
-use crate::parser::{Punctuated, SyntaxError};
+use crate::parser::hir::{Punctuated};
 use crate::type_resolution::Bindings;
 use aroma_ast::block::Block;
 use aroma_ast::method::MethodDef;
@@ -22,6 +22,7 @@ use aroma_types::generic::GenericDeclaration;
 use aroma_types::type_signature::TypeSignature;
 use std::collections::HashSet;
 use tracing::{debug, trace};
+use crate::parser::SyntaxError;
 
 pub fn method_hir_to_mir(
     parent_inst: &ClassInst,

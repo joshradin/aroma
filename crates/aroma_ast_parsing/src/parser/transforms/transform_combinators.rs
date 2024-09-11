@@ -1,4 +1,4 @@
-use crate::parser::syntactic_parser::transforms::Transformer;
+use crate::parser::transforms::Transformer;
 use std::marker::PhantomData;
 
 type PhantomFunc<I, O> = PhantomData<fn(I) -> O>;

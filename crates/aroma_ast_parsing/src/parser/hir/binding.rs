@@ -1,12 +1,11 @@
 //! bindings of id to type
 
 use crate::parser;
-use crate::parser::singletons::{
+use crate::parser::hir::singletons::{
     Colon, Comma, In, LBracket, LParen, Out, QMark, RBracket, RParen, VarId,
 };
-use crate::parser::{
-    cut, CouldParse, ErrorKind, Parsable, Punctuated0, Punctuated1, SyntacticParser, SyntaxError,
-    SyntaxResult,
+use crate::parser::hir::{
+    cut, ErrorKind, Punctuated0, Punctuated1, SyntaxError,
 };
 use aroma_tokens::id::Id;
 use aroma_tokens::token::{ToTokens, TokenKind};
@@ -15,6 +14,9 @@ use aroma_types::generic::GenericParameterBound;
 use aroma_types::type_signature::TypeSignature;
 use std::io::Read;
 use std::str::FromStr;
+use crate::parser::blocking::SyntacticParser;
+use crate::parser::SyntaxResult;
+use crate::parser::traits::{CouldParse, Parsable};
 
 /// A binding between an id to a type
 #[derive(Debug, ToTokens)]
@@ -258,9 +260,9 @@ impl Parsable for FnParameters {
 
 #[cfg(test)]
 mod tests {
-    use crate::parser::binding::{Binding, FnParameters, OptTypeBinding, Type};
-    use crate::parser::syntactic_parser::tests::test_parser;
-    use crate::parser::Parsable;
+    use crate::parser::hir::binding::{Binding, FnParameters, OptTypeBinding, Type};
+    use crate::parser::hir_parser::tests::test_parser;
+    use crate::parser::traits::Parsable;
     use aroma_tokens::token::ToTokens;
     use test_log::test;
 

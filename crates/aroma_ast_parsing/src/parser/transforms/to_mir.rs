@@ -1,10 +1,10 @@
-use crate::parser::items::Visibility;
-use crate::parser::singletons::Static;
-use crate::parser::syntactic_parser::hir::items::ItemFn;
-use crate::parser::syntactic_parser::hir::items::{ClassField, ClassMember};
-use crate::parser::syntactic_parser::hir::translation_unit::TranslationUnit as ParsedTranslationUnit;
-use crate::parser::{items as parser_items, ErrorKind};
-use crate::parser::{Punctuated, SyntaxError};
+use crate::parser::hir::items::Visibility;
+use crate::parser::hir::singletons::Static;
+use crate::parser::hir::items::ItemFn;
+use crate::parser::hir::items::{ClassField, ClassMember};
+use crate::parser::hir::translation_unit::TranslationUnit as ParsedTranslationUnit;
+use crate::parser::hir::{items as parser_items};
+use crate::parser::hir::{Punctuated};
 use aroma_ast::items::{ClassItem, Item};
 use aroma_ast::method::MethodDef;
 use aroma_ast::translation_unit::TranslationUnit;
@@ -20,6 +20,7 @@ use aroma_types::vis::Vis;
 use method_hir_to_mir::method_hir_to_mir_def;
 use std::collections::HashMap;
 use tracing::{debug, trace};
+use crate::parser::SyntaxError;
 
 mod class_hir_to_mir;
 mod expr_hir_to_mir;

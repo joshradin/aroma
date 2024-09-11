@@ -1,9 +1,20 @@
 //! parsers used for creating the AST
 
-mod syntactic_parser;
+mod hir_parser;
+pub mod error;
+pub mod hir;
+pub mod transforms;
+mod traits;
 
-pub(crate) use syntactic_parser::hir::*;
-pub use syntactic_parser::{
-    transforms, CouldParse, Err, ErrorKind, Parsable, Parser, SyntacticParser, SyntaxError,
+pub use hir_parser::{
+    CouldParse, Err, ErrorKind, Parsable,
+    Parser,
+    SyntaxError,
     SyntaxResult,
+    blocking,
+
 };
+
+#[cfg(test)] pub use hir_parser::tests::test_parser;
+
+

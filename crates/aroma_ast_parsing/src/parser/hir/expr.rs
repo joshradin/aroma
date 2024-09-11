@@ -1,13 +1,13 @@
-use crate::parser::singletons::*;
-use crate::parser::statement::StatementList;
-use crate::parser::syntactic_parser::hir::constants::Constant;
-use crate::parser::syntactic_parser::{CouldParse, Parsable};
-use crate::parser::{
-    Err, ErrorKind, Punctuated0, Punctuated1, SyntacticParser, SyntaxError, SyntaxResult,
-};
+use crate::parser::hir::constants::Constant;
+use crate::parser::hir::singletons::*;
+use crate::parser::hir::statement::StatementList;
+use crate::parser::hir::{Err, ErrorKind, Punctuated0, Punctuated1, SyntaxError};
+use crate::parser::traits::{CouldParse, Parsable};
+use crate::parser::{hir_parser, SyntaxResult};
 use aroma_tokens::id::Id;
 use aroma_tokens::token::{ToTokens, TokenKind};
 use std::io::Read;
+use crate::parser::blocking::{remove_nl, SyntacticParser};
 
 #[derive(Debug, ToTokens)]
 pub struct ExprUnary {
@@ -276,22 +276,6 @@ pub fn parse_expr(parser: &mut SyntacticParser<impl Read>) -> Result<Expr, Err<S
             }
         }
     }
-}
-
-pub(crate) fn remove_nl<'p, R: Read>(
-    parser: &mut SyntacticParser<R>,
-) -> Result<(), Err<SyntaxError>> {
-    parser.parse(|parser: &mut SyntacticParser<R>| {
-        loop {
-            if parser
-                .consume_if(|p| matches!(p.kind(), TokenKind::Nl))?
-                .is_none()
-            {
-                break;
-            }
-        }
-        Ok(())
-    })
 }
 
 fn parse_closure(parser: &mut SyntacticParser<impl Read>) -> Result<Expr, Err<SyntaxError>> {
@@ -636,11 +620,11 @@ fn parse_primary(parser: &mut SyntacticParser<impl Read>) -> Result<Expr, Err<Sy
 
 #[cfg(test)]
 mod tests {
-    use crate::parser::expr::Expr;
-    use crate::parser::syntactic_parser::tests::test_parser;
-    use crate::parser::Parsable;
+    use crate::parser::hir_parser::tests::test_parser;
+    use crate::parser::traits::Parsable;
     use aroma_tokens::id::Id;
     use aroma_tokens::token::ToTokens;
+    use crate::parser::hir::expr::Expr;
 
     #[test]
     fn test_parse_identifier() {

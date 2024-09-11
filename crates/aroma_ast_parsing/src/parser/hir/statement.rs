@@ -1,15 +1,18 @@
 //! statements
 
-use crate::parser::binding::OptTypeBinding;
-use crate::parser::expr::{remove_nl, Expr};
-use crate::parser::singletons::*;
-use crate::parser::syntactic_parser::hir::helpers::End;
-use crate::parser::{
-    cut, multi1, CouldParse, ErrorKind, Parsable, SyntacticParser, SyntaxError, SyntaxResult,
+use crate::parser::hir::binding::OptTypeBinding;
+use crate::parser::hir::expr::Expr;
+use crate::parser::hir::singletons::*;
+use crate::parser::hir::helpers::End;
+use crate::parser::hir::{
+    cut, multi1, ErrorKind, SyntaxError
 };
 use aroma_tokens::token::{ToTokens, TokenKind};
 use std::io::Read;
 use tracing::{debug, trace, warn};
+use crate::parser::blocking::{remove_nl, SyntacticParser};
+use crate::parser::SyntaxResult;
+use crate::parser::traits::{CouldParse, Parsable};
 
 /// General statement types
 #[derive(Debug, ToTokens)]
@@ -421,7 +424,7 @@ fn parse_statement<'p, R: Read>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser::syntactic_parser::tests::test_parser;
+    use crate::parser::hir_parser::tests::test_parser;
     use crate::parser::Err;
     use test_log::test;
 

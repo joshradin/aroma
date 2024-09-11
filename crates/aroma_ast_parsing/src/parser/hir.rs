@@ -1,7 +1,6 @@
 //! Syntax tree
 
-use crate::parser::syntactic_parser::error::{ErrorKind, SyntaxError};
-use crate::parser::SyntacticParser;
+use crate::parser::error::{ErrorKind, SyntaxError};
 use aroma_tokens::id::Id;
 use aroma_tokens::token::ToTokens;
 use aroma_visitor_gen::visitor;
@@ -18,12 +17,13 @@ pub mod singletons;
 pub mod statement;
 pub mod translation_unit;
 
-use crate::parser::syntactic_parser::{Err, Parsable};
+use crate::parser::hir_parser::Err;
 pub use helpers::*;
 
-use crate::parser::singletons::VarId;
-use crate::parser::translation_unit::{NamespaceDeclaration, TranslationUnit};
+use crate::parser::hir::singletons::VarId;
+use crate::parser::hir::translation_unit::{NamespaceDeclaration, TranslationUnit};
 use items::*;
+use crate::parser::traits::Parsable;
 
 visitor! {
     pub trait SyntaxTreeVisitor {

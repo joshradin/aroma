@@ -1,13 +1,11 @@
 //! items, like functions, and classes
 
-use crate::parser::annotation::Annotation;
-use crate::parser::binding::{FnParameters, Type};
-use crate::parser::expr::remove_nl;
-use crate::parser::singletons::{Private, Protected, Public};
-use crate::parser::syntactic_parser::hir::helpers::End;
-use crate::parser::{
-    cut, singletons::*, CouldParse, ErrorKind, Parsable, Punctuated1, SyntacticParser, SyntaxError,
-    SyntaxResult,
+use crate::parser::hir::annotation::Annotation;
+use crate::parser::hir::binding::{FnParameters, Type};
+use crate::parser::hir::singletons::{Private, Protected, Public};
+use crate::parser::hir::helpers::End;
+use crate::parser::hir::{
+    cut, singletons::*, ErrorKind, Punctuated1, SyntaxError,
 };
 use aroma_tokens::spanned::Spanned;
 use aroma_tokens::token::{ToTokens, TokenKind};
@@ -16,6 +14,9 @@ use aroma_types::hierarchy::intrinsics::OBJECT_CLASS;
 use aroma_types::vis::Vis;
 use std::io::Read;
 use tracing::{debug, instrument, trace};
+use crate::parser::blocking::{remove_nl, SyntacticParser};
+use crate::parser::SyntaxResult;
+use crate::parser::traits::{CouldParse, Parsable};
 
 mod item_class;
 mod item_function;
@@ -201,7 +202,7 @@ fn parse_item<'p, R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser::syntactic_parser::tests::test_parser;
+    use crate::parser::hir_parser::tests::test_parser;
     use test_log::test;
 
     #[test]
