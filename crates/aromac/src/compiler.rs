@@ -1,5 +1,7 @@
 //! Responsible with compiling aroma files into aroma object files
 
+use crate::compiler::passes::fully_qualify;
+use crate::error::CollectAromaCResults;
 use crate::resolution::TranslationData;
 use aroma_ast::translation_unit::TranslationUnit;
 use aroma_ast_parsing::parse_file;
@@ -10,7 +12,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 use tokio::task::JoinSet;
-use tracing::{error, error_span, info_span, Instrument};
+use tracing::{debug, error, error_span, info_span, Instrument};
 
 pub mod error;
 mod passes;
@@ -46,31 +48,74 @@ impl AromaC {
 
     /// Compile a file at a given path
     pub async fn compile_all(&mut self, paths: Vec<PathBuf>) -> AromaCResult<()> {
-        let mut translation_units = {
+        let translation_units = self.create_translation_units(paths).await?;
+        let full_qualified = self.fully_qualify(translation_units).await?;
+
+        Ok(())
+    }
+
+    /// Creates translation units
+    async fn create_translation_units(
+        &mut self,
+        paths: Vec<PathBuf>,
+    ) -> AromaCResult<Vec<TranslationUnit>> {
+        let result = async {
             let mut join_set = JoinSet::new();
             for path in paths {
                 let path_clone = path.clone();
                 join_set.spawn(
-                    async move { parse_file(&path_clone) }
+                    async move { parse_file(&path_clone).await.map_err(|e| e.into()) }
                         .instrument(error_span!("parse", path=?path)),
                 );
             }
-            join_set.join_all().await.into_iter().try_fold(
-                Vec::new(),
-                |mut accum, next| -> Result<Vec<TranslationUnit>, SyntaxError> {
-                    match next? {
-                        None => {}
-                        Some(tu) => {
-                            accum.push(tu);
-                        }
-                    }
-                    Ok(accum)
-                },
-            )
-        }?;
 
-        Ok(())
+            finish_join_set(join_set)
+                .await
+                .map(|i| i.into_iter().flatten().collect())
+        }
+        .instrument(error_span!("translation-units"))
+        .await?;
+        Ok(result)
     }
+
+    async fn fully_qualify(
+        &mut self,
+        translation_units: Vec<TranslationUnit>,
+    ) -> AromaCResult<Vec<TranslationUnit>> {
+        async {
+            let mut join_set = JoinSet::new();
+            for mut tu in translation_units {
+                join_set.spawn(
+                    async move {
+                        fully_qualify(&mut tu)?;
+                        Ok(tu)
+                    }
+                    .instrument(error_span!("full-qualify")),
+                );
+            }
+            finish_join_set(join_set).await
+        }
+        .instrument(error_span!("fully-qualify"))
+        .await
+    }
+}
+
+async fn finish_join_set<T: 'static>(
+    mut join_set: JoinSet<AromaCResult<T>>,
+) -> AromaCResult<Vec<T>> {
+    let mut finished = vec![];
+    while let Some(next) = join_set.join_next().await {
+        match next {
+            Ok(Ok(o)) => {
+                finished.push(Ok(o));
+            }
+            Ok(Err(e)) => {
+                finished.push(Err(e));
+            }
+            Err(e) => finished.push(Err(e.into())),
+        }
+    }
+    finished.into_iter().collect_aroma_c_results()
 }
 
 /// Builder for creating a [AromaC] instance.

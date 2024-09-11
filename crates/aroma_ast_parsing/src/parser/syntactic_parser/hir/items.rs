@@ -14,8 +14,8 @@ use aroma_tokens::token::{ToTokens, TokenKind};
 use aroma_types::class::AsClassRef;
 use aroma_types::hierarchy::intrinsics::OBJECT_CLASS;
 use aroma_types::vis::Vis;
-use tracing::{debug, trace};
 use std::io::Read;
+use tracing::{debug, instrument, trace};
 
 mod item_class;
 mod item_function;
@@ -146,6 +146,7 @@ impl Parsable for Item {
     }
 }
 
+#[instrument(skip_all)]
 fn parse_item<'p, R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Item> {
     parser.parse(remove_nl)?;
     let annotations =

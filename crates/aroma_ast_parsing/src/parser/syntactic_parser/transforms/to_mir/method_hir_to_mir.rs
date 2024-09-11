@@ -1,4 +1,7 @@
+use crate::parser::binding::FnParameters;
 use crate::parser::expr::Expr;
+use crate::parser::items::{FnReturn, FnThrows, GenericDeclarations, ItemInterfaceFn, Visibility};
+use crate::parser::singletons::VarId;
 use crate::parser::statement::{ReturnStatement, Statement as ParsedStatement, Statement};
 use crate::parser::syntactic_parser::hir::items::ItemFn;
 use crate::parser::syntactic_parser::hir::items::{FnBody, ItemAbstractFn};
@@ -17,11 +20,8 @@ use aroma_types::field::Field;
 use aroma_types::functions::{FunctionDeclaration, Parameter};
 use aroma_types::generic::GenericDeclaration;
 use aroma_types::type_signature::TypeSignature;
-use tracing::debug;
 use std::collections::HashSet;
-use crate::parser::binding::FnParameters;
-use crate::parser::items::{FnReturn, FnThrows, GenericDeclarations, ItemInterfaceFn, Visibility};
-use crate::parser::singletons::VarId;
+use tracing::{debug, trace};
 
 pub fn method_hir_to_mir(
     parent_inst: &ClassInst,
@@ -30,7 +30,7 @@ pub fn method_hir_to_mir(
     method: ItemFn,
 ) -> Result<(FunctionDeclaration, MethodDef), SyntaxError> {
     let span = method.span();
-    debug!("creating method from {method:#?}");
+    trace!("creating method from {method:#?}");
     let ItemFn {
         annotations: _,
         vis,
@@ -102,7 +102,7 @@ pub fn method_hir_to_mir(
         return_type.clone(),
         throws.clone(),
     );
-    debug!("created method_dec = {:#?}", method_dec);
+    trace!("created method_dec = {:#?}", method_dec);
     let method_def = method_hir_to_mir_def(
         span,
         if static_tok.is_some() {
@@ -123,7 +123,7 @@ pub fn abstract_method_hir_to_mir(
     class_generics: &[GenericDeclaration],
     method: ItemAbstractFn,
 ) -> Result<FunctionDeclaration, SyntaxError> {
-    debug!("creating method from {method:#?}");
+    trace!("creating method from {method:#?}");
     let ItemAbstractFn {
         vis,
         abstract_tok: _,
@@ -136,7 +136,16 @@ pub fn abstract_method_hir_to_mir(
         end: _,
     } = method;
 
-    non_concrete_method_to_hair(parent_inst, class_generics, vis, ident, generics, fn_parameters, fn_return, fn_throws)
+    non_concrete_method_to_hair(
+        parent_inst,
+        class_generics,
+        vis,
+        ident,
+        generics,
+        fn_parameters,
+        fn_return,
+        fn_throws,
+    )
 }
 
 pub fn interface_method_hir_to_mir(
@@ -144,7 +153,7 @@ pub fn interface_method_hir_to_mir(
     class_generics: &[GenericDeclaration],
     method: ItemInterfaceFn,
 ) -> Result<FunctionDeclaration, SyntaxError> {
-    debug!("creating method from {method:#?}");
+    trace!("creating method from {method:#?}");
     let ItemInterfaceFn {
         vis,
         fn_tok: _,
@@ -156,12 +165,28 @@ pub fn interface_method_hir_to_mir(
         end: _,
     } = method;
 
-    non_concrete_method_to_hair(parent_inst, class_generics,
-                                vis.map(Visibility::Public), ident, generics, fn_parameters, fn_return, fn_throws)
+    non_concrete_method_to_hair(
+        parent_inst,
+        class_generics,
+        vis.map(Visibility::Public),
+        ident,
+        generics,
+        fn_parameters,
+        fn_return,
+        fn_throws,
+    )
 }
 
-
-fn non_concrete_method_to_hair(parent_inst: &ClassInst, class_generics: &[GenericDeclaration], vis: Option<Visibility>, ident: VarId, generics: Option<GenericDeclarations>, fn_parameters: FnParameters, fn_return: Option<FnReturn>, fn_throws: Option<FnThrows>) -> Result<FunctionDeclaration, SyntaxError> {
+fn non_concrete_method_to_hair(
+    parent_inst: &ClassInst,
+    class_generics: &[GenericDeclaration],
+    vis: Option<Visibility>,
+    ident: VarId,
+    generics: Option<GenericDeclarations>,
+    fn_parameters: FnParameters,
+    fn_return: Option<FnReturn>,
+    fn_throws: Option<FnThrows>,
+) -> Result<FunctionDeclaration, SyntaxError> {
     let vis = to_mir::vis_hir_to_mir(vis);
     let name = ident.as_ref().to_string();
 
@@ -211,7 +236,7 @@ fn non_concrete_method_to_hair(parent_inst: &ClassInst, class_generics: &[Generi
         return_type.clone(),
         throws.clone(),
     );
-    debug!("created method_dec = {:#?}", method_dec);
+    trace!("created method_dec = {:#?}", method_dec);
 
     Ok(method_dec)
 }
@@ -258,10 +283,10 @@ fn transform_fn_body(
         },
     );
 
-    debug!("creating method with initial bindings: {declared_variables:#?}");
+    trace!("creating method with initial bindings: {declared_variables:#?}");
     for statement in fn_body.body.list.statements {
         transform_statement(statement, &mut statements, &mut declared_variables)?;
-        debug!("statements: {statements:#?}");
+        trace!("statements: {statements:#?}");
     }
     declared_variables.pop_scope();
     Ok(Block::new(span, statements))
@@ -272,7 +297,7 @@ fn transform_statement(
     statements: &mut Vec<Stmt>,
     bindings: &mut Bindings,
 ) -> Result<(), SyntaxError> {
-    debug!("transforming statement {statement:?}");
+    trace!("transforming statement {statement:?}");
     let span = statement.span();
     match statement {
         ParsedStatement::Let(stmt_let) => {
@@ -339,6 +364,6 @@ fn transform_statement(
         ParsedStatement::TryCatch(_) => {}
         ParsedStatement::Assign(_) => {}
     }
-    debug!("declared variables: {bindings:#?}");
+    trace!("declared variables: {bindings:#?}");
     Ok(())
 }

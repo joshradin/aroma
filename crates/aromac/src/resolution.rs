@@ -57,8 +57,6 @@ impl TranslationData {
         Ok(())
     }
 
-
-
     /// Merges the contents of another translation into this
     ///
     /// # Examples

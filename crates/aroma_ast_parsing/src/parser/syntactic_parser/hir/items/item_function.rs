@@ -10,6 +10,7 @@ use crate::parser::{
 };
 use aroma_tokens::token::ToTokens;
 use std::io::Read;
+use tracing::instrument;
 
 /// A function declaration
 #[derive(Debug, ToTokens)]
@@ -26,6 +27,7 @@ pub struct ItemFn {
     pub body: FnBody,
 }
 
+#[instrument(skip_all)]
 pub fn parse_function<R: Read>(
     annotations: Vec<Annotation>,
     visibility: Option<Visibility>,

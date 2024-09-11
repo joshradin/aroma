@@ -17,8 +17,8 @@ use crate::parser::{
     SyntaxResult,
 };
 use aroma_tokens::token::{ToTokens, TokenKind};
-use tracing::{debug, trace};
 use std::io::Read;
+use tracing::{debug, instrument, trace};
 
 /// An interface declaration
 #[derive(Debug, ToTokens)]
@@ -79,6 +79,7 @@ pub struct InterfaceMembers {
     pub rcurly: RCurly,
 }
 
+#[instrument(skip_all)]
 pub fn parse_interface<R: Read>(
     visibility: Option<Visibility>,
     parser: &mut SyntacticParser<'_, R>,
@@ -93,7 +94,7 @@ pub fn parse_interface<R: Read>(
             let extended = p.parse(Punctuated1::parse)?;
             Ok(InterfaceExtends {
                 extends,
-                types: extended
+                types: extended,
             })
         })?)
     } else {

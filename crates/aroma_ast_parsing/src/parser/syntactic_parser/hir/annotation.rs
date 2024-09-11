@@ -11,6 +11,7 @@ use crate::parser::{
 use aroma_tokens::id::Id;
 use aroma_tokens::token::{ToTokens, TokenKind};
 use std::io::Read;
+use tracing::instrument;
 
 /// An annotation, used to mark information that would otherwise not be possible to represent
 #[derive(Debug, ToTokens)]

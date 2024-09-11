@@ -8,8 +8,8 @@ use crate::parser::{
     cut, multi1, CouldParse, ErrorKind, Parsable, SyntacticParser, SyntaxError, SyntaxResult,
 };
 use aroma_tokens::token::{ToTokens, TokenKind};
-use tracing::debug;
 use std::io::Read;
+use tracing::{debug, trace, warn};
 
 /// General statement types
 #[derive(Debug, ToTokens)]
@@ -220,7 +220,7 @@ fn parse_statement_list<'p, R: Read>(
             let statement = match parser.parse(Statement::parse) {
                 Ok(statement) => statement,
                 Err(e) => {
-                    eprintln!(
+                    warn!(
                         "encountered {e:?} while parser is in state {:#?}",
                         &parser.state
                     );
@@ -398,7 +398,7 @@ fn parse_statement<'p, R: Read>(
             })
         }
         _ => {
-            debug!("parsing expression");
+            trace!("parsing expression");
             let e: Expr = parser.parse(Expr::parse)?;
             if let Some(assign) = parser.parse_opt::<Assign>()? {
                 let rvalue = parser.parse(Expr::parse).map_err(|e| e.cut())?;

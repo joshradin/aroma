@@ -17,14 +17,14 @@ use aroma_types::functions::{FunctionDeclaration, Parameter};
 use aroma_types::generic::{GenericDeclaration, GenericParameterBound};
 use aroma_types::hierarchy::intrinsics::OBJECT_CLASS;
 use aroma_types::vis::Vis;
-use tracing::debug;
 use method_hir_to_mir::method_hir_to_mir_def;
 use std::collections::HashMap;
+use tracing::{debug, trace};
 
 mod class_hir_to_mir;
 mod expr_hir_to_mir;
-mod method_hir_to_mir;
 mod interface_hir_to_mir;
+mod method_hir_to_mir;
 
 /// Runs the initial conversion to mir, removing most tokens while keeping spans
 pub fn to_mir(translation_unit: ParsedTranslationUnit) -> Result<TranslationUnit, SyntaxError> {
@@ -46,13 +46,14 @@ pub fn to_mir(translation_unit: ParsedTranslationUnit) -> Result<TranslationUnit
             match item {
                 parser_items::Item::Class(cls) => {
                     let class = class_hir_to_mir::class_hir_to_mir(namespace, cls)?;
-                    debug!("parsed class {class:#?}");
+                    trace!("parsed class {class:#?}");
                     items.push(Item::Class(class));
                 }
                 parser_items::Item::Func(_func) => {}
                 parser_items::Item::Interface(interface) => {
-                    let interface = interface_hir_to_mir::interface_hir_to_mir(namespace, interface)?;
-                    debug!("parsed interface {interface:#?}");
+                    let interface =
+                        interface_hir_to_mir::interface_hir_to_mir(namespace, interface)?;
+                    trace!("parsed interface {interface:#?}");
                     items.push(Item::Class(interface));
                 }
             }

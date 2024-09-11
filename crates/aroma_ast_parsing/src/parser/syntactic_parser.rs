@@ -6,10 +6,11 @@ use std::any::type_name;
 use std::collections::VecDeque;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
-use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 use std::result;
+use tokio::fs::File;
+use tokio::io::AsyncReadExt;
 
 pub mod error;
 pub mod hir;
@@ -484,11 +485,13 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
     }
 }
 
-impl<'p> SyntacticParser<'p, File> {
+impl<'p> SyntacticParser<'p, VecDeque<u8>> {
     /// Creates a new parser for a given file
-    pub fn with_file(path: &'p Path) -> result::Result<Self, SyntaxError> {
-        let file = File::open(path)?;
-        let lexer = Lexer::new(path, file)?;
+    pub async fn with_file(path: &'p Path) -> result::Result<Self, SyntaxError> {
+        let mut file = File::open(path).await?;
+        let mut buffer = vec![];
+        file.read_to_end(&mut buffer).await?;
+        let lexer = Lexer::new(path, buffer.into())?;
         Ok(Self::new(lexer))
     }
 }

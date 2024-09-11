@@ -13,8 +13,8 @@ use crate::parser::{
     SyntacticParser, SyntaxResult,
 };
 use aroma_tokens::token::{ToTokens, TokenKind};
-use tracing::{debug, trace};
 use std::io::Read;
+use tracing::{debug, instrument, trace};
 
 /// A class declaration
 #[derive(Debug, ToTokens)]
@@ -125,6 +125,7 @@ pub struct ClassMembers {
     pub rcurly: RCurly,
 }
 
+#[instrument(skip_all)]
 pub fn parse_class<R: Read>(
     annotations: Vec<Annotation>,
     visibility: Option<Visibility>,

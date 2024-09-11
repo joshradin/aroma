@@ -5,6 +5,7 @@ use crate::generic::{GenericDeclaration, GenericParameterBound, GenericParameter
 use crate::vis::{Vis, Visibility};
 use aroma_common::nom_helpers::recognize_identifier;
 use aroma_tokens::id::Id;
+use aroma_tokens::spanned::{Span, Spanned};
 use itertools::Itertools;
 use nom::character::complete::char;
 use nom::combinator::{all_consuming, map, map_res, opt, recognize};
@@ -16,7 +17,6 @@ use petgraph::visit::Walker;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::str::FromStr;
-use aroma_tokens::spanned::{Span, Spanned};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum ClassKind {
@@ -275,7 +275,7 @@ impl ClassInst {
 
 impl Spanned for ClassInst {
     fn span(&self) -> Span {
-        let mut span = self.0.0.span();
+        let mut span = self.0 .0.span();
         for generic in self.generics() {
             let inner = generic.bound_class_instance().span();
             span = span.join(inner);

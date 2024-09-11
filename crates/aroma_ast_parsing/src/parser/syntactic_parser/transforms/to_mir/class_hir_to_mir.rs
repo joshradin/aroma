@@ -9,6 +9,7 @@ use aroma_types::class::{AsClassRef, Class, ClassInst, ClassKind, ClassRef};
 use aroma_types::field::Field;
 use aroma_types::generic::{GenericDeclaration, GenericParameterBound};
 use aroma_types::hierarchy::intrinsics::OBJECT_CLASS;
+use tracing::instrument;
 
 pub fn class_hir_to_mir(
     namespace: Option<&Id>,
@@ -18,6 +19,7 @@ pub fn class_hir_to_mir(
         None => cls.ident.id.clone(),
         Some(namespace) => namespace.resolve(&cls.ident.id),
     };
+
     let span = cls.span();
     let vis = to_mir::vis_hir_to_mir(cls.vis);
     let class_kind = cls
