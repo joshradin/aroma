@@ -8,8 +8,10 @@ use aroma_ast::items::ClassItem;
 use aroma_tokens::id::Id;
 use aroma_tokens::spanned::Spanned;
 use aroma_types::class::{AsClassRef, Class, ClassInst, ClassKind, ClassRef};
-use aroma_types::generic::{GenericDeclaration, GenericParameterBound};
+use aroma_types::generic::{GenericDeclaration,};
 use aroma_types::hierarchy::intrinsics::OBJECT_CLASS;
+use aroma_types::type_signature::TypeSignature;
+use crate::parser::hir::binding::Type;
 use crate::parser::SyntaxError;
 
 /// converts interfaces hir to an item class
@@ -31,8 +33,8 @@ pub fn interface_hir_to_mir(
                 GenericDeclaration::new(
                     gen.id,
                     gen.bound
-                        .map(|i| i.as_class_inst())
-                        .unwrap_or(ClassInst::from(OBJECT_CLASS.as_class_ref())),
+                        .map(|i| i.as_type_signature())
+                        .unwrap_or(ClassInst::from(OBJECT_CLASS.as_class_ref()).into()),
                 )
             }))
         })
@@ -43,7 +45,7 @@ pub fn interface_hir_to_mir(
             i.types
                 .items()
                 .into_iter()
-                .map(|i| i.as_class_inst())
+                .flat_map(|i| i.as_class_inst())
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
@@ -52,7 +54,7 @@ pub fn interface_hir_to_mir(
         ClassRef::from(id.clone()),
         class_generics
             .iter()
-            .map(|i| GenericParameterBound::Invariant(ClassInst::new_generic_param(i.id()))),
+            .map(|i| TypeSignature::Invariant(ClassInst::new_generic_param(i.id()))),
     );
 
     let mut fields = vec![];

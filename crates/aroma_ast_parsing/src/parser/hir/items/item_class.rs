@@ -14,9 +14,9 @@ use crate::parser::hir::{
 use aroma_tokens::token::{ToTokens, TokenKind};
 use std::io::Read;
 use tracing::{debug, instrument, trace};
-use crate::parser::blocking::SyntacticParser;
+use crate::parser::blocking::BlockingParser;
 use crate::parser::SyntaxResult;
-use crate::parser::traits::{CouldParse, Parsable};
+use crate::parser::hir_parser::blocking::{CouldParse, Parsable};
 
 /// A class declaration
 #[derive(Debug, ToTokens)]
@@ -132,7 +132,7 @@ pub fn parse_class<R: Read>(
     annotations: Vec<Annotation>,
     visibility: Option<Visibility>,
     static_tok: Option<Static>,
-    parser: &mut SyntacticParser<'_, R>,
+    parser: &mut BlockingParser<'_, R>,
 ) -> SyntaxResult<ItemClass> {
     let abstract_tok = parser.parse_opt::<Abstract>()?;
     let class = parser.parse(Class::parse)?;
@@ -140,7 +140,7 @@ pub fn parse_class<R: Read>(
     let generics = parse_generics(parser)?;
 
     let extends = if Extends::could_parse(parser)? {
-        Some(parser.parse(|p: &mut SyntacticParser<'_, R>| {
+        Some(parser.parse(|p: &mut BlockingParser<'_, R>| {
             let extends = p.parse(Extends::parse)?;
             let ty = p.parse(Type::parse)?;
             Ok(ClassExtends {
@@ -152,7 +152,7 @@ pub fn parse_class<R: Read>(
         None
     };
     let implements = if Implements::could_parse(parser)? {
-        Some(parser.parse(|p: &mut SyntacticParser<'_, R>| {
+        Some(parser.parse(|p: &mut BlockingParser<'_, R>| {
             let implements = p.parse(Implements::parse)?;
             let ty = p.parse(Punctuated1::<Type, Comma>::parse)?;
             Ok(ClassImplements {
@@ -179,15 +179,15 @@ pub fn parse_class<R: Read>(
 }
 
 pub fn parse_generics<'p, R: Read>(
-    parser: &mut SyntacticParser<'_, R>,
+    parser: &mut BlockingParser<'_, R>,
 ) -> SyntaxResult<Option<GenericDeclarations>> {
     if LBracket::could_parse(parser)? {
-        let bounds = parser.parse(|p: &mut SyntacticParser<'_, R>| {
+        let bounds = parser.parse(|p: &mut BlockingParser<'_, R>| {
             let lbracket = p.parse(LBracket::parse)?;
             let bounds = p
                 .parse(cut(seperated_list1(
                     Comma::parse,
-                    |p: &mut SyntacticParser<'_, R>| {
+                    |p: &mut BlockingParser<'_, R>| {
                         let id = p.parse(VarId::parse)?;
                         let bound = p.parse_opt::<Type>()?;
                         Ok(GenericDeclaration { id, bound })
@@ -210,7 +210,7 @@ pub fn parse_generics<'p, R: Read>(
 
 fn parse_class_members<'p, R: Read>(
     owner: &VarId,
-    parser: &mut SyntacticParser<'_, R>,
+    parser: &mut BlockingParser<'_, R>,
 ) -> SyntaxResult<ClassMembers> {
     let lcurly = parser.parse(LCurly::parse)?;
     let mut members = vec![];
@@ -237,7 +237,7 @@ fn parse_class_member<R: Read>(
     owner: &VarId,
     visibility: Option<Visibility>,
     is_static: Option<Static>,
-    parser: &mut SyntacticParser<'_, R>,
+    parser: &mut BlockingParser<'_, R>,
 ) -> SyntaxResult<ClassMember> {
     let lookahead = parser.peek()?.cloned().ok_or_else(|| {
         parser.error(
@@ -270,7 +270,7 @@ fn parse_field<R: Read>(
     owner: &VarId,
     visibility: Option<Visibility>,
     is_static: Option<Static>,
-    parser: &mut SyntacticParser<'_, R>,
+    parser: &mut BlockingParser<'_, R>,
 ) -> SyntaxResult<ClassMember> {
     let final_tok = parser.parse_opt::<Final>()?;
     let binding = parser.parse(cut(Binding::parse))?;
@@ -299,7 +299,7 @@ fn parse_method<R: Read>(
     owner: &VarId,
     visibility: Option<Visibility>,
     is_static: Option<Static>,
-    parser: &mut SyntacticParser<'_, R>,
+    parser: &mut BlockingParser<'_, R>,
 ) -> SyntaxResult<ClassMember> {
     let abstract_tok = parser.parse_opt::<Abstract>()?;
     if abstract_tok.is_some() && is_static.is_some() {
@@ -367,7 +367,7 @@ fn parse_constructor<'p, R: Read>(
     annotations: Vec<Annotation>,
     owner: &VarId,
     visibility: Option<Visibility>,
-    parser: &mut SyntacticParser<'_, R>,
+    parser: &mut BlockingParser<'_, R>,
 ) -> SyntaxResult<ClassMember> {
     let constructor = parser.parse(Constructor::parse)?;
     let generics = parser.parse(parse_generics)?;

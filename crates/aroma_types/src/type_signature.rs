@@ -1,11 +1,12 @@
 //! Type signatures
 
 use crate::class::{ClassInst, ClassRef};
-use crate::generic::GenericParameterBound;
+use crate::functions::FunctionSignature;
 use crate::hierarchy::intrinsics::{
     ARRAY_CLASS, BOOL_CLASS, F32_CLASS, F64_CLASS, I32_CLASS, I64_CLASS, U8_CLASS, VOID_CLASS,
 };
 use aroma_common::nom_helpers::recognize_identifier;
+use aroma_tokens::spanned::{NoSpanError, Span, Spanned, TrySpanned};
 use itertools::Itertools;
 use nom::branch::alt;
 use nom::character::complete::char;
@@ -30,11 +31,49 @@ pub enum TypeSignature {
     Long,
     Float,
     Double,
-    Invariant(ClassRef, Vec<TypeSignature>),
-    Covariant(ClassRef, Vec<TypeSignature>),
-    Contravariant(ClassRef, Vec<TypeSignature>),
-    Function(Vec<TypeSignature>, Box<TypeSignature>),
+    Invariant(ClassInst),
+    Covariant(ClassInst),
+    Contravariant(ClassInst),
+    Function(Box<FunctionSignature>),
     Array(Box<TypeSignature>),
+}
+
+impl TypeSignature {
+    /// Gets if this a real type, aka not [Covariant](TypeSignature::Covariant) or [Contravariant](TypeSignature::Contravariant).
+    #[inline]
+    pub fn is_real(&self) -> bool {
+        !matches!(
+            self,
+            TypeSignature::Contravariant(..) | TypeSignature::Covariant(..)
+        )
+    }
+    /// Gets if this an abstract type, aka [Covariant](TypeSignature::Covariant) or [Contravariant](TypeSignature::Contravariant).
+    #[inline]
+    pub fn is_abstract(&self) -> bool {
+        !self.is_real()
+    }
+}
+
+impl TrySpanned for TypeSignature {
+    type Error = NoSpanError;
+
+    fn try_span(&self) -> Result<Span, Self::Error> {
+        match self {
+            TypeSignature::Invariant(cls)
+            | TypeSignature::Covariant(cls)
+            | TypeSignature::Contravariant(cls) => {
+                let span = cls.as_ref().as_ref().span();
+                Ok(cls
+                    .generics()
+                    .iter()
+                    .filter_map(|i| i.try_span().ok())
+                    .fold(span, |mut accum, next| accum.join(next)))
+            }
+            TypeSignature::Function(function) => function.try_span(),
+            TypeSignature::Array(array) => array.try_span(),
+            _ => Err(NoSpanError),
+        }
+    }
 }
 
 impl Debug for TypeSignature {
@@ -64,32 +103,57 @@ impl Debug for TypeSignature {
             TypeSignature::Double => {
                 write!(f, "D")
             }
-            TypeSignature::Invariant(o, generics) => {
-                write!(f, "L{}", o)?;
-                if !generics.is_empty() {
-                    write!(f, "[{}]", generics.iter().map(|s| s.to_string()).join(","))?;
+            TypeSignature::Invariant(class_inst) => {
+                write!(f, "L{}", class_inst.as_ref())?;
+                if !class_inst.generics().is_empty() {
+                    write!(
+                        f,
+                        "[{}]",
+                        class_inst
+                            .generics()
+                            .iter()
+                            .map(|s| s.to_string())
+                            .join(",")
+                    )?;
                 }
                 write!(f, ";")
             }
-            TypeSignature::Covariant(o, generics) => {
-                write!(f, "_{}", o)?;
-                if !generics.is_empty() {
-                    write!(f, "[{}]", generics.iter().map(|s| s.to_string()).join(","))?;
+            TypeSignature::Covariant(class_inst) => {
+                write!(f, "_{}", class_inst.as_ref())?;
+                if !class_inst.generics().is_empty() {
+                    write!(
+                        f,
+                        "[{}]",
+                        class_inst
+                            .generics()
+                            .iter()
+                            .map(|s| s.to_string())
+                            .join(",")
+                    )?;
                 }
                 write!(f, ";")
             }
-            TypeSignature::Contravariant(o, generics) => {
-                write!(f, "^{o}")?;
-                if !generics.is_empty() {
-                    write!(f, "[{}]", generics.iter().map(|s| s.to_string()).join(","))?;
+            TypeSignature::Contravariant(class_inst) => {
+                write!(f, "^{}", class_inst.as_ref())?;
+                if !class_inst.generics().is_empty() {
+                    write!(
+                        f,
+                        "[{}]",
+                        class_inst
+                            .generics()
+                            .iter()
+                            .map(|s| s.to_string())
+                            .join(",")
+                    )?;
                 }
                 write!(f, ";")
             }
-            TypeSignature::Function(args, ret) => {
+            TypeSignature::Function(f_sig) => {
                 write!(
                     f,
-                    "({}){ret}",
-                    args.iter().map(ToString::to_string).join(",")
+                    "({}){}",
+                    f_sig.parameters().iter().map(ToString::to_string).join(","),
+                    f_sig.return_type()
                 )
             }
             TypeSignature::Array(a) => {
@@ -107,29 +171,10 @@ impl Display for TypeSignature {
 
 impl From<ClassInst> for TypeSignature {
     fn from(t: ClassInst) -> Self {
-        TypeSignature::Invariant(
+        TypeSignature::Invariant(ClassInst::with_generics(
             t.class_ref().clone(),
-            t.generics()
-                .iter()
-                .map(|bound| match bound {
-                    GenericParameterBound::Invariant(i) => TypeSignature::from(i.clone()),
-                    GenericParameterBound::Covariant(i) => {
-                        let TypeSignature::Invariant(i, generics) = TypeSignature::from(i.clone())
-                        else {
-                            panic!()
-                        };
-                        TypeSignature::Covariant(i, generics)
-                    }
-                    GenericParameterBound::Contravariant(i) => {
-                        let TypeSignature::Invariant(i, generics) = TypeSignature::from(i.clone())
-                        else {
-                            panic!()
-                        };
-                        TypeSignature::Contravariant(i, generics)
-                    }
-                })
-                .collect(),
-        )
+            t.generics().iter().cloned(),
+        ))
     }
 }
 
@@ -144,14 +189,11 @@ impl From<&TypeSignature> for ClassInst {
             TypeSignature::Long => I64_CLASS.get_ref().into(),
             TypeSignature::Float => F32_CLASS.get_ref().into(),
             TypeSignature::Double => F64_CLASS.get_ref().into(),
-            TypeSignature::Covariant(c, p)
-            | TypeSignature::Contravariant(c, p)
-            | TypeSignature::Invariant(c, p) => ClassInst::with_generics(
-                c.clone(),
-                p.iter().map(|p| GenericParameterBound::from(p.clone())),
-            ),
+            TypeSignature::Covariant(c)
+            | TypeSignature::Contravariant(c)
+            | TypeSignature::Invariant(c) => c.clone(),
 
-            TypeSignature::Function(args, ret) => {
+            TypeSignature::Function(args) => {
                 todo!("function representation as ClassInst")
             }
             TypeSignature::Array(a) => {
@@ -182,8 +224,8 @@ fn parse_class_ts(input: &str) -> IResult<&str, TypeSignature, VerboseError<&str
             let fqi = ClassRef::from_str(fqi)
                 .map_err(|e| VerboseError::from_external_error(fqi, ErrorKind::Verify, e))?;
             Ok(match generics {
-                Some(generics) => TypeSignature::Invariant(fqi, generics),
-                None => TypeSignature::Invariant(fqi, vec![]),
+                Some(generics) => TypeSignature::Invariant(ClassInst::with_generics(fqi, generics)),
+                None => TypeSignature::Invariant(ClassInst::new(fqi)),
             })
         },
     )(input)
@@ -203,16 +245,16 @@ fn parse_type_signature(input: &str) -> IResult<&str, TypeSignature, VerboseErro
             value(TypeSignature::Double, char('D')),
             delimited(char('L'), parse_class_ts, char(';')),
             map(delimited(char('^'), parse_class_ts, char(';')), |t| {
-                let TypeSignature::Invariant(i, generics) = t else {
+                let TypeSignature::Invariant(i) = t else {
                     panic!()
                 };
-                TypeSignature::Contravariant(i, generics)
+                TypeSignature::Contravariant(i)
             }),
             map(delimited(char('_'), parse_class_ts, char(';')), |t| {
-                let TypeSignature::Invariant(i, generics) = t else {
+                let TypeSignature::Invariant(i) = t else {
                     panic!()
                 };
-                TypeSignature::Covariant(i, generics)
+                TypeSignature::Covariant(i)
             }),
             map(preceded(char('['), parse_type_signature), |ts| {
                 TypeSignature::Array(Box::new(ts))
@@ -229,7 +271,15 @@ fn parse_type_signature(input: &str) -> IResult<&str, TypeSignature, VerboseErro
                     ),
                     context("ret-type", parse_type_signature),
                 )),
-                |(args, ret)| TypeSignature::Function(args, Box::new(ret)),
+                |(args, ret)| TypeSignature::Function(Box::new(
+                    FunctionSignature::new(
+                        [],
+                        None,
+                        args,
+                        ret,
+                        None
+                    )
+                )),
             ),
         )),
     )(input)
@@ -280,7 +330,7 @@ mod tests {
     fn test_parse_void_function() {
         let p = "(V)V";
         let signature = TypeSignature::from_str(p).unwrap_or_else(|e| panic!("{}", e));
-        assert!(matches!(signature, TypeSignature::Function(_, f) if *f == TypeSignature::Void))
+        assert!(matches!(signature, TypeSignature::Function(f) if f.return_type() == &TypeSignature::Void))
     }
 
     #[test]
@@ -288,7 +338,7 @@ mod tests {
         let p = "(LClass[_String;];,J)I";
         let signature = TypeSignature::from_str(p).unwrap_or_else(|e| panic!("{}", e));
         assert!(
-            matches!(signature, TypeSignature::Function(args, f) if *f == TypeSignature::Int && args.len() == 2)
+            matches!(signature, TypeSignature::Function(f) if *f.return_type() == TypeSignature::Int && f.parameters().len() == 2)
         )
     }
 
@@ -297,7 +347,7 @@ mod tests {
         let p = "(LClass[LString;];,J)!";
         let signature = TypeSignature::from_str(p).unwrap_or_else(|e| panic!("{}", e));
         assert!(
-            matches!(signature, TypeSignature::Function(args, f) if *f == TypeSignature::Never && args.len() == 2)
+            matches!(signature, TypeSignature::Function(f) if *f.return_type() == TypeSignature::Never && f.parameters().len() == 2)
         )
     }
 }

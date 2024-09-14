@@ -17,7 +17,7 @@ pub struct MethodDef {
     pub parameters: Vec<Parameter>,
     pub generic_declaration: Vec<GenericDeclaration>,
     pub return_ty: TypeSignature,
-    pub throws: Vec<ClassInst>,
+    pub throws: Vec<TypeSignature>,
     pub body: Block,
 }
 
@@ -25,6 +25,7 @@ impl MethodDef {
     pub fn new(
         span: Span,
         parent: Option<&ClassInst>,
+        parameters: Vec<String>,
         dec: &FunctionDeclaration,
         body: Block,
     ) -> Self {
@@ -32,13 +33,22 @@ impl MethodDef {
             span,
             this: parent.cloned(),
             name: dec.name().to_string(),
-            parameters: Vec::from(dec.parameters()),
+            parameters: Vec::from_iter(
+                dec.parameters()
+                    .iter()
+                    .zip(parameters)
+                    .map(|(ts, name)| {
+                        Parameter {
+                            name: name,
+                            ts: ts.clone(),
+                        }
+                    })
+
+            ),
             generic_declaration: Vec::from(dec.generic_declarations()),
             return_ty: dec
                 .return_type()
-                .cloned()
-                .map(|inst| TypeSignature::from(inst))
-                .unwrap_or(TypeSignature::Void),
+                .clone(),
             throws: Vec::from(dec.throws()),
             body,
         }
@@ -50,11 +60,7 @@ impl GetInfoTypeRef<NameType> for MethodDef {
         NameType(
             self.name.clone(),
             TypeSignature::Function(
-                self.parameters
-                    .iter()
-                    .map(|i| i.class.clone().into())
-                    .collect(),
-                Box::new(self.return_ty.clone()),
+                todo!()
             ),
         )
     }

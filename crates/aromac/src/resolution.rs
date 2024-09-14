@@ -53,7 +53,7 @@ impl TranslationData {
         let queries = self
             .id_resolver
             .query(self.namespace.as_ref().cloned().unwrap_or_default());
-        self.class_hierarchy.insert(class, &queries)?;
+        self.class_hierarchy.insert(class)?;
         Ok(())
     }
 

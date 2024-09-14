@@ -150,4 +150,6 @@ impl<T: TypeInfo> From<T> for TypeState<T> {
 pub enum TypeError {
     #[error("Could not resolve identifier {0:?}")]
     IdentifierNotResolved(String),
+    #[error("Can not be represented by a class")]
+    NotClassRepresentable,
 }

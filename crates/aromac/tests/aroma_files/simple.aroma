@@ -2,10 +2,6 @@ namespace simple.system
 import aroma.system.Object
 import aroma.system.Closure
 
-public delegate Action<T> = fn T.();
-let action: Action<Long> = {
-    _
-};
 
 public class Box[T] {
     private data: T;
@@ -23,8 +19,8 @@ public class Box[T] {
         this.data = data;
     }
 
-    public static fn box[T](data: T) -> Box[T] {
-        return Box(data);
+    public fn update(cb: T.fn()) {
+        using(this, cb)();
     }
 }
 

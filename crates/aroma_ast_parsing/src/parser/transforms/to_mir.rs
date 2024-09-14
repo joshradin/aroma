@@ -14,7 +14,7 @@ use aroma_tokens::spanned::Spanned;
 use aroma_types::class::{AsClassRef, Class, ClassInst, ClassKind, ClassRef};
 use aroma_types::field::Field;
 use aroma_types::functions::{FunctionDeclaration, Parameter};
-use aroma_types::generic::{GenericDeclaration, GenericParameterBound};
+use aroma_types::generic::{GenericDeclaration};
 use aroma_types::hierarchy::intrinsics::OBJECT_CLASS;
 use aroma_types::vis::Vis;
 use method_hir_to_mir::method_hir_to_mir_def;

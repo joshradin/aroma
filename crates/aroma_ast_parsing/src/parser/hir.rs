@@ -23,7 +23,7 @@ pub use helpers::*;
 use crate::parser::hir::singletons::VarId;
 use crate::parser::hir::translation_unit::{NamespaceDeclaration, TranslationUnit};
 use items::*;
-use crate::parser::traits::Parsable;
+use crate::parser::hir_parser::blocking::Parsable;
 
 visitor! {
     pub trait SyntaxTreeVisitor {

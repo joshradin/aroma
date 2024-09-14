@@ -5,9 +5,9 @@ use crate::parser::hir::{cut, multi0, End, SyntaxError};
 use aroma_tokens::id::Id;
 use aroma_tokens::token::ToTokens;
 use std::io::Read;
-use crate::parser::blocking::{remove_nl, SyntacticParser};
+use crate::parser::blocking::{remove_nl, BlockingParser};
 use crate::parser::SyntaxResult;
-use crate::parser::traits::Parsable;
+use crate::parser::hir_parser::blocking::Parsable;
 
 /// Declares the current namespace
 #[derive(Debug, ToTokens)]
@@ -43,7 +43,7 @@ impl TranslationUnit {
 impl Parsable for TranslationUnit {
     type Err = SyntaxError;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Self> {
+    fn parse<R: Read>(parser: &mut BlockingParser<'_, R>) -> SyntaxResult<Self> {
         parser.parse(remove_nl)?;
         let namespace_declaration = parser.with_ignore_nl(false, |parser| {
             if let Some(namespace) = parser.parse_opt::<Namespace>()? {
@@ -55,8 +55,8 @@ impl Parsable for TranslationUnit {
             }
         })?;
 
-        let imports = parser.parse(multi0(|parser: &mut SyntacticParser<'_, R>| {
-            parser.with_ignore_nl(false, |parser: &mut SyntacticParser<'_, R>| {
+        let imports = parser.parse(multi0(|parser: &mut BlockingParser<'_, R>| {
+            parser.with_ignore_nl(false, |parser: &mut BlockingParser<'_, R>| {
                 let import = parser.parse(Import::parse)?;
                 let id = parser.parse(Id::parse)?;
                 let end = parser.parse(End::parse)?;

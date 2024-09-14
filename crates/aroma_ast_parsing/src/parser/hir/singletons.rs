@@ -8,8 +8,8 @@ use aroma_tokens::token::Token;
 use aroma_tokens::token::TokenKind;
 use aroma_tokens::token::TokenStream;
 use std::io::Read;
-use crate::parser::blocking::{remove_nl, SyntacticParser};
-use crate::parser::traits::{CouldParse, Parsable};
+use crate::parser::blocking::{remove_nl, BlockingParser};
+use crate::parser::hir_parser::blocking::{CouldParse, Parsable};
 
 /// A variable id, an Id with a signle id
 #[derive(Debug, ToTokens)]
@@ -20,7 +20,7 @@ pub struct VarId {
 impl Parsable for VarId {
     type Err = SyntaxError;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> crate::parser::SyntaxResult<Self> {
+    fn parse<R: Read>(parser: &mut BlockingParser<'_, R>) -> crate::parser::SyntaxResult<Self> {
         if let Some(tok) =
             parser.consume_if(|tok| matches!(tok.kind(), TokenKind::Identifier(_)))?
         {
@@ -62,7 +62,7 @@ impl ToTokens for DocComment {
 impl Parsable for DocComment {
     type Err = SyntaxError;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> Result<Self, Err<Self::Err>> {
+    fn parse<R: Read>(parser: &mut BlockingParser<'_, R>) -> Result<Self, Err<Self::Err>> {
         parser.parse(remove_nl)?;
         if let Some(tok) =
             parser.consume_if(|token| matches!(token.kind(), TokenKind::DocComment(_)))?
@@ -81,7 +81,7 @@ impl Parsable for DocComment {
 }
 
 impl CouldParse for DocComment {
-    fn could_parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> Result<bool, Err<Self::Err>> {
+    fn could_parse<R: Read>(parser: &mut BlockingParser<'_, R>) -> Result<bool, Err<Self::Err>> {
         if let Some(peek) = parser.peek()? {
             Ok(matches!(peek.kind(), TokenKind::DocComment(_)))
         } else {
@@ -133,7 +133,7 @@ macro_rules! token_singleton {
         impl Parsable for $ty {
             type Err = SyntaxError;
 
-            fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> Result<Self, Err<Self::Err>> {
+            fn parse<R: Read>(parser: &mut BlockingParser<'_, R>) -> Result<Self, Err<Self::Err>> {
                 if !matches!($($pat)*, TokenKind::Nl) {
                     parser.parse(remove_nl)?;
                 }
@@ -159,7 +159,7 @@ macro_rules! token_singleton {
         #[automatically_derived]
         impl CouldParse for $ty {
             fn could_parse<R: Read>(
-                parser: &mut SyntacticParser<'_, R>,
+                parser: &mut BlockingParser<'_, R>,
             ) -> Result<bool, Err<Self::Err>> {
                 if let Some(peek) = parser.peek()? {
                     Ok(matches!(peek.kind(), $($pat)*))

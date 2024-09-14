@@ -1,9 +1,9 @@
 use aroma_tokens::token::{ToTokens, Token, TokenKind, TokenStream};
 use std::fmt::{Debug, Formatter};
 use std::io::Read;
-use crate::parser::{Err, ErrorKind, blocking::SyntacticParser, SyntaxError};
+use crate::parser::{Err, ErrorKind, blocking::BlockingParser, SyntaxError};
 use crate::parser::blocking::remove_nl;
-use crate::parser::traits::Parsable;
+use crate::parser::hir_parser::blocking::Parsable;
 
 #[derive(Debug)]
 pub enum ConstantKind {
@@ -28,7 +28,7 @@ impl Debug for Constant {
 impl Parsable for Constant {
     type Err = SyntaxError;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> Result<Self, Err<Self::Err>> {
+    fn parse<R: Read>(parser: &mut BlockingParser<'_, R>) -> Result<Self, Err<Self::Err>> {
         parser.parse(remove_nl)?;
         if let Some(tok) = parser.consume_if(|token| {
             matches!(

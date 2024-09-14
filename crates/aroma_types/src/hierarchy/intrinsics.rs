@@ -9,6 +9,7 @@ use std::str::FromStr;
 use std::sync::LazyLock;
 
 use crate::functions::FunctionDeclaration;
+use crate::type_signature::TypeSignature;
 
 /// Class class. All classes have a corresponding class object, and this is the
 /// class that such objects implement
@@ -109,7 +110,8 @@ fn class() -> Class {
             ClassInst::with_generics(
                 ClassRef::from(Id::from_str(BASE_CLASS_NAME).expect("could not parse")),
                 [],
-            ),
+            )
+            .into(),
         )],
         ClassInst::with_generics(
             ClassRef::from(Id::from_str(BASE_CLASS_NAME).expect("could not parse")),
@@ -121,9 +123,11 @@ fn class() -> Class {
             Vis::Public,
             "getName",
             [],
-            ClassInst::from_str(STRING_CLASS_NAME).unwrap(),
+            TypeSignature::Covariant(ClassRef::from_str(STRING_CLASS_NAME).unwrap().into()),
             [],
-            ClassInst::new(ClassRef::from(Id::from_str(STRING_CLASS_NAME).unwrap())),
+            TypeSignature::from(ClassInst::new(ClassRef::from(
+                Id::from_str(STRING_CLASS_NAME).unwrap(),
+            ))),
             [],
         )],
         [],
@@ -160,7 +164,7 @@ fn array() -> Class {
         ARRAY_CLASS_NAME.parse().unwrap(),
         [GenericDeclaration::new(
             "T",
-            ClassInst::new(OBJECT_CLASS.get_ref()),
+            TypeSignature::from(ClassInst::new(OBJECT_CLASS.get_ref())),
         )],
         ClassInst::new(OBJECT_CLASS.get_ref()),
         [],

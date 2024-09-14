@@ -6,6 +6,7 @@ use std::io::ErrorKind;
 use std::panic::Location;
 use std::path::Path;
 use std::sync::Arc;
+use thiserror::Error;
 
 /// A trait that can provide the [Span] of the complete context of an ir node, fallibly
 ///
@@ -31,6 +32,10 @@ impl<S: Spanned> TrySpanned for S {
         Ok(self.span())
     }
 }
+
+#[derive(Debug, Error)]
+#[error("No span available")]
+pub struct NoSpanError;
 
 /// The span, representing
 #[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]

@@ -5,12 +5,11 @@ use std::fmt::{Debug, Display, Formatter};
 use std::io::Read;
 use std::path::Path;
 
-pub use crate::parser::traits::*;
-
 pub use crate::parser::error::*;
 use tracing::trace;
 
 pub mod blocking;
+pub mod traits;
 
 /// Err enum used to represent recoverable and non-recoverable errors
 #[derive(Debug)]
@@ -69,11 +68,11 @@ impl From<SyntaxError> for Err<SyntaxError> {
 pub(super) mod tests {
     use std::fs::File;
     use super::*;
-    use crate::parser::blocking::SyntacticParser;
+    use crate::parser::blocking::BlockingParser;
     use crate::parser::hir::constants::{Constant, ConstantKind};
     use crate::parser::hir::cut;
     use crate::parser::hir::expr::Expr;
-    use crate::parser::traits::Parsable;
+    use crate::parser::hir_parser::traits::blocking::Parsable;
     use aroma_ast::items::ClassItem;
     use aroma_tokens::spanned::{Span, Spanned};
     use aroma_tokens::token::{ToTokens, TokenKind};
@@ -82,12 +81,12 @@ pub(super) mod tests {
 
     pub fn test_parser<F>(s: &str, callback: F)
     where
-        F: FnOnce(&mut SyntacticParser<File>, &Path),
+        F: FnOnce(&mut BlockingParser<File>, &Path),
     {
         let mut temp_file = NamedTempFile::new().unwrap();
         writeln!(temp_file, "{}", s).expect("could not write");
         let path = temp_file.path();
-        let mut parser = SyntacticParser::with_file(path).unwrap();
+        let mut parser = BlockingParser::with_file(path).unwrap();
         callback(&mut parser, path)
     }
     #[test]
@@ -95,7 +94,7 @@ pub(super) mod tests {
         let mut temp_file = NamedTempFile::new().unwrap();
         writeln!(temp_file, "let x = 1.0;").expect("could not write");
         let path = temp_file.path();
-        let mut parser = SyntacticParser::with_file(path).unwrap();
+        let mut parser = BlockingParser::with_file(path).unwrap();
         let token = parser.peek().unwrap().unwrap();
         assert_eq!(token.kind(), &TokenKind::Let);
         assert_eq!(token.span(), Span::new(temp_file.path(), 0, 3));

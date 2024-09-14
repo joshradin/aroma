@@ -6,14 +6,14 @@ use crate::parser::hir::singletons::{
     Assign, Comma, DocComment, Hash, LBracket, LParen, RBracket, RParen,
 };
 use crate::parser::hir::{
-    cut, ErrorKind, Punctuated0,SyntaxError,
+    cut, ErrorKind, Punctuated0, SyntaxError,
 };
 use aroma_tokens::id::Id;
 use aroma_tokens::token::{ToTokens, TokenKind};
 use std::io::Read;
-use crate::parser::blocking::SyntacticParser;
+use crate::parser::blocking::BlockingParser;
 use crate::parser::SyntaxResult;
-use crate::parser::traits::{CouldParse, Parsable};
+use crate::parser::hir_parser::blocking::{CouldParse, Parsable};
 
 /// An annotation, used to mark information that would otherwise not be possible to represent
 #[derive(Debug, ToTokens)]
@@ -49,13 +49,13 @@ pub struct MetaNameValue {
 impl Parsable for Annotation {
     type Err = SyntaxError;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Self> {
+    fn parse<R: Read>(parser: &mut BlockingParser<'_, R>) -> SyntaxResult<Self> {
         parse_annotation(parser)
     }
 }
 
 impl CouldParse for Annotation {
-    fn could_parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<bool> {
+    fn could_parse<R: Read>(parser: &mut BlockingParser<'_, R>) -> SyntaxResult<bool> {
         Ok(Hash::could_parse(parser)? || DocComment::could_parse(parser)?)
     }
 }
@@ -63,18 +63,18 @@ impl CouldParse for Annotation {
 impl Parsable for Meta {
     type Err = SyntaxError;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Self> {
+    fn parse<R: Read>(parser: &mut BlockingParser<'_, R>) -> SyntaxResult<Self> {
         parse_meta(parser)
     }
 }
 
 impl CouldParse for Meta {
-    fn could_parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<bool> {
+    fn could_parse<R: Read>(parser: &mut BlockingParser<'_, R>) -> SyntaxResult<bool> {
         Id::could_parse(parser)
     }
 }
 
-fn parse_annotation<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Annotation> {
+fn parse_annotation<R: Read>(parser: &mut BlockingParser<'_, R>) -> SyntaxResult<Annotation> {
     if DocComment::could_parse(parser)? {
         let doc_comment = parser.parse(DocComment::parse)?;
         let comment = doc_comment.comment().to_string();
@@ -107,11 +107,11 @@ fn parse_annotation<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResul
     }
 }
 
-fn parse_doc_comment<R: Read>(parser: &mut SyntacticParser<R>) -> SyntaxResult<Annotation> {
+fn parse_doc_comment<R: Read>(parser: &mut BlockingParser<R>) -> SyntaxResult<Annotation> {
     todo!()
 }
 
-fn parse_meta<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Meta> {
+fn parse_meta<R: Read>(parser: &mut BlockingParser<'_, R>) -> SyntaxResult<Meta> {
     let id = parser.parse(Id::parse)?;
     let peek = parser
         .peek()?

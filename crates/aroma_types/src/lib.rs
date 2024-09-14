@@ -10,6 +10,7 @@ pub mod hierarchy;
 pub mod type_signature;
 pub mod vis;
 
+
 #[cfg(test)]
 mod tests {
     use crate::hierarchy::intrinsics::OBJECT_CLASS;

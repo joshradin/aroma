@@ -1,7 +1,8 @@
 //! The type hierarchy for type querying
 
 use crate::class::{AsClassRef, Class, ClassInst, ClassRef};
-use crate::generic::{GenericDeclaration, GenericParameterBound, GenericParameterBounds};
+use crate::generic::{GenericDeclaration, GenericParameterBounds};
+use crate::type_signature::TypeSignature;
 use aroma_tokens::id::Id;
 use aroma_tokens::id_resolver::{IdQueries, IdResolver};
 use intrinsics::*;
@@ -45,13 +46,13 @@ impl Hierarchy {
         hierarchy.unchecked_insert(CLASS_CLASS.clone());
         let ref queries = id_resolver.query(Id::default());
         hierarchy
-            .insert(ARRAY_CLASS.clone(), queries)
+            .insert(ARRAY_CLASS.clone())
             .expect("could not insert array class");
         PRIMITIVES
             .iter()
             .try_for_each(|primitive| {
                 let primitive = (**primitive).clone();
-                hierarchy.insert(primitive, queries)?;
+                hierarchy.insert(primitive)?;
                 Ok(())
             })
             .unwrap_or_else(|e: Error| panic!("could not insert primitives: {e}"));
@@ -62,7 +63,7 @@ impl Hierarchy {
     /// already present within the hierarchy, failing if any is missing.
     ///
     /// If successful, a class ref is returned
-    pub fn insert(&mut self, class: Class, id_resolver: &IdQueries<'_>) -> Result<ClassRef> {
+    pub fn insert(&mut self, class: Class) -> Result<ClassRef> {
         let class_ref = self.unchecked_insert(class.clone());
         let try_validate = || -> Result<()> {
             let generics = class.generics();
@@ -79,23 +80,24 @@ impl Hierarchy {
 
             for generic in class.generics() {
                 let bound = generic.bound();
-                validate(bound)?;
+                validate(&ClassInst::from(bound))?;
             }
 
             for field in class.fields() {
-                validate(field.class()).map_err(|e| {
+                validate(&ClassInst::from(field.type_signature())).map_err(|e| {
                     Error::FieldInvalid(class.generic_inst(), field.name().to_string(), Box::new(e))
                 })?;
             }
             for method in class.methods() {
-                if let Some(return_type) = method.return_type() {
-                    validate(&return_type).map_err(|e| {
-                        Error::MethodInvalid(class.generic_inst(), method.to_string(), Box::new(e))
-                    })?;
-                }
-                let parameters: Vec<&ClassInst> =
-                    method.parameters().iter().map(|p| &p.class).collect();
-                for param in parameters {
+                validate(&ClassInst::from(method.return_type())).map_err(|e| {
+                    Error::MethodInvalid(class.generic_inst(), method.to_string(), Box::new(e))
+                })?;
+                let parameters: Vec<ClassInst> = method
+                    .parameters()
+                    .iter()
+                    .map(|p| ClassInst::from(p))
+                    .collect();
+                for param in &parameters {
                     validate(param).map_err(|e| {
                         Error::MethodInvalid(class.generic_inst(), method.to_string(), Box::new(e))
                     })?;
@@ -223,11 +225,11 @@ impl Hierarchy {
                 .iter()
                 .zip(generics.into_iter())
                 .try_for_each(|(dec, usage)| -> Result<_> {
-                    let bound = dec.bound();
+                    let bound = &dec.bound().into();
                     debug!("checking if generic usage bound {bound} is valid");
                     self.validate_with_generics(bound, unspecified_generic_parameters)?;
 
-                    if let GenericParameterBound::Invariant(i) = &usage {
+                    if let TypeSignature::Invariant(i) = &usage {
                         if unspecified_generic_parameters
                             .iter()
                             .any(|unspecified| unspecified.id() == dec.id())
@@ -235,9 +237,9 @@ impl Hierarchy {
                             return Ok(());
                         }
                     }
-                    let usage_cls = usage.bound_class_instance();
+                    let usage_cls = ClassInst::from(usage);
                     debug!("checking if {usage:?} -> {usage_cls:?} is assignable to {bound:?}");
-                    self.is_assignable(usage_cls, bound)?;
+                    self.is_assignable(&usage_cls, bound)?;
                     Ok(())
                 })?;
         }
@@ -254,13 +256,13 @@ impl Hierarchy {
             .ok_or_else(|| Error::ClassNotDefined(cls_ref.clone()))?;
 
         let instantiated =
-            ClassInst::with_generics(cls_ref, cls.generics().iter().map(|s| s.as_invariant()));
+            ClassInst::with_generics(cls_ref, cls.generics().iter().map(|i| i.bound().clone()));
         self.add_to_instantiated_set(&instantiated);
         Ok(instantiated)
     }
 
     /// Creates a new [`ClassInst`](ClassInst) value given a class reference and generics
-    pub fn instantiate<C: AsClassRef, I: IntoIterator<Item = GenericParameterBound>>(
+    pub fn instantiate<C: AsClassRef, I: IntoIterator<Item = TypeSignature>>(
         &self,
         cls_ref: &C,
         generics: I,
@@ -305,10 +307,10 @@ impl Hierarchy {
                 let mut good = true;
                 'path: for inst in path {
                     for (path, ptr) in inst.generics().iter().zip(ptr.generics()) {
-                        let ptr_type = ptr.bound_class_instance();
+                        let ptr_type = &ptr.into();
                         print!("checking if {} assignable to {}... ", ptr_type, path);
                         match path {
-                            GenericParameterBound::Invariant(i) => {
+                            TypeSignature::Invariant(i) => {
                                 if !self.is_invariant(ptr_type, i)? {
                                     println!(" err");
                                     outcomes.push(Err(Error::ClassIsNotCovariant(
@@ -319,7 +321,7 @@ impl Hierarchy {
                                     break 'path;
                                 }
                             }
-                            GenericParameterBound::Covariant(i) => {
+                            TypeSignature::Covariant(i) => {
                                 if !self.is_covariant(ptr_type, i)? {
                                     println!(" err");
                                     outcomes.push(Err(Error::ClassIsNotCovariant(
@@ -330,7 +332,7 @@ impl Hierarchy {
                                     break 'path;
                                 }
                             }
-                            GenericParameterBound::Contravariant(i) => {
+                            TypeSignature::Contravariant(i) => {
                                 if !self.is_contravariant(ptr_type, i)? {
                                     println!(" err");
                                     outcomes.push(Err(Error::ClassIsNotContravariant(
@@ -341,6 +343,7 @@ impl Hierarchy {
                                     break 'path;
                                 }
                             }
+                            _ => {}
                         }
                         println!("ok")
                     }
@@ -560,7 +563,7 @@ mod tests {
         let inner = hierarchy
             .instantiate(
                 &CLASS_CLASS.get_ref(),
-                [GenericParameterBound::Covariant(
+                [TypeSignature::Covariant(
                     hierarchy
                         .instantiate_default(&OBJECT_CLASS.get_ref())
                         .unwrap(),
@@ -570,7 +573,7 @@ mod tests {
         let class_class = hierarchy
             .instantiate(
                 &CLASS_CLASS.get_ref(),
-                [GenericParameterBound::Invariant(inner)],
+                [TypeSignature::Invariant(inner)],
             )
             .unwrap();
         println!("class_class: {:?}", class_class);
@@ -582,7 +585,7 @@ mod tests {
         let target = hierarchy
             .instantiate(
                 &CLASS_CLASS.get_ref(),
-                [GenericParameterBound::Covariant(
+                [TypeSignature::Covariant(
                     hierarchy
                         .instantiate_default(&OBJECT_CLASS.get_ref())
                         .unwrap(),
@@ -592,7 +595,7 @@ mod tests {
         let inst = hierarchy
             .instantiate(
                 &CLASS_CLASS.get_ref(),
-                [GenericParameterBound::Invariant(
+                [TypeSignature::Invariant(
                     hierarchy.instantiate_default(&I32_CLASS.get_ref()).unwrap(),
                 )],
             )
@@ -616,13 +619,13 @@ mod tests {
         hierarchy
             .instantiate(
                 &*STRING_CLASS,
-                [GenericParameterBound::Invariant(string.clone())],
+                [TypeSignature::Invariant(string.clone())],
             )
             .expect_err("wrong number of parameters");
         let string_class = hierarchy
             .instantiate(
                 &*CLASS_CLASS,
-                [GenericParameterBound::Invariant(string.clone())],
+                [TypeSignature::Invariant(string.clone())],
             )
             .unwrap();
         let real = &hierarchy[&string_class];

@@ -10,9 +10,9 @@ use crate::parser::hir::{
 use aroma_tokens::token::{ToTokens, TokenKind};
 use std::io::Read;
 use tracing::{debug, trace, warn};
-use crate::parser::blocking::{remove_nl, SyntacticParser};
+use crate::parser::blocking::{remove_nl, BlockingParser};
 use crate::parser::SyntaxResult;
-use crate::parser::traits::{CouldParse, Parsable};
+use crate::parser::hir_parser::blocking::{CouldParse, Parsable};
 
 /// General statement types
 #[derive(Debug, ToTokens)]
@@ -50,7 +50,7 @@ impl Statement {
 impl Parsable for Statement {
     type Err = SyntaxError;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Self> {
+    fn parse<R: Read>(parser: &mut BlockingParser<'_, R>) -> SyntaxResult<Self> {
         parse_statement(parser)
     }
 }
@@ -62,7 +62,7 @@ pub struct StatementList {
 impl Parsable for StatementList {
     type Err = SyntaxError;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Self> {
+    fn parse<R: Read>(parser: &mut BlockingParser<'_, R>) -> SyntaxResult<Self> {
         parse_statement_list(parser)
     }
 }
@@ -77,7 +77,7 @@ pub struct BlockStatement {
 impl Parsable for BlockStatement {
     type Err = SyntaxError;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Self> {
+    fn parse<R: Read>(parser: &mut BlockingParser<'_, R>) -> SyntaxResult<Self> {
         let lcurly = parser.parse(LCurly::parse)?;
         let list = parser.parse(StatementList::parse)?;
         let rcurly = parser.parse(RCurly::parse)?;
@@ -211,7 +211,7 @@ pub struct CatchBlock {
 
 /// Parse a statement block
 fn parse_statement_list<'p, R: Read>(
-    parser: &mut SyntacticParser<R>,
+    parser: &mut BlockingParser<R>,
 ) -> SyntaxResult<StatementList> {
     let mut list = vec![];
     parser.with_ignore_nl(false, |parser| {
@@ -265,7 +265,7 @@ fn parse_statement_list<'p, R: Read>(
 }
 /// Parse a statement block
 fn parse_statement<'p, R: Read>(
-    parser: &mut SyntacticParser<R>,
+    parser: &mut BlockingParser<R>,
 ) -> crate::parser::SyntaxResult<Statement> {
     parser.parse(remove_nl)?;
     let lookahead = parser
@@ -317,7 +317,7 @@ fn parse_statement<'p, R: Read>(
                 ));
             }
 
-            let else_block = parser.try_parse(|parser: &mut SyntacticParser<R>| {
+            let else_block = parser.try_parse(|parser: &mut BlockingParser<R>| {
                 let else_tok = parser.parse(Else::parse)?;
                 let else_stmt = parser.parse(Statement::parse)?;
                 if else_stmt.is_binding() {
@@ -366,7 +366,7 @@ fn parse_statement<'p, R: Read>(
         TokenKind::Try => {
             let try_tok = parser.parse(Try::parse)?;
             let block = parser.parse(BlockStatement::parse)?;
-            let catches = parser.parse(multi1(|parser: &mut SyntacticParser<R>| {
+            let catches = parser.parse(multi1(|parser: &mut BlockingParser<R>| {
                 let catch = parser.parse(Catch::parse)?;
                 let lparen = parser.parse(LParen::parse)?;
                 let binding = parser.parse(OptTypeBinding::parse)?;

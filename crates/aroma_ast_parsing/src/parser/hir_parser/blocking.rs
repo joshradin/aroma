@@ -1,17 +1,18 @@
 //! blocking HIR parser
 
-use aroma_tokens::token::{Token, TokenKind};
-use std::collections::VecDeque;
-use aroma_tokens::spanned::{Span, Spanned};
-use std::io::Read;
-use tracing::trace;
-use std::error::Error;
-use std::fs::File;
-use std::result;
-use std::path::Path;
 use crate::lexer::blocking::Lexer;
 use crate::parser;
-use crate::parser::{CouldParse, ErrorKind, Parsable, Parser, SyntaxError, SyntaxResult};
+pub use crate::parser::hir_parser::traits::blocking::{CouldParse, Parsable, Parser};
+use crate::parser::{ErrorKind, SyntaxError, SyntaxResult};
+use aroma_tokens::spanned::{Span, Spanned};
+use aroma_tokens::token::{Token, TokenKind};
+use std::collections::VecDeque;
+use std::error::Error;
+use std::fs::File;
+use std::io::Read;
+use std::path::Path;
+use std::result;
+use tracing::trace;
 
 #[derive(Debug, Default)]
 pub(in crate::parser) enum State {
@@ -41,13 +42,13 @@ struct StateFrame {
 /// ```
 /// # use std::path::Path;
 /// # use aroma_ast_parsing::lexer::blocking::Lexer;
-/// # use aroma_ast_parsing::parser::blocking::SyntacticParser;
+/// # use aroma_ast_parsing::parser::blocking::BlockingParser;
 /// let mut buffer = vec![0_u8; 0];
 /// let mut lexer = Lexer::new(Path::new("test_path"), &*buffer).unwrap();
-/// let parser = SyntacticParser::from(lexer);
+/// let parser = BlockingParser::from(lexer);
 /// ```
 #[derive(Debug)]
-pub struct SyntacticParser<'p, R: Read> {
+pub struct BlockingParser<'p, R: Read> {
     lexer: Lexer<'p, R>,
     pub(in crate::parser) state: State,
     last_span: Option<Span>,
@@ -56,7 +57,7 @@ pub struct SyntacticParser<'p, R: Read> {
     ignore_nl: bool,
 }
 
-impl<'p, R: Read> SyntacticParser<'p, R> {
+impl<'p, R: Read> BlockingParser<'p, R> {
     /// Creates a new parser with a given lexer
     pub fn new(lexer: Lexer<'p, R>) -> Self {
         Self {
@@ -80,7 +81,8 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
                         return Ok(());
                     }
                     Some(res) => {
-                        let token = res.map_err(|e| parser::Err::Failure(ErrorKind::from(e).into()))?;
+                        let token =
+                            res.map_err(|e| parser::Err::Failure(ErrorKind::from(e).into()))?;
                         self.state = State::Lookahead(token);
                     }
                 },
@@ -345,7 +347,12 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
         ))
     }
 
-    pub(in crate::parser) fn error_with_span<E1, E2>(&self, error: E1, cause: E2, span: Span) -> parser::Err<SyntaxError>
+    pub(in crate::parser) fn error_with_span<E1, E2>(
+        &self,
+        error: E1,
+        cause: E2,
+        span: Span,
+    ) -> parser::Err<SyntaxError>
     where
         E1: Into<ErrorKind>,
         E2: Into<Option<SyntaxError>>,
@@ -359,7 +366,7 @@ impl<'p, R: Read> SyntacticParser<'p, R> {
     }
 }
 
-impl<'p> SyntacticParser<'p, File> {
+impl<'p> BlockingParser<'p, File> {
     /// Creates a new parser for a given file
     pub fn with_file(path: &'p Path) -> result::Result<Self, SyntaxError> {
         let mut file = File::open(path)?;
@@ -368,17 +375,16 @@ impl<'p> SyntacticParser<'p, File> {
     }
 }
 
-impl<'p, R: Read> From<Lexer<'p, R>> for SyntacticParser<'p, R> {
+impl<'p, R: Read> From<Lexer<'p, R>> for BlockingParser<'p, R> {
     fn from(value: Lexer<'p, R>) -> Self {
         Self::new(value)
     }
 }
 
-
 pub(crate) fn remove_nl<'p, R: Read>(
-    parser: &mut SyntacticParser<R>,
+    parser: &mut BlockingParser<R>,
 ) -> Result<(), crate::parser::Err<SyntaxError>> {
-    parser.parse(|parser: &mut SyntacticParser<R>| {
+    parser.parse(|parser: &mut BlockingParser<R>| {
         loop {
             if parser
                 .consume_if(|p| matches!(p.kind(), TokenKind::Nl))?

@@ -14,9 +14,9 @@ use aroma_types::hierarchy::intrinsics::OBJECT_CLASS;
 use aroma_types::vis::Vis;
 use std::io::Read;
 use tracing::{debug, instrument, trace};
-use crate::parser::blocking::{remove_nl, SyntacticParser};
+use crate::parser::blocking::{remove_nl, BlockingParser};
 use crate::parser::SyntaxResult;
-use crate::parser::traits::{CouldParse, Parsable};
+use crate::parser::hir_parser::blocking::{CouldParse, Parsable};
 
 mod item_class;
 mod item_function;
@@ -34,7 +34,7 @@ pub enum Visibility {
 impl Parsable for Visibility {
     type Err = SyntaxError;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Self> {
+    fn parse<R: Read>(parser: &mut BlockingParser<'_, R>) -> SyntaxResult<Self> {
         let next = parser
             .peek()?
             .cloned()
@@ -56,7 +56,7 @@ impl Parsable for Visibility {
 }
 
 impl CouldParse for Visibility {
-    fn could_parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<bool> {
+    fn could_parse<R: Read>(parser: &mut BlockingParser<'_, R>) -> SyntaxResult<bool> {
         Ok(parser
             .peek()?
             .map(|opt| {
@@ -105,8 +105,9 @@ impl Into<aroma_types::generic::GenericDeclaration> for &GenericDeclaration {
             &self.id,
             self.bound
                 .as_ref()
-                .map(|b| b.as_class_inst())
-                .unwrap_or(OBJECT_CLASS.as_class_ref().into()),
+                .and_then(|b| b.as_class_inst())
+                .unwrap_or(OBJECT_CLASS.as_class_ref().into())
+                .into(),
         )
     }
 }
@@ -142,13 +143,13 @@ pub enum Item {
 impl Parsable for Item {
     type Err = SyntaxError;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Self> {
+    fn parse<R: Read>(parser: &mut BlockingParser<'_, R>) -> SyntaxResult<Self> {
         parse_item(parser)
     }
 }
 
 #[instrument(skip_all)]
-fn parse_item<'p, R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Item> {
+fn parse_item<'p, R: Read>(parser: &mut BlockingParser<'_, R>) -> SyntaxResult<Item> {
     parser.parse(remove_nl)?;
     let annotations =
         parser.with_ignore_nl(true, |parser| parser.parse(cut(Vec::<Annotation>::parse)))?;

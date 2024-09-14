@@ -13,12 +13,12 @@ use crate::parser::hir::singletons::{
 };
 use crate::parser::hir::statement::BlockStatement;
 use crate::parser::hir::{cut, singletons, End, ErrorKind, Punctuated1};
-use crate::parser::traits::{CouldParse, Parsable};
 use aroma_tokens::token::{ToTokens, TokenKind};
 use std::io::Read;
 use tracing::{debug, instrument, trace};
-use crate::parser::blocking::SyntacticParser;
+use crate::parser::blocking::BlockingParser;
 use crate::parser::SyntaxResult;
+use crate::parser::hir_parser::blocking::{CouldParse, Parsable};
 
 /// An interface declaration
 #[derive(Debug, ToTokens)]
@@ -82,14 +82,14 @@ pub struct InterfaceMembers {
 #[instrument(skip_all)]
 pub fn parse_interface<R: Read>(
     visibility: Option<Visibility>,
-    parser: &mut SyntacticParser<'_, R>,
+    parser: &mut BlockingParser<'_, R>,
 ) -> SyntaxResult<ItemInterface> {
     let interface = parser.parse(Interface::parse)?;
     let id = parser.parse(VarId::parse)?;
     let generics = parse_generics(parser)?;
 
     let extends = if Extends::could_parse(parser)? {
-        Some(parser.parse(|p: &mut SyntacticParser<'_, R>| {
+        Some(parser.parse(|p: &mut BlockingParser<'_, R>| {
             let extends = p.parse(Extends::parse)?;
             let extended = p.parse(Punctuated1::parse)?;
             Ok(InterfaceExtends {
@@ -114,7 +114,7 @@ pub fn parse_interface<R: Read>(
 
 fn parse_interface_members<R: Read>(
     owner: &VarId,
-    parser: &mut SyntacticParser<'_, R>,
+    parser: &mut BlockingParser<'_, R>,
 ) -> SyntaxResult<InterfaceMembers> {
     let lcurly = parser.parse(LCurly::parse)?;
     let mut members = vec![];
@@ -141,7 +141,7 @@ fn parse_interface_member<R: Read>(
     owner_id: &VarId,
     pub_vis: Option<Public>,
     static_tok: Option<Static>,
-    parser: &mut SyntacticParser<R>,
+    parser: &mut BlockingParser<R>,
 ) -> SyntaxResult<InterfaceMember> {
     let lookahead = parser.peek()?.cloned().ok_or_else(|| {
         parser.error(
@@ -174,7 +174,7 @@ fn parse_interface_method<R: Read>(
     owner: &VarId,
     visibility: Option<Public>,
     is_static: Option<Static>,
-    parser: &mut SyntacticParser<'_, R>,
+    parser: &mut BlockingParser<'_, R>,
 ) -> SyntaxResult<InterfaceMember> {
     let fn_tok = parser.parse(singletons::Fn::parse)?;
     let name = parser.parse(VarId::parse)?;

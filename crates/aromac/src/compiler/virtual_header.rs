@@ -5,6 +5,7 @@ use aroma_types::class::{ClassInst, ClassRef};
 use aroma_types::generic::GenericDeclaration;
 use aroma_types::type_signature::TypeSignature;
 use derive_more::From;
+use aroma_types::functions::FunctionSignature;
 
 /// A virtual header is used to create a collection of all declarations within an aroma translation unit.
 #[derive(Debug, Clone, PartialEq)]
@@ -119,7 +120,7 @@ impl ClassDeclaration {
             self.as_class_ref(),
             self.generic_declarations()
                 .iter()
-                .map(|gen| gen.as_invariant()),
+                .map(|gen| gen.bound().clone()),
         )
     }
 }
@@ -153,11 +154,7 @@ impl ConstructorDeclaration {
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionDeclaration {
     id: Id,
-    generic_declaration: Vec<GenericDeclaration>,
-    receiver: Option<TypeSignature>,
-    parameters: Vec<TypeSignature>,
-    return_type: TypeSignature,
-    throws: Vec<TypeSignature>,
+    function_signature: FunctionSignature,
 }
 
 impl FunctionDeclaration {
@@ -172,11 +169,13 @@ impl FunctionDeclaration {
     ) -> Self {
         Self {
             id,
-            generic_declaration: generic_declaration.into_iter().collect(),
-            receiver: receiver.into(),
-            parameters: parameters.into_iter().collect(),
-            return_type: return_type.into().unwrap_or_default(),
-            throws: throws.into_iter().collect(),
+            function_signature: FunctionSignature::new(
+                generic_declaration,
+                receiver,
+                parameters,
+                return_type,
+                throws
+            )
         }
     }
 
@@ -187,26 +186,26 @@ impl FunctionDeclaration {
 
     /// Gets the generic parameters for this function
     pub fn generic_declaration(&self) -> &[GenericDeclaration] {
-        &self.generic_declaration
+        &self.function_signature.generic_declaration()
     }
 
     /// Gets the optional receiver type for this function
     pub fn receiver(&self) -> Option<&TypeSignature> {
-        self.receiver.as_ref()
+        self.function_signature.receiver()
     }
 
     /// Gets the types of the parameters for this function
     pub fn parameters(&self) -> &[TypeSignature] {
-        &self.parameters
+        &self.function_signature.parameters()
     }
 
     /// The return type for this function
     pub fn return_type(&self) -> &TypeSignature {
-        &self.return_type
+        &self.function_signature.return_type()
     }
 
     /// The list of possible throwable types for this function
     pub fn throws(&self) -> &[TypeSignature] {
-        &self.throws
+        &self.function_signature.throws()
     }
 }

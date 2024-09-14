@@ -4,6 +4,7 @@ use crate::class::ClassInst;
 use crate::generic::GenericDeclaration;
 use crate::type_signature::TypeSignature;
 use crate::vis::{Vis, Visibility};
+use aroma_tokens::spanned::{NoSpanError, Span, TrySpanned};
 use itertools::Itertools;
 use std::fmt::{Debug, Display, Formatter};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -16,11 +17,7 @@ pub struct FunctionDeclaration {
     id: Arc<AtomicU64>,
     vis: Vis,
     name: String,
-    generic_declaration: Vec<GenericDeclaration>,
-    receiver: Option<ClassInst>,
-    parameters: Vec<Parameter>,
-    return_type: Option<ClassInst>,
-    throws: Vec<ClassInst>,
+    signature: FunctionSignature,
 }
 
 impl FunctionDeclaration {
@@ -29,20 +26,22 @@ impl FunctionDeclaration {
         vis: Vis,
         name: impl AsRef<str>,
         generic_declaration: impl IntoIterator<Item = GenericDeclaration>,
-        receiver: impl Into<Option<ClassInst>>,
-        parameters: impl IntoIterator<Item = Parameter>,
-        return_type: impl Into<Option<ClassInst>>,
-        throws: impl IntoIterator<Item = ClassInst>,
+        receiver: impl Into<Option<TypeSignature>>,
+        parameters: impl IntoIterator<Item = TypeSignature>,
+        return_type: impl Into<Option<TypeSignature>>,
+        throws: impl IntoIterator<Item = TypeSignature>,
     ) -> Self {
         Self {
             id: Arc::new(AtomicU64::new(0)),
             vis,
             name: name.as_ref().to_string(),
-            generic_declaration: generic_declaration.into_iter().collect(),
-            return_type: return_type.into(),
-            parameters: parameters.into_iter().collect(),
-            throws: throws.into_iter().collect(),
-            receiver: receiver.into(),
+            signature: FunctionSignature::new(
+                generic_declaration,
+                receiver,
+                parameters,
+                return_type,
+                throws,
+            ),
         }
     }
 
@@ -59,33 +58,41 @@ impl FunctionDeclaration {
         &self.name
     }
 
+    pub fn receiver(&self) -> Option<&TypeSignature> {
+        self.signature.receiver()
+    }
+
+    pub fn receiver_mut(&mut self) -> &mut Option<TypeSignature> {
+        self.signature.receiver_mut()
+    }
+
     pub fn generic_declarations(&self) -> &[GenericDeclaration] {
-        &self.generic_declaration
+        &self.signature.generic_declaration
     }
     pub fn generic_declarations_mut(&mut self) -> &mut Vec<GenericDeclaration> {
-        &mut self.generic_declaration
+        &mut self.signature.generic_declaration
     }
 
-    pub fn return_type(&self) -> Option<&ClassInst> {
-        self.return_type.as_ref()
+    pub fn return_type(&self) -> &TypeSignature {
+        self.signature.return_type()
     }
 
-    pub fn return_type_mut(&mut self) -> Option<&mut ClassInst> {
-        self.return_type.as_mut()
+    pub fn return_type_mut(&mut self) -> &mut TypeSignature {
+        self.signature.return_type_mut()
     }
 
-    pub fn parameters(&self) -> &[Parameter] {
-        &self.parameters
+    pub fn parameters(&self) -> &[TypeSignature] {
+        &self.signature.parameters()
     }
-    pub fn parameters_mut(&mut self) -> &mut Vec<Parameter> {
-        &mut self.parameters
+    pub fn parameters_mut(&mut self) -> &mut Vec<TypeSignature> {
+        &mut self.signature.parameters
     }
 
-    pub fn throws(&self) -> &[ClassInst] {
-        &self.throws
+    pub fn throws(&self) -> &[TypeSignature] {
+        self.signature.throws()
     }
-    pub fn throws_mut(&mut self) -> &mut Vec<ClassInst> {
-        &mut self.throws
+    pub fn throws_mut(&mut self) -> &mut Vec<TypeSignature> {
+        self.signature.throws_mut()
     }
 }
 
@@ -99,12 +106,11 @@ impl Display for FunctionDeclaration {
                 self.generic_declarations().iter().join(",")
             );
         }
-        builder = format!("{builder}({})", self.parameters().iter().join(","));
-
-        match self.return_type() {
-            None => {}
-            Some(ret) => builder = format!("{builder} -> {ret}"),
+        if let Some(receiver) = self.receiver() {
+            builder = format!("{builder}{receiver}.")
         }
+        builder = format!("{builder}({})", self.parameters().iter().join(","));
+        builder = format!("{builder} -> {}", self.return_type());
 
         write!(f, "{}", builder)
     }
@@ -123,17 +129,128 @@ impl Visibility for FunctionDeclaration {
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Parameter {
     pub name: String,
-    pub class: ClassInst,
+    pub ts: TypeSignature,
 }
 
 impl Debug for Parameter {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}: {}", self.name, self.class)
+        write!(f, "{:?}: {}", self.name, self.ts)
     }
 }
 
 impl Display for Parameter {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: {}", self.name, ClassInst::from(self.class.clone()))
+        write!(f, "{}: {}", self.name, ClassInst::from(self.ts.clone()))
+    }
+}
+
+/// A function signature
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct FunctionSignature {
+    generic_declaration: Vec<GenericDeclaration>,
+    receiver: Option<TypeSignature>,
+    parameters: Vec<TypeSignature>,
+    return_type: TypeSignature,
+    throws: Vec<TypeSignature>,
+}
+
+impl FunctionSignature {
+    /// Creates a new function signature
+    pub fn new(
+        generic_declaration: impl IntoIterator<Item = GenericDeclaration>,
+        receiver: impl Into<Option<TypeSignature>>,
+        parameters: impl IntoIterator<Item = TypeSignature>,
+        return_type: impl Into<Option<TypeSignature>>,
+        throws: impl IntoIterator<Item = TypeSignature>,
+    ) -> Self {
+        Self {
+            generic_declaration: generic_declaration.into_iter().collect(),
+            receiver: receiver.into(),
+            parameters: parameters.into_iter().collect(),
+            return_type: return_type.into().unwrap_or_default(),
+            throws: throws.into_iter().collect(),
+        }
+    }
+
+    /// Gets the generic parameters for this function
+    pub fn generic_declaration(&self) -> &[GenericDeclaration] {
+        &self.generic_declaration
+    }
+
+    /// Gets the generic parameters for this function
+    pub fn generic_declaration_mut(&mut self) -> &mut Vec<GenericDeclaration> {
+        &mut self.generic_declaration
+    }
+
+    /// Gets the optional receiver type for this function
+    pub fn receiver(&self) -> Option<&TypeSignature> {
+        self.receiver.as_ref()
+    }
+
+    /// Gets the optional receiver type for this function
+    pub fn receiver_mut(&mut self) -> &mut Option<TypeSignature> {
+        &mut self.receiver
+    }
+
+    /// Gets the types of the parameters for this function
+    pub fn parameters(&self) -> &[TypeSignature] {
+        &self.parameters
+    }
+
+    /// Gets the types of the parameters for this function
+    pub fn parameters_mut(&mut self) -> &mut Vec<TypeSignature> {
+        &mut self.parameters
+    }
+
+    /// The return type for this function
+    pub fn return_type(&self) -> &TypeSignature {
+        &self.return_type
+    }
+
+    /// The return type for this function
+    pub fn return_type_mut(&mut self) -> &mut TypeSignature {
+        &mut self.return_type
+    }
+
+    /// The list of possible throwable types for this function
+    pub fn throws(&self) -> &[TypeSignature] {
+        &self.throws
+    }
+    /// The list of possible throwable types for this function
+    pub fn throws_mut(&mut self) -> &mut Vec<TypeSignature> {
+        &mut self.throws
+    }
+}
+
+fn flip_result(opt: Option<Result<Span, NoSpanError>>) -> Result<Option<Span>, NoSpanError> {
+    match opt {
+        None => Ok(None),
+        Some(result) => result.map(Some),
+    }
+}
+
+impl TrySpanned for FunctionSignature {
+    type Error = NoSpanError;
+
+    fn try_span(&self) -> Result<Span, Self::Error> {
+        let generics = self.generic_declaration()
+            .into_iter()
+            .map(|gd| gd.bound().try_span())
+            .collect::<Result<Vec<_>, _>>()?;
+        let parameters = self.parameters()
+            .into_iter()
+            .map(|gd| gd.try_span())
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let receiver = flip_result(self.receiver().map(TrySpanned::try_span))?;
+        let return_type = self.return_type().try_span()?;
+
+        receiver
+            .into_iter()
+            .chain(generics)
+            .chain(parameters)
+            .chain([return_type])
+            .reduce(|a, b| a.join(b))
+            .ok_or(NoSpanError)
     }
 }

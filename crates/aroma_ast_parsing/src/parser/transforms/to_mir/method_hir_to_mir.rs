@@ -1,13 +1,16 @@
 use crate::parser::hir::binding::FnParameters;
 use crate::parser::hir::expr::Expr;
-use crate::parser::hir::items::{FnReturn, FnThrows, GenericDeclarations, ItemInterfaceFn, Visibility};
-use crate::parser::hir::singletons::VarId;
-use crate::parser::hir::statement::{ReturnStatement, Statement as ParsedStatement, Statement};
 use crate::parser::hir::items::ItemFn;
 use crate::parser::hir::items::{FnBody, ItemAbstractFn};
+use crate::parser::hir::items::{
+    FnReturn, FnThrows, GenericDeclarations, ItemInterfaceFn, Visibility,
+};
+use crate::parser::hir::singletons::VarId;
+use crate::parser::hir::statement::{ReturnStatement, Statement as ParsedStatement, Statement};
+use crate::parser::hir::Punctuated;
 use crate::parser::transforms::to_mir;
 use crate::parser::transforms::to_mir::expr_hir_to_mir::expr_hir_to_mir;
-use crate::parser::hir::{Punctuated};
+use crate::parser::SyntaxError;
 use crate::type_resolution::Bindings;
 use aroma_ast::block::Block;
 use aroma_ast::method::MethodDef;
@@ -22,7 +25,6 @@ use aroma_types::generic::GenericDeclaration;
 use aroma_types::type_signature::TypeSignature;
 use std::collections::HashSet;
 use tracing::{debug, trace};
-use crate::parser::SyntaxError;
 
 pub fn method_hir_to_mir(
     parent_inst: &ClassInst,
@@ -63,15 +65,12 @@ pub fn method_hir_to_mir(
         base_generics
     };
 
-    let return_type = fn_return.as_ref().map(|i| i.returns.as_class_inst());
+    let return_type = fn_return.as_ref().map(|i| i.returns.as_type_signature());
     let parameters = fn_parameters
         .parameters
         .items()
         .into_iter()
-        .map(|binding| Parameter {
-            name: binding.id.as_ref().to_string(),
-            class: binding.type_dec.ty.as_class_inst(),
-        })
+        .map(|binding| binding.type_dec.ty.as_type_signature())
         .collect::<Vec<_>>();
     let throws = fn_throws
         .as_ref()
@@ -80,13 +79,13 @@ pub fn method_hir_to_mir(
                 .types
                 .items()
                 .into_iter()
-                .map(|t| t.as_class_inst())
+                .map(|t| t.as_type_signature())
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
 
     let delegate = match &static_tok {
-        None => Some(parent_inst.clone()),
+        None => Some(parent_inst.clone().into()),
         Some(_) => None,
     };
 
@@ -112,6 +111,7 @@ pub fn method_hir_to_mir(
             Some(parent_inst)
         },
         fields,
+        fn_parameters,
         &method_dec,
         body,
     )?;
@@ -206,15 +206,12 @@ fn non_concrete_method_to_hair(
         base_generics
     };
 
-    let return_type = fn_return.as_ref().map(|i| i.returns.as_class_inst());
+    let return_type = fn_return.as_ref().map(|i| i.returns.as_type_signature());
     let parameters = fn_parameters
         .parameters
         .items()
         .into_iter()
-        .map(|binding| Parameter {
-            name: binding.id.as_ref().to_string(),
-            class: binding.type_dec.ty.as_class_inst(),
-        })
+        .map(|binding| binding.type_dec.ty.as_type_signature())
         .collect::<Vec<_>>();
     let throws = fn_throws
         .as_ref()
@@ -223,7 +220,7 @@ fn non_concrete_method_to_hair(
                 .types
                 .items()
                 .into_iter()
-                .map(|t| t.as_class_inst())
+                .map(|t| t.as_type_signature())
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
@@ -232,7 +229,7 @@ fn non_concrete_method_to_hair(
         vis,
         &name,
         full_generics,
-        parent_inst.clone(),
+        TypeSignature::from(parent_inst.clone()),
         parameters.clone(),
         return_type.clone(),
         throws.clone(),
@@ -246,15 +243,30 @@ pub fn method_hir_to_mir_def<'a>(
     span: Span,
     parent: impl Into<Option<&'a ClassInst>>,
     fields: &[Field],
+    fn_parameters: FnParameters,
     dec: &FunctionDeclaration,
     body: FnBody,
 ) -> Result<MethodDef, SyntaxError> {
-    let body = transform_fn_body(dec, fields, body)?;
-    Ok(MethodDef::new(span.clone(), parent.into(), dec, body))
+    let parameters = fn_parameters
+        .parameters
+        .items()
+        .into_iter()
+        .map(|i| i.id.id.to_string())
+        .collect::<Vec<_>>();
+    let body = transform_fn_body(dec, &parameters[..], fields, body)?;
+
+    Ok(MethodDef::new(
+        span.clone(),
+        parent.into(),
+        parameters,
+        dec,
+        body,
+    ))
 }
 
 fn transform_fn_body(
     dec: &FunctionDeclaration,
+    parameters: &[String],
     fields: &[Field],
     fn_body: FnBody,
 ) -> Result<Block, SyntaxError> {
@@ -266,23 +278,21 @@ fn transform_fn_body(
     fields.iter().for_each(|field| {
         declared_variables.insert(
             Id::new_call_site(["this", field.name()]).expect("could not create id"),
-            TypeSignature::from(field.class().clone()),
+            TypeSignature::from(field.type_signature().clone()),
         )
     });
 
     declared_variables.new_scope(None);
 
-    dec.parameters().iter().for_each(
-        |Parameter {
-             name,
-             class: signature,
-         }| {
+    parameters
+        .iter()
+        .zip(dec.parameters())
+        .for_each(|(name, ts)| {
             declared_variables.insert(
                 Id::new_call_site([name]).expect("could not create id"),
-                signature.clone().into(),
+                ts.clone(),
             )
-        },
-    );
+        });
 
     trace!("creating method with initial bindings: {declared_variables:#?}");
     for statement in fn_body.body.list.statements {

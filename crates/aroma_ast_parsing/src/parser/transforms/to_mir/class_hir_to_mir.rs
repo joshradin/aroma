@@ -8,8 +8,10 @@ use aroma_tokens::id::Id;
 use aroma_tokens::spanned::Spanned;
 use aroma_types::class::{AsClassRef, Class, ClassInst, ClassKind, ClassRef};
 use aroma_types::field::Field;
-use aroma_types::generic::{GenericDeclaration, GenericParameterBound};
+use aroma_types::generic::{GenericDeclaration,};
 use aroma_types::hierarchy::intrinsics::OBJECT_CLASS;
+use aroma_types::type_signature::TypeSignature;
+use crate::parser::hir::binding::Type;
 
 pub fn class_hir_to_mir(
     namespace: Option<&Id>,
@@ -34,23 +36,23 @@ pub fn class_hir_to_mir(
                 GenericDeclaration::new(
                     gen.id,
                     gen.bound
-                        .map(|i| i.as_class_inst())
-                        .unwrap_or(ClassInst::from(OBJECT_CLASS.as_class_ref())),
+                        .map(|i| i.as_type_signature())
+                        .unwrap_or(ClassInst::from(OBJECT_CLASS.as_class_ref()).into()),
                 )
             }))
         })
         .unwrap_or_default();
     let super_class = cls
         .extends
-        .map(|extends| extends.extended.as_class_inst())
-        .unwrap_or(ClassInst::from(OBJECT_CLASS.as_class_ref()));
+        .and_then(|extends| extends.extended.as_class_inst())
+        .unwrap_or(ClassInst::from(OBJECT_CLASS.as_class_ref()).into());
     let mixins = cls
         .implements
         .map(|i| {
             i.types
                 .items()
                 .into_iter()
-                .map(|i| i.as_class_inst())
+                .flat_map(|i| i.as_class_inst())
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
@@ -59,7 +61,7 @@ pub fn class_hir_to_mir(
         ClassRef::from(id.clone()),
         class_generics
             .iter()
-            .map(|i| GenericParameterBound::Invariant(ClassInst::new_generic_param(i.id()))),
+            .map(|i| TypeSignature::Invariant(ClassInst::new_generic_param(i.id()))),
     );
 
     let mut fields = vec![];
@@ -109,7 +111,7 @@ pub fn class_hir_to_mir(
                     } => Field::new_final(
                         to_mir::vis_hir_to_mir(vis),
                         binding.id.as_ref(),
-                        binding.type_dec.ty.as_class_inst(),
+                        binding.type_dec.ty,
                     ),
                     ClassField {
                         final_tok: None,
@@ -119,7 +121,7 @@ pub fn class_hir_to_mir(
                     } => Field::new(
                         to_mir::vis_hir_to_mir(vis),
                         binding.id.as_ref(),
-                        binding.type_dec.ty.as_class_inst(),
+                        binding.type_dec.ty,
                     ),
                 };
                 fields.push(field);

@@ -1,11 +1,11 @@
 use crate::constructor::Constructor;
 use crate::field::Field;
 use crate::functions::FunctionDeclaration;
-use crate::generic::{GenericDeclaration, GenericParameterBound, GenericParameterBounds};
+use crate::generic::{GenericDeclaration, GenericParameterBounds, GenericParameterBoundsSlice};
 use crate::vis::{Vis, Visibility};
 use aroma_common::nom_helpers::recognize_identifier;
 use aroma_tokens::id::Id;
-use aroma_tokens::spanned::{Span, Spanned};
+use aroma_tokens::spanned::{Span, Spanned, TrySpanned};
 use itertools::Itertools;
 use nom::character::complete::char;
 use nom::combinator::{all_consuming, map, map_res, opt, recognize};
@@ -17,6 +17,7 @@ use petgraph::visit::Walker;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::str::FromStr;
+use crate::type_signature::TypeSignature;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum ClassKind {
@@ -151,7 +152,9 @@ impl Class {
             self.get_ref(),
             self.generics
                 .iter()
-                .map(|i| GenericParameterBound::Invariant(ClassInst::new_generic_param(i.id()))),
+                .map(|i|
+                    i.bound().clone()
+                ),
         )
     }
 }
@@ -230,7 +233,7 @@ pub struct ClassInst(ClassRef, GenericParameterBounds);
 
 impl ClassInst {
     /// Creates a new class reference
-    pub fn with_generics<I: IntoIterator<Item = GenericParameterBound>>(
+    pub fn with_generics<I: IntoIterator<Item = TypeSignature>>(
         name: ClassRef,
         bounds: I,
     ) -> Self {
@@ -253,23 +256,23 @@ impl ClassInst {
         &mut self.0
     }
 
-    pub fn generics(&self) -> &[GenericParameterBound] {
+    pub fn generics(&self) -> &GenericParameterBoundsSlice {
         &self.1
     }
-    pub fn generics_mut(&mut self) -> &mut Vec<GenericParameterBound> {
+    pub fn generics_mut(&mut self) -> &mut GenericParameterBounds {
         &mut self.1
     }
 
     /// A class instant is real if all parameter bounds are invariant
     #[inline]
     pub fn is_real(&self) -> bool {
-        self.generics().iter().all(|s| s.is_invariant())
+        self.generics().iter().all(|s| s.is_real())
     }
 
     /// A class instant is abstract if any parameter bounds are not invariant
     #[inline]
     pub fn is_abstract(&self) -> bool {
-        self.generics().iter().any(|s| !s.is_invariant())
+        self.generics().iter().any(|s| s.is_abstract())
     }
 }
 
@@ -277,8 +280,9 @@ impl Spanned for ClassInst {
     fn span(&self) -> Span {
         let mut span = self.0 .0.span();
         for generic in self.generics() {
-            let inner = generic.bound_class_instance().span();
-            span = span.join(inner);
+            if let Ok(inner) = generic.try_span() {
+                span = span.join(inner);
+            }
         }
         span
     }
@@ -305,7 +309,7 @@ pub fn class_inst_parser<'a, E: ParseError<&'a str> + FromExternalError<&'a str,
             match generics {
                 Some(generics) => ClassInst::with_generics(
                     fqi,
-                    generics.into_iter().map(GenericParameterBound::Invariant),
+                    generics.into_iter().map(|g| g.into()),
                 ),
                 None => ClassInst::new(fqi),
             }
@@ -370,8 +374,8 @@ pub struct ParseClassInstError(Box<dyn Error>);
 #[cfg(test)]
 mod tests {
     use crate::class::{ClassInst, ClassRef};
-    use crate::generic::GenericParameterBound;
     use std::str::FromStr;
+    use crate::type_signature::TypeSignature;
 
     #[test]
     fn test_parse_basic_class_inst() {
@@ -391,7 +395,7 @@ mod tests {
             class_inst,
             ClassInst::with_generics(
                 ClassRef::from_str("aroma.system.Class").unwrap(),
-                [GenericParameterBound::Invariant(
+                [TypeSignature::Invariant(
                     ClassRef::from_str("aroma.system.Object").unwrap().into()
                 )]
             )
@@ -407,10 +411,10 @@ mod tests {
             ClassInst::with_generics(
                 ClassRef::from_str("aroma.system.Tuple2").unwrap(),
                 [
-                    GenericParameterBound::Invariant(
+                    TypeSignature::Invariant(
                         ClassRef::from_str("aroma.system.Object").unwrap().into()
                     ),
-                    GenericParameterBound::Invariant(
+                    TypeSignature::Invariant(
                         ClassRef::from_str("aroma.system.Object").unwrap().into()
                     )
                 ]

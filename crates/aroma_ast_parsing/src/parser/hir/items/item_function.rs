@@ -11,9 +11,9 @@ use crate::parser::hir::{
 use aroma_tokens::token::ToTokens;
 use std::io::Read;
 use tracing::instrument;
-use crate::parser::blocking::SyntacticParser;
+use crate::parser::blocking::BlockingParser;
 use crate::parser::SyntaxResult;
-use crate::parser::traits::{CouldParse, Parsable};
+use crate::parser::hir_parser::blocking::{CouldParse, Parsable};
 
 /// A function declaration
 #[derive(Debug, ToTokens)]
@@ -34,7 +34,7 @@ pub struct ItemFn {
 pub fn parse_function<R: Read>(
     annotations: Vec<Annotation>,
     visibility: Option<Visibility>,
-    parser: &mut SyntacticParser<'_, R>,
+    parser: &mut BlockingParser<'_, R>,
 ) -> SyntaxResult<ItemFn> {
     let fn_tok = parser.parse(singletons::Fn::parse)?;
     let name = parser.parse(VarId::parse)?;

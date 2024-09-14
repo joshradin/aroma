@@ -7,7 +7,8 @@ use aroma_tokens::id::Id;
 use aroma_types::class::{Class, ClassInst, ClassRef};
 use aroma_types::field::Field;
 use aroma_types::functions::{FunctionDeclaration, Parameter};
-use aroma_types::generic::{GenericDeclaration, GenericParameterBound, GenericParameterBounds};
+use aroma_types::generic::{GenericDeclaration, GenericParameterBounds};
+use aroma_types::type_signature::TypeSignature;
 use aroma_visitor_gen::visitor;
 
 pub mod block;
@@ -95,27 +96,25 @@ visitor! {
         }
 
         visit fn generic_declaration(v, generic: &mut GenericDeclaration) -> Result<()> {
-            v.visit_class_inst(generic.bound_mut())?;
+            v.visit_type_signature(generic.bound_mut())?;
             Ok(())
         }
 
         visit fn field(v, field: &mut Field) -> Result<()> {
-            v.visit_class_inst(field.class_mut())?;
+            v.visit_type_signature(field.type_signature_mut())?;
             Ok(())
         }
 
         visit fn function_declaration(v, func_dec: &mut FunctionDeclaration) -> Result<()> {
             func_dec.generic_declarations_mut().iter_mut().try_for_each(|gd| v.visit_generic_declaration(gd))?;
-            func_dec.parameters_mut().into_iter().try_for_each(|p| v.visit_parameter(p))?;
-            if let Some(return_type) = func_dec.return_type_mut() {
-                v.visit_class_inst(return_type)?;
-            }
-            func_dec.throws_mut().iter_mut().try_for_each(|t| v.visit_class_inst(t))?;
+            func_dec.parameters_mut().into_iter().try_for_each(|p| v.visit_type_signature(p))?;
+            v.visit_type_signature(func_dec.return_type_mut())?;
+            func_dec.throws_mut().iter_mut().try_for_each(|t| v.visit_type_signature(t))?;
             Ok(())
         }
 
         visit fn parameter(v, parameter: &mut Parameter) -> Result<()> {
-            v.visit_class_inst(&mut parameter.class)?;
+            v.visit_type_signature(&mut parameter.ts)?;
             Ok(())
         }
 
@@ -134,6 +133,18 @@ visitor! {
             Ok(())
         }
 
+        visit fn type_signature(v, ts: &mut TypeSignature) -> Result<()> {
+            match ts {
+                TypeSignature::Invariant(ci) |
+                TypeSignature::Covariant(ci) |
+                TypeSignature::Contravariant(ci) => {
+                    v.visit_class_inst(ci)?;
+                }
+                _ => {}
+            }
+            Ok(())
+        }
+
         visit fn class_ref(v, id: &mut ClassRef) -> Result<()> {
             v.visit_id(id.as_mut())?;
             Ok(())
@@ -141,12 +152,7 @@ visitor! {
 
         visit fn generic_parameter_bounds(v, ids: &mut GenericParameterBounds) -> Result<()> {
             ids.iter_mut()
-                .try_for_each(|id| v.visit_generic_parameter_bound(id))?;
-            Ok(())
-        }
-
-        visit fn generic_parameter_bound(v, id: &mut GenericParameterBound) -> Result<()> {
-            v.visit_class_inst(id.bound_class_instance_mut())?;
+                .try_for_each(|id| v.visit_type_signature(id))?;
             Ok(())
         }
     }

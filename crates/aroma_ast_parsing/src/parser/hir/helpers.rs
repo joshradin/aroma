@@ -1,10 +1,10 @@
-use crate::parser::blocking::SyntacticParser;
+use crate::parser::blocking::BlockingParser;
 use crate::parser::hir::singletons::{Nl, SemiC};
 use crate::parser::{Err, ErrorKind, SyntaxError, SyntaxResult};
 use aroma_tokens::token::TokenStream;
 use aroma_tokens::token::{ToTokens, TokenKind};
 use std::io::Read;
-use crate::parser::traits::{CouldParse, Parsable, Parser};
+use crate::parser::hir_parser::blocking::{CouldParse, Parsable, Parser};
 
 pub trait Punctuated<T> {
     /// Gets the items in this
@@ -77,7 +77,7 @@ where
 {
     type Err = T::Err;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> Result<Self, Err<T::Err>> {
+    fn parse<R: Read>(parser: &mut BlockingParser<'_, R>) -> Result<Self, Err<T::Err>> {
         let mut vec = vec![];
         loop {
             let v = T::parse(parser)?;
@@ -163,7 +163,7 @@ where
 {
     type Err = T::Err;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> Result<Self, Err<T::Err>> {
+    fn parse<R: Read>(parser: &mut BlockingParser<'_, R>) -> Result<Self, Err<T::Err>> {
         let mut vec = vec![];
         if T::could_parse(parser).map_err(|e| e.convert())? {
             loop {
@@ -187,7 +187,7 @@ where
     R: Read,
     E: std::error::Error,
 {
-    move |syn_parser: &mut SyntacticParser<R>| -> Result<O, Err<E>> {
+    move |syn_parser: &mut BlockingParser<R>| -> Result<O, Err<E>> {
         syn_parser.parse(parser.clone()).map_err(|e| match e {
             Err::Error(e) => Err::Failure(e),
             e => e,
@@ -202,7 +202,7 @@ where
     R: Read,
     E: std::error::Error,
 {
-    move |syn_parser: &mut SyntacticParser<R>| -> Result<Vec<O>, Err<E>> {
+    move |syn_parser: &mut BlockingParser<R>| -> Result<Vec<O>, Err<E>> {
         let mut r = vec![];
         while let Some(parsed) = syn_parser
             .try_parse(parser.clone())
@@ -221,7 +221,7 @@ where
     R: Read,
     E: std::error::Error,
 {
-    move |syn_parser: &mut SyntacticParser<R>| -> Result<Vec<O>, Err<E>> {
+    move |syn_parser: &mut BlockingParser<R>| -> Result<Vec<O>, Err<E>> {
         let mut r = vec![];
         let item = syn_parser.parse(parser.clone())?;
         r.push(item);
@@ -246,7 +246,7 @@ where
     R: Read,
     E: std::error::Error,
 {
-    move |syn_parser: &mut SyntacticParser<R>| -> Result<Vec<(O1, Option<O2>)>, Err<E>> {
+    move |syn_parser: &mut BlockingParser<R>| -> Result<Vec<(O1, Option<O2>)>, Err<E>> {
         let mut r = vec![];
         let Some(item) = syn_parser
             .try_parse(e.clone())
@@ -280,7 +280,7 @@ where
     R: Read,
     E: std::error::Error,
 {
-    move |syn_parser: &mut SyntacticParser<'_, R>| -> Result<Vec<(O1, Option<O2>)>, Err<E>> {
+    move |syn_parser: &mut BlockingParser<'_, R>| -> Result<Vec<(O1, Option<O2>)>, Err<E>> {
         let mut r = vec![];
         let item = syn_parser.parse(e.clone())?;
         r.push((item, None));
@@ -307,7 +307,7 @@ where
     F: FnMut(O) -> O2 + Clone,
     E: std::error::Error,
 {
-    move |syn_parser: &mut SyntacticParser<R>| -> Result<O2, Err<E>> {
+    move |syn_parser: &mut BlockingParser<R>| -> Result<O2, Err<E>> {
         let parsed = syn_parser.parse(parser.clone())?;
         Ok(map.clone()(parsed))
     }
@@ -321,7 +321,7 @@ pub enum End {
 }
 
 impl CouldParse for End {
-    fn could_parse<R: Read>(parser: &mut SyntacticParser<R>) -> Result<bool, Err<Self::Err>> {
+    fn could_parse<R: Read>(parser: &mut BlockingParser<R>) -> Result<bool, Err<Self::Err>> {
         Ok(parser
             .peek()?
             .map(|i| matches!(i.kind(), TokenKind::Nl | TokenKind::SemiColon))
@@ -332,7 +332,7 @@ impl CouldParse for End {
 impl Parsable for End {
     type Err = SyntaxError;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Self> {
+    fn parse<R: Read>(parser: &mut BlockingParser<'_, R>) -> SyntaxResult<Self> {
         let p = parser
             .consume()?
             .ok_or_else(|| parser.error(ErrorKind::UnexpectedEof, None))?;

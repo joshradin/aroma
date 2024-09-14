@@ -1,22 +1,21 @@
 //! bindings of id to type
 
 use crate::parser;
+use crate::parser::blocking::BlockingParser;
 use crate::parser::hir::singletons::{
     Colon, Comma, In, LBracket, LParen, Out, QMark, RBracket, RParen, VarId,
 };
-use crate::parser::hir::{
-    cut, ErrorKind, Punctuated0, Punctuated1, SyntaxError,
-};
+use crate::parser::hir::{cut, ErrorKind, Punctuated0, Punctuated1, SyntaxError};
+use crate::parser::hir_parser::blocking::{CouldParse, Parsable};
+use crate::parser::SyntaxResult;
+use aroma_ast::typed::TypeError;
 use aroma_tokens::id::Id;
 use aroma_tokens::token::{ToTokens, TokenKind};
 use aroma_types::class::{ClassInst, ClassRef};
-use aroma_types::generic::GenericParameterBound;
+use aroma_types::hierarchy::intrinsics::OBJECT_CLASS;
 use aroma_types::type_signature::TypeSignature;
 use std::io::Read;
 use std::str::FromStr;
-use crate::parser::blocking::SyntacticParser;
-use crate::parser::SyntaxResult;
-use crate::parser::traits::{CouldParse, Parsable};
 
 /// A binding between an id to a type
 #[derive(Debug, ToTokens)]
@@ -28,7 +27,7 @@ pub struct Binding {
 impl Parsable for Binding {
     type Err = SyntaxError;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Self> {
+    fn parse<R: Read>(parser: &mut BlockingParser<'_, R>) -> SyntaxResult<Self> {
         let id = parser.parse(VarId::parse)?;
         let type_dec = parser.parse(TypeDec::parse)?;
         Ok(Self { id, type_dec })
@@ -45,7 +44,7 @@ pub struct OptTypeBinding {
 impl Parsable for OptTypeBinding {
     type Err = SyntaxError;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Self> {
+    fn parse<R: Read>(parser: &mut BlockingParser<'_, R>) -> SyntaxResult<Self> {
         let id = parser.parse(VarId::parse)?;
         let type_dec = parser.try_parse(TypeDec::parse)?;
         Ok(Self { id, type_dec })
@@ -61,7 +60,7 @@ pub struct TypeDec {
 impl Parsable for TypeDec {
     type Err = SyntaxError;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Self> {
+    fn parse<R: Read>(parser: &mut BlockingParser<'_, R>) -> SyntaxResult<Self> {
         let colon = parser.parse(Colon::parse)?;
         let ty = parser.parse(cut(Type::parse))?;
         Ok(Self { colon, ty })
@@ -70,15 +69,14 @@ impl Parsable for TypeDec {
 
 impl CouldParse for TypeDec {
     fn could_parse<R: Read>(
-        parser: &mut SyntacticParser<R>,
+        parser: &mut BlockingParser<R>,
     ) -> Result<bool, parser::Err<Self::Err>> {
         Ok(matches!(parser.peek()?, Some(tok) if matches!(tok.kind(), TokenKind::Colon)))
     }
 }
 
-/// Type signature
 #[derive(Debug, ToTokens)]
-pub struct Type {
+pub struct ClassType {
     /// the main id of the type
     pub id: Id,
     /// Generics
@@ -87,9 +85,16 @@ pub struct Type {
     pub nullable: Option<QMark>,
 }
 
+/// Type signature
+#[derive(Debug, ToTokens)]
+pub enum Type {
+    Class(ClassType),
+    Function(),
+}
+
 impl CouldParse for Type {
     fn could_parse<R: Read>(
-        parser: &mut SyntacticParser<R>,
+        parser: &mut BlockingParser<R>,
     ) -> Result<bool, parser::Err<Self::Err>> {
         Ok(matches!(parser.peek()?, Some(tok) if matches!(tok.kind(), TokenKind::Identifier(_))))
     }
@@ -97,40 +102,82 @@ impl CouldParse for Type {
 
 impl Type {
     /// Converts this into a class inst
-    pub fn as_class_inst(&self) -> ClassInst {
-        ClassInst::with_generics(
-            ClassRef::from(self.id.clone()),
-            self.generics
-                .as_ref()
-                .map(|i| {
-                    i.bounds
-                        .punctuated
-                        .iter()
-                        .map(|(param, _)| {
-                            let bound = param.bound.as_class_inst();
-                            match param.variance {
-                                None => GenericParameterBound::Invariant(bound),
-                                Some(Variance::In(_)) => {
-                                    GenericParameterBound::Contravariant(bound)
+    pub fn as_class_inst(&self) -> Option<ClassInst> {
+        match self {
+            Type::Class(class_type) => Some(ClassInst::with_generics(
+                ClassRef::from(class_type.id.clone()),
+                class_type
+                    .generics
+                    .as_ref()
+                    .map(|i| {
+                        i.bounds
+                            .punctuated
+                            .iter()
+                            .map(|(param, _)| {
+                                let bound = param
+                                    .bound
+                                    .as_class_inst()
+                                    .unwrap_or_else(|| OBJECT_CLASS.generic_inst());
+                                match param.variance {
+                                    None => TypeSignature::Invariant(bound),
+                                    Some(Variance::In(_)) => TypeSignature::Contravariant(bound),
+                                    Some(Variance::Out(_)) => TypeSignature::Covariant(bound),
                                 }
-                                Some(Variance::Out(_)) => GenericParameterBound::Covariant(bound),
-                            }
-                        })
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default(),
-        )
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default(),
+            )),
+            Type::Function() => None,
+        }
     }
     /// Converts this into a type signature
     #[inline]
     pub fn as_type_signature(&self) -> TypeSignature {
-        TypeSignature::from(self.as_class_inst())
+        match self {
+            Type::Class(class_type) => {
+                let class_inst = ClassInst::with_generics(
+                    ClassRef::from(class_type.id.clone()),
+                    class_type
+                        .generics
+                        .as_ref()
+                        .map(|i| {
+                            i.bounds
+                                .punctuated
+                                .iter()
+                                .map(|(param, _)| {
+                                    let bound = param
+                                        .bound
+                                        .as_class_inst()
+                                        .unwrap_or_else(|| OBJECT_CLASS.generic_inst());
+                                    match param.variance {
+                                        None => TypeSignature::Invariant(bound),
+                                        Some(Variance::In(_)) => {
+                                            TypeSignature::Contravariant(bound)
+                                        }
+                                        Some(Variance::Out(_)) => TypeSignature::Covariant(bound),
+                                    }
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                        .unwrap_or_default(),
+                );
+                TypeSignature::from(class_inst)
+            }
+            Type::Function() => {
+                todo!("complex function binding")
+            }
+        }
     }
 }
 
-impl From<Type> for ClassInst {
-    fn from(value: Type) -> Self {
-        value.as_class_inst()
+impl TryFrom<Type> for ClassInst {
+    type Error = TypeError;
+
+    fn try_from(value: Type) -> Result<Self, Self::Error> {
+        value
+            .as_class_inst()
+            .ok_or(TypeError::NotClassRepresentable)
     }
 }
 
@@ -143,7 +190,7 @@ impl From<Type> for TypeSignature {
 impl Parsable for Type {
     type Err = SyntaxError;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Self> {
+    fn parse<R: Read>(parser: &mut BlockingParser<'_, R>) -> SyntaxResult<Self> {
         let id = parser.parse(Id::parse)?;
         let generics = if GenericParameters::could_parse(parser)? {
             Some(parser.parse(GenericParameters::parse)?)
@@ -152,11 +199,11 @@ impl Parsable for Type {
         };
         let qmark = parser.parse_opt::<QMark>()?;
 
-        Ok(Type {
+        Ok(Type::Class(ClassType {
             id,
             generics,
             nullable: qmark,
-        })
+        }))
     }
 }
 
@@ -170,7 +217,7 @@ pub struct GenericParameters {
 impl Parsable for GenericParameters {
     type Err = SyntaxError;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Self> {
+    fn parse<R: Read>(parser: &mut BlockingParser<'_, R>) -> SyntaxResult<Self> {
         let lbracket = parser.parse(LBracket::parse)?;
         let generics = {
             if !RBracket::could_parse(parser)? {
@@ -192,7 +239,7 @@ impl Parsable for GenericParameters {
 
 impl CouldParse for GenericParameters {
     fn could_parse<R: Read>(
-        parser: &mut SyntacticParser<R>,
+        parser: &mut BlockingParser<R>,
     ) -> Result<bool, crate::parser::Err<Self::Err>> {
         Ok(matches!(parser.peek()?, Some(tok) if matches!(tok.kind(), TokenKind::LBracket)))
     }
@@ -208,9 +255,9 @@ pub struct GenericParameter {
 impl Parsable for GenericParameter {
     type Err = SyntaxError;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Self> {
+    fn parse<R: Read>(parser: &mut BlockingParser<'_, R>) -> SyntaxResult<Self> {
         let variance =
-            parser.try_parse(|parser: &mut SyntacticParser<R>| match parser.peek()? {
+            parser.try_parse(|parser: &mut BlockingParser<R>| match parser.peek()? {
                 Some(tok) if matches!(tok.kind(), TokenKind::In) => {
                     parser.parse(cut(In::parse)).map(Variance::In)
                 }
@@ -242,7 +289,7 @@ pub struct FnParameters {
 impl Parsable for FnParameters {
     type Err = SyntaxError;
 
-    fn parse<R: Read>(parser: &mut SyntacticParser<'_, R>) -> SyntaxResult<Self> {
+    fn parse<R: Read>(parser: &mut BlockingParser<'_, R>) -> SyntaxResult<Self> {
         let lparen = parser.parse(LParen::parse)?;
         let parameters = if RParen::could_parse(parser)? {
             Punctuated0::default()
@@ -261,8 +308,8 @@ impl Parsable for FnParameters {
 #[cfg(test)]
 mod tests {
     use crate::parser::hir::binding::{Binding, FnParameters, OptTypeBinding, Type};
+    use crate::parser::hir_parser::blocking::Parsable;
     use crate::parser::hir_parser::tests::test_parser;
-    use crate::parser::traits::Parsable;
     use aroma_tokens::token::ToTokens;
     use test_log::test;
 
@@ -276,6 +323,91 @@ mod tests {
     #[test]
     fn parse_complex_type() {
         test_parser("Class[in Int, out Int[Float]]", |parser, _| {
+            let type_ast = parser.parse(Type::parse).expect("could not parse");
+            println!(
+                "type_ast: {type_ast:#?}, ts={}",
+                type_ast.as_type_signature()
+            );
+        })
+    }
+
+    #[test]
+    fn parse_function_type() {
+        test_parser("fn()", |parser, _| {
+            let type_ast = parser.parse(Type::parse).expect("could not parse");
+            println!(
+                "type_ast: {type_ast:#?}, ts={}",
+                type_ast.as_type_signature()
+            );
+        })
+    }
+
+    #[test]
+    fn parse_function_type_with_return() {
+        test_parser("fn() -> Int", |parser, _| {
+            let type_ast = parser.parse(Type::parse).expect("could not parse");
+            println!(
+                "type_ast: {type_ast:#?}, ts={}",
+                type_ast.as_type_signature()
+            );
+        })
+    }
+
+    #[test]
+    fn parse_function_type_with_parameters() {
+        test_parser("fn(Int, Int)", |parser, _| {
+            let type_ast = parser.parse(Type::parse).expect("could not parse");
+            println!(
+                "type_ast: {type_ast:#?}, ts={}",
+                type_ast.as_type_signature()
+            );
+        })
+    }
+
+    #[test]
+    fn parse_function_type_with_parameters_and_return() {
+        test_parser("fn(Int, Int) -> Int", |parser, _| {
+            let type_ast = parser.parse(Type::parse).expect("could not parse");
+            println!(
+                "type_ast: {type_ast:#?}, ts={}",
+                type_ast.as_type_signature()
+            );
+        })
+    }
+
+    #[test]
+    fn parse_closure_type() {
+        test_parser("Int.fn()", |parser, _| {
+            let type_ast = parser.parse(Type::parse).expect("could not parse");
+            println!(
+                "type_ast: {type_ast:#?}, ts={}",
+                type_ast.as_type_signature()
+            );
+        })
+    }
+    #[test]
+    fn parse_closure_type_with_return() {
+        test_parser("Int.fn() -> Int", |parser, _| {
+            let type_ast = parser.parse(Type::parse).expect("could not parse");
+            println!(
+                "type_ast: {type_ast:#?}, ts={}",
+                type_ast.as_type_signature()
+            );
+        })
+    }
+    #[test]
+    fn parse_closure_type_with_parameters() {
+        test_parser("Int.fn(Int)", |parser, _| {
+            let type_ast = parser.parse(Type::parse).expect("could not parse");
+            println!(
+                "type_ast: {type_ast:#?}, ts={}",
+                type_ast.as_type_signature()
+            );
+        })
+    }
+    #[test]
+    fn parse_closure_type_with_parameters_and_return() {
+        test_parser("Int.fn(Int, Int) -> Int", |parser, _| {
             let type_ast = parser.parse(Type::parse).expect("could not parse");
             println!(
                 "type_ast: {type_ast:#?}, ts={}",
