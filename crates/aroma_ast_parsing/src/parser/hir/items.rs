@@ -24,7 +24,7 @@ mod item_interface;
 
 pub use self::{item_class::*, item_function::*, item_interface::*};
 
-#[derive(Debug, ToTokens)]
+#[derive(Debug, Clone, ToTokens)]
 pub enum Visibility {
     Public(Public),
     Protected(Protected),

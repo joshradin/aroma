@@ -26,6 +26,7 @@ mod class_hir_to_mir;
 mod expr_hir_to_mir;
 mod interface_hir_to_mir;
 mod method_hir_to_mir;
+mod constructor_hir_to_mir;
 
 /// Runs the initial conversion to mir, removing most tokens while keeping spans
 pub fn to_mir(translation_unit: ParsedTranslationUnit) -> Result<TranslationUnit, SyntaxError> {

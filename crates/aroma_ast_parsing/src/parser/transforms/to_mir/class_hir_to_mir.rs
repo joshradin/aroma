@@ -1,17 +1,16 @@
 use crate::parser::hir::items::{ClassField, ClassMember};
 use crate::parser::hir::{items, Punctuated};
 use crate::parser::transforms::to_mir;
-use crate::parser::transforms::to_mir::method_hir_to_mir;
+use crate::parser::transforms::to_mir::{constructor_hir_to_mir, method_hir_to_mir};
 use crate::parser::{ErrorKind, SyntaxError};
 use aroma_ast::items::ClassItem;
 use aroma_tokens::id::Id;
 use aroma_tokens::spanned::Spanned;
 use aroma_types::class::{AsClassRef, Class, ClassInst, ClassKind, ClassRef};
 use aroma_types::field::Field;
-use aroma_types::generic::{GenericDeclaration,};
+use aroma_types::generic::GenericDeclaration;
 use aroma_types::hierarchy::intrinsics::OBJECT_CLASS;
 use aroma_types::type_signature::TypeSignature;
-use crate::parser::hir::binding::Type;
 
 pub fn class_hir_to_mir(
     namespace: Option<&Id>,
@@ -64,12 +63,53 @@ pub fn class_hir_to_mir(
             .map(|i| TypeSignature::Invariant(ClassInst::new_generic_param(i.id()))),
     );
 
-    let mut fields = vec![];
     let mut methods = vec![];
     let mut method_defs = vec![];
     let mut sub_classes = vec![];
     let mut constructors = vec![];
-    cls.members.members.into_iter().try_for_each(|member| {
+
+    let (fields, members) =
+        cls.members
+            .members
+            .into_iter()
+            .fold((Vec::new(), Vec::new()), |mut accum, member| {
+                match member {
+                    ClassMember::Field(field) => {
+                        accum.0.push(field);
+                    }
+                    other => accum.1.push(other),
+                }
+
+                accum
+            });
+
+    let fields = fields
+        .into_iter()
+        .map(|field| match field {
+            ClassField {
+                final_tok: Some(_),
+                vis,
+                binding,
+                ..
+            } => Field::new_final(
+                to_mir::vis_hir_to_mir(vis.clone()),
+                binding.id.as_ref(),
+                binding.type_dec.ty,
+            ),
+            ClassField {
+                final_tok: None,
+                vis,
+                binding,
+                ..
+            } => Field::new(
+                to_mir::vis_hir_to_mir(vis.clone()),
+                binding.id.as_ref(),
+                binding.type_dec.ty,
+            ),
+        })
+        .collect::<Vec<Field>>();
+
+    members.into_iter().try_for_each(|member| {
         match member {
             ClassMember::Method(method) => {
                 let (dec, def) = method_hir_to_mir::method_hir_to_mir(
@@ -102,32 +142,17 @@ pub fn class_hir_to_mir(
                 methods.push(dec);
             }
             ClassMember::Field(field) => {
-                let field = match field {
-                    ClassField {
-                        final_tok: Some(_),
-                        vis,
-                        binding,
-                        ..
-                    } => Field::new_final(
-                        to_mir::vis_hir_to_mir(vis),
-                        binding.id.as_ref(),
-                        binding.type_dec.ty,
-                    ),
-                    ClassField {
-                        final_tok: None,
-                        vis,
-                        binding,
-                        ..
-                    } => Field::new(
-                        to_mir::vis_hir_to_mir(vis),
-                        binding.id.as_ref(),
-                        binding.type_dec.ty,
-                    ),
-                };
-                fields.push(field);
+                // do nothing
             }
             ClassMember::Constructor(cons) => {
-                todo!("transform constructor {cons:#?}")
+                let (constructor, def) = constructor_hir_to_mir::constructor_hir_to_mir(
+                    &class_inst,
+                    &fields,
+                    &class_generics,
+                    cons,
+                )?;
+                constructors.push(constructor);
+                method_defs.push(def);
             }
             ClassMember::Class(sub_class) => {
                 todo!("transform sub-class {sub_class:#?}")

@@ -1,8 +1,8 @@
 namespace aroma.lang
 
 #[lang = "Exception"]
-public class Exception extends Throwable {
-    private final cause: Throwable?;
+public class Exception[T Throwable] extends Throwable {
+    private final cause: T?;
     private final msg: String?;
 
     constructor(msg: String) {
@@ -17,7 +17,7 @@ public class Exception extends Throwable {
         this.cause = cause;
     }
 
-    fn getCause() -> Throwable {
+    fn getCause() -> T? {
         return cause;
     }
 

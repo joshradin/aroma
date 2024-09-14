@@ -23,7 +23,7 @@ where
     E: Error,
 {
     fn non_terminal(&self) -> &'static str {
-        type_name::<F>()
+        type_name::<O>()
     }
 
     fn parse(&mut self, parser: &mut BlockingParser<'_, R>) -> Result<O, parser::Err<E>> {

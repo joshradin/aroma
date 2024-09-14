@@ -1,11 +1,12 @@
 //! Constructors are used for creating objects
 
 use crate::class::ClassInst;
-use crate::functions::{FunctionId, Parameter};
+use crate::functions::{FunctionId, FunctionSignature, Parameter};
 use crate::generic::GenericDeclaration;
 use crate::vis::Vis;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use crate::type_signature::TypeSignature;
 
 /// Constructors are specialty methods that have no return type
 #[derive(Debug, Clone)]
@@ -14,7 +15,8 @@ pub struct Constructor {
     vis: Vis,
     generic_declaration: Vec<GenericDeclaration>,
     parameters: Vec<Parameter>,
-    throws: Vec<ClassInst>,
+    throws: Vec<TypeSignature>,
+    creates: TypeSignature,
 }
 
 impl Constructor {
@@ -24,7 +26,8 @@ impl Constructor {
         vis: Vis,
         generic_declaration: impl IntoIterator<Item = GenericDeclaration>,
         parameters: impl IntoIterator<Item = Parameter>,
-        throws: impl IntoIterator<Item = ClassInst>,
+        throws: impl IntoIterator<Item = TypeSignature>,
+        creates: TypeSignature,
     ) -> Self {
         Self {
             id: Arc::new(AtomicU64::new(id)),
@@ -32,6 +35,7 @@ impl Constructor {
             generic_declaration: generic_declaration.into_iter().collect(),
             parameters: parameters.into_iter().collect(),
             throws: throws.into_iter().collect(),
+            creates,
         }
     }
 
@@ -44,6 +48,10 @@ impl Constructor {
         self.id.store(id, Ordering::SeqCst);
     }
 
+    pub fn vis(&self) -> Vis {
+        self.vis
+    }
+
     pub fn generic_declaration(&self) -> &[GenericDeclaration] {
         &self.generic_declaration
     }
@@ -52,7 +60,24 @@ impl Constructor {
         &self.parameters
     }
 
-    pub fn throws(&self) -> &[ClassInst] {
+    pub fn throws(&self) -> &[TypeSignature] {
         &self.throws
     }
+
+    pub fn creates(&self) -> &TypeSignature {
+        &self.creates
+    }
+
+    /// Gets this constructor as a function signature
+    pub fn signature(&self) -> FunctionSignature {
+        FunctionSignature::new(
+            Vec::from(self.generic_declaration()),
+            self.creates().clone(),
+            self.parameters().iter().map(|p| p.ts.clone()),
+            TypeSignature::Void,
+            Vec::from(self.throws())
+        )
+    }
+
+
 }

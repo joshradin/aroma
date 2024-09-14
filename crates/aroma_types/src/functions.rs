@@ -172,6 +172,23 @@ impl FunctionSignature {
         }
     }
 
+    /// Declare a function with a given name and visibility using this function signature
+    pub fn declare(self, vis: Vis, name: impl AsRef<str>) -> FunctionDeclaration {
+        let Self {
+            generic_declaration, receiver, parameters, return_type, throws
+        } = self;
+
+        FunctionDeclaration::new(
+            vis,
+            name,
+            generic_declaration,
+            receiver,
+            parameters,
+            return_type,
+            throws
+        )
+    }
+
     /// Gets the generic parameters for this function
     pub fn generic_declaration(&self) -> &[GenericDeclaration] {
         &self.generic_declaration

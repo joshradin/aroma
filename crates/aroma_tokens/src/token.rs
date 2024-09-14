@@ -38,6 +38,12 @@ impl Spanned for Token {
     }
 }
 
+impl PartialEq for Token {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+    }
+}
+
 /// The kind for this token
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {

@@ -65,7 +65,7 @@ impl AromaC {
                 let path_clone = path.clone();
                 join_set.spawn(
                     async move { parse_file(&path_clone).await.map_err(|e| e.into()) }
-                        .instrument(error_span!("parse", path=?path)),
+                        .instrument(error_span!("to_mir", path=?path)),
                 );
             }
 

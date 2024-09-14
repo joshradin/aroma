@@ -4,7 +4,7 @@ use crate::block::Block;
 use crate::references::{GetInfoTypeRef, MethodRef, NameType};
 use aroma_tokens::spanned::Span;
 use aroma_types::class::ClassInst;
-use aroma_types::functions::{FunctionDeclaration, Parameter};
+use aroma_types::functions::{FunctionDeclaration, FunctionSignature, Parameter};
 use aroma_types::generic::GenericDeclaration;
 use aroma_types::type_signature::TypeSignature;
 
@@ -55,12 +55,26 @@ impl MethodDef {
     }
 }
 
+impl From<&MethodDef> for FunctionSignature {
+    fn from(value: &MethodDef) -> Self {
+        FunctionSignature::new(
+            value.generic_declaration.iter().cloned(),
+            value.this.as_ref().map(|i| i.clone().into()),
+            value.parameters.iter().map(|i| i.ts.clone()),
+            value.return_ty.clone(),
+            value.throws.iter().cloned()
+        )
+    }
+}
+
 impl GetInfoTypeRef<NameType> for MethodDef {
     fn get_info_type_ref(&self) -> NameType {
         NameType(
             self.name.clone(),
             TypeSignature::Function(
-                todo!()
+                Box::new(
+                    self.into()
+                )
             ),
         )
     }

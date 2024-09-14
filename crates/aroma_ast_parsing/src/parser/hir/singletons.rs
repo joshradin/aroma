@@ -92,7 +92,7 @@ impl CouldParse for DocComment {
 
 macro_rules! token_singleton {
     ($ty:ident, $($pat:tt)*) => {
-        #[derive(Debug)]
+        #[derive(Debug, Clone, PartialEq)]
         pub struct $ty {
             token: Token,
         }

@@ -137,7 +137,7 @@ pub fn abstract_method_hir_to_mir(
         end: _,
     } = method;
 
-    non_concrete_method_to_hair(
+    non_concrete_method_to_hir(
         parent_inst,
         class_generics,
         vis,
@@ -166,7 +166,7 @@ pub fn interface_method_hir_to_mir(
         end: _,
     } = method;
 
-    non_concrete_method_to_hair(
+    non_concrete_method_to_hir(
         parent_inst,
         class_generics,
         vis.map(Visibility::Public),
@@ -178,7 +178,7 @@ pub fn interface_method_hir_to_mir(
     )
 }
 
-fn non_concrete_method_to_hair(
+fn non_concrete_method_to_hir(
     parent_inst: &ClassInst,
     class_generics: &[GenericDeclaration],
     vis: Option<Visibility>,

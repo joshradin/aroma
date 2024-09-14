@@ -12,7 +12,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 use std::result;
-use tracing::trace;
+use tracing::{instrument, trace};
 
 #[derive(Debug, Default)]
 pub(in crate::parser) enum State {
@@ -187,6 +187,7 @@ impl<'p, R: Read> BlockingParser<'p, R> {
 
     /// Wrapper function for parsing an item
     #[inline]
+    #[instrument(level = "trace", skip_all, fields(non_terminal = parser.non_terminal()))]
     pub fn parse<O, E, P: Parser<R, O, E>>(&mut self, mut parser: P) -> Result<O, parser::Err<E>>
     where
         E: Error,
