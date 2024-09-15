@@ -1,11 +1,9 @@
 use crate::task::OwnedTask;
 use crate::Task;
 use petgraph::algo::toposort;
-use petgraph::data::Build;
 use petgraph::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::convert::Infallible;
-use std::error::Error;
 use std::marker::PhantomData;
 use std::sync::Arc;
 use tokio::sync::Mutex;

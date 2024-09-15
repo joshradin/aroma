@@ -3,7 +3,6 @@ use crate::task::OwnedTask;
 use crate::task_graph::TaskGraph;
 use crate::Task;
 use petgraph::prelude::NodeIndex;
-use petgraph::visit::NodeCount;
 use petgraph::Direction;
 use std::collections::{HashMap, HashSet};
 use std::convert::Infallible;
@@ -17,7 +16,6 @@ use tracing::{instrument, trace};
 pub struct TaskExecutor<S: Send + Sync = (), E: Send + Sync = Infallible> {
     graph: TaskGraph<S, E>,
     state: State<S>,
-    executed: HashSet<String>,
 }
 
 impl<S: Send + Sync + 'static,  E: Send + Sync + Error + 'static> TaskExecutor<S, E> {
@@ -26,7 +24,6 @@ impl<S: Send + Sync + 'static,  E: Send + Sync + Error + 'static> TaskExecutor<S
         Self {
             graph,
             state: State::new(state),
-            executed: Default::default(),
         }
     }
 
@@ -120,7 +117,7 @@ impl<S: Send + Sync + Default + 'static,  E: Send + Sync + Error + 'static> Task
 
 impl<S: Send + Sync + Default + 'static,  E: Send + Sync + Error + 'static> From<TaskGraph<S, E>> for TaskExecutor<S, E> {
     fn from(value: TaskGraph<S, E>) -> Self {
-        Self::new(value)
+        TaskExecutor::new(value)
     }
 }
 

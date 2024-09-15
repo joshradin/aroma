@@ -1,6 +1,6 @@
 use crate::state::State;
 use async_trait::async_trait;
-use std::fmt::{Debug, Formatter, Pointer};
+use std::fmt::{Debug, Formatter};
 use std::future::Future;
 
 /// An asynchronous trait used for representing tasks
