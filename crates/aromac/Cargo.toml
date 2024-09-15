@@ -38,6 +38,7 @@ aroma_ast = { version = "0.0.0", path = "../aroma_ast" }
 aroma_types = { version = "0.0.0", path = "../aroma_types" }
 aroma_tokens = { version = "0.0.0", path = "../aroma_tokens" }
 aroma_files = { version = "0.0.0", path = "../aroma_files" }
+aroma_tasks = { version = "0.0.0", path = "../aroma_tasks" }
 
 
 

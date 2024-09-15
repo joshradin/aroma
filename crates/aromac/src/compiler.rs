@@ -13,6 +13,8 @@ use std::path::{Path, PathBuf};
 use thiserror::Error;
 use tokio::task::JoinSet;
 use tracing::{debug, error, error_span, info_span, Instrument};
+use aroma_tasks::{TaskExecutor, TaskGraph};
+use aroma_tokens::spanned::Spanned;
 
 pub mod error;
 mod passes;
@@ -50,6 +52,18 @@ impl AromaC {
     pub async fn compile_all(&mut self, paths: Vec<PathBuf>) -> AromaCResult<()> {
         let translation_units = self.create_translation_units(paths).await?;
         let full_qualified = self.fully_qualify(translation_units).await?;
+
+        let mut graph_builder = TaskGraph::builder();
+        for tu in full_qualified {
+            graph_builder.add(format!("compile{:?}", tu.span().file()), |state| async move {
+
+                Ok(())
+            }).unwrap();
+        }
+
+        let mut task_executor: TaskExecutor = graph_builder.finish().expect("could not finish").into();
+        task_executor.execute().await.expect("could not execute all");
+
 
         Ok(())
     }

@@ -1,5 +1,6 @@
 [package]
 name = "aroma_tasks"
+description = "Provide a convient mechanism for defining related, ordered tasks"
 authors.workspace = true
 version.workspace = true
 edition.workspace = true
