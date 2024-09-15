@@ -1,12 +1,11 @@
 use crate::task::OwnedTask;
 use crate::Task;
+use petgraph::algo::toposort;
 use petgraph::data::Build;
 use petgraph::prelude::*;
-use petgraph::visit::Reversed;
 use std::collections::{HashMap, HashSet};
 use std::convert::Infallible;
 use std::error::Error;
-use std::iter::Cycle;
 use std::marker::PhantomData;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -24,23 +23,22 @@ pub struct TaskGraph<S: Send + Sync = (), E: Send + Sync = Infallible> {
     pub(crate) di_graph: StableDiGraph<Arc<Mutex<OwnedTask<S, E>>>, DependencyType>,
 }
 
-impl<S: Send + Sync + 'static, E: Send + Sync + 'static> TaskGraph<S,E> {
+impl<S: Send + Sync + 'static, E: Send + Sync + 'static> TaskGraph<S, E> {
     /// Creates a task graph builder
     #[inline]
     pub fn builder() -> TaskGraphBuilder<S, E> {
         TaskGraphBuilder::new()
     }
-
 }
 
 /// Used for building task graphs.
 ///
 /// ```rust
-/// # use aroma_tasks::TaskGraphBuilder;
-/// let mut builder = TaskGraphBuilder::<()>::new();
-/// let task_a = builder.add("A", |state| async {}).unwrap();
-/// let task_b = builder.add("B", |state| async {}).unwrap();
-/// let task_c = builder.add_then_configure("C", |state| async {}, |c| {
+/// # use aroma_tasks::{TaskGraph, TaskGraphBuilder};
+/// let mut builder: TaskGraphBuilder = TaskGraph::builder();
+/// let task_a = builder.add("A", |state| async {Ok(())}).unwrap();
+/// let task_b = builder.add("B", |state| async {Ok(())}).unwrap();
+/// let task_c = builder.add_then_configure("C", |state| async { Ok(())}, |c| {
 ///     c.depends_on(&task_a);
 /// }).unwrap();
 ///
@@ -66,7 +64,7 @@ impl<S: Send + Sync + 'static, E: Send + Sync + 'static> TaskGraphBuilder<S, E> 
         task: T,
     ) -> Result<TaskHandle<S>, TaskAlreadyExists>
     where
-        T: Task<S, Err=E> + 'static,
+        T: Task<S, Err = E> + 'static,
     {
         let name = name.as_ref().to_string();
         if self.tasks.contains_key(&name) {
@@ -90,7 +88,7 @@ impl<S: Send + Sync + 'static, E: Send + Sync + 'static> TaskGraphBuilder<S, E> 
         callback: F,
     ) -> Result<TaskHandle<S>, TaskAlreadyExists>
     where
-        T: Task<S, Err=E> + 'static,
+        T: Task<S, Err = E> + 'static,
         F: FnOnce(&mut TaskConfiguration<'a, S, E>),
     {
         let handle = self.add(name, task)?;
@@ -118,10 +116,12 @@ impl<S: Send + Sync + 'static, E: Send + Sync + 'static> TaskGraphBuilder<S, E> 
     pub fn finish(self) -> Result<TaskGraph<S, E>, BuildTaskGraphError> {
         let mut graph = StableDiGraph::new();
         let mut task_to_node_idx = HashMap::new();
+        let mut node_idx_to_task = HashMap::new();
 
         for (name, task) in self.tasks {
             let node_idx = graph.add_node(Arc::new(Mutex::new(task)));
-            task_to_node_idx.insert(name, node_idx);
+            task_to_node_idx.insert(name.clone(), node_idx);
+            node_idx_to_task.insert(node_idx, name);
         }
 
         for (name, dependencies) in self.depends_on {
@@ -132,6 +132,19 @@ impl<S: Send + Sync + 'static, E: Send + Sync + 'static> TaskGraphBuilder<S, E> 
                     .ok_or_else(|| BuildTaskGraphError::TaskDoesNotExist(dep))?;
                 graph.add_edge(node_a, node_b, dep_type);
             }
+        }
+
+        if let Err(cycle) = toposort(&graph, None) {
+            let start = cycle.node_id();
+            let cycle = petgraph::algo::tarjan_scc(&graph)
+                .into_iter()
+                .find(|nodes| nodes.contains(&start))
+                .expect("Cycle not found")
+                .into_iter()
+                .map(|node| node_idx_to_task[&node].clone())
+                .collect::<Vec<_>>();
+
+            return Err(BuildTaskGraphError::GraphCyclic(cycle));
         }
 
         Ok(TaskGraph { di_graph: graph })
@@ -161,10 +174,10 @@ pub struct TaskConfiguration<'a, S: Send + Sync, E: Send + Sync> {
     task_graph_builder: &'a mut TaskGraphBuilder<S, E>,
 }
 
-impl<'a, S: Send + Sync,  E: Send + Sync> TaskConfiguration<'a, S, E> {
+impl<'a, S: Send + Sync, E: Send + Sync> TaskConfiguration<'a, S, E> {
     /// Adds a depends on relation on to the task. The given task doesnt have to
     /// exist until the task is finished
-    pub fn depends_on<T: AsTaskName>(&mut self, name: &T) -> &mut Self {
+    pub fn depends_on<T: AsTaskName + ?Sized>(&mut self, name: &T) -> &mut Self {
         let name = name.as_name();
         let set = self
             .task_graph_builder
@@ -181,11 +194,17 @@ pub trait AsTaskName {
     /// Gets the task name
     fn as_name(&self) -> &str;
 }
-impl<S: AsRef<str>> AsTaskName for S {
+impl AsTaskName for str {
     fn as_name(&self) -> &str {
         self.as_ref()
     }
 }
+impl AsTaskName for String {
+    fn as_name(&self) -> &str {
+        self.as_ref()
+    }
+}
+
 impl<S: Send + Sync> AsTaskName for TaskHandle<S> {
     fn as_name(&self) -> &str {
         self.task.as_str()
@@ -197,26 +216,28 @@ impl<S: Send + Sync> AsTaskName for TaskHandle<S> {
 #[error("Task {0:?} already exists")]
 pub struct TaskAlreadyExists(String);
 
+/// An error occurred while trying to create this task graph
 #[derive(Debug, thiserror::Error)]
 pub enum BuildTaskGraphError {
     #[error("A task named {0} does not exist")]
     TaskDoesNotExist(String),
     #[error("Task cycle detected on {0:?}")]
-    GraphCyclic(Cycle<String>),
+    GraphCyclic(Vec<String>),
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::TaskGraphBuilder;
+    use crate::{BuildTaskGraphError, TaskGraphBuilder};
+    use std::collections::HashSet;
 
     #[test]
     fn test_create_task_graph() {
         let mut graph_builder: TaskGraphBuilder = TaskGraphBuilder::new();
-        let a = graph_builder.add("A", |_| async { Ok(())}).unwrap();
+        let a = graph_builder.add("A", |_| async { Ok(()) }).unwrap();
         let b = graph_builder
             .add_then_configure(
                 "B",
-                |_| async { Ok(())},
+                |_| async { Ok(()) },
                 |b| {
                     b.depends_on(&a);
                 },
@@ -225,7 +246,7 @@ mod tests {
         let c = graph_builder
             .add_then_configure(
                 "C",
-                |_| async {Ok(())},
+                |_| async { Ok(()) },
                 |c| {
                     c.depends_on(&a);
                 },
@@ -234,7 +255,7 @@ mod tests {
         let d = graph_builder
             .add_then_configure(
                 "D",
-                |_| async {Ok(())},
+                |_| async { Ok(()) },
                 |d| {
                     d.depends_on(&c);
                     d.depends_on(&b);
@@ -244,5 +265,42 @@ mod tests {
 
         let finished = graph_builder.finish().expect("could not finish graph");
         println!("graph: {finished:#?}");
+    }
+
+    #[test]
+    fn test_create_cyclic_task_graph() {
+        let mut graph_builder: TaskGraphBuilder = TaskGraphBuilder::new();
+        let a = graph_builder.add("A", |_| async { Ok(()) }).unwrap();
+        let b = graph_builder
+            .add_then_configure(
+                "B",
+                |_| async { Ok(()) },
+                |b| {
+                    b.depends_on(&a);
+                },
+            )
+            .unwrap();
+        let c = graph_builder
+            .add_then_configure(
+                "C",
+                |_| async { Ok(()) },
+                |c| {
+                    c.depends_on(&b);
+                },
+            )
+            .unwrap();
+        graph_builder.configure(&a, |a| {
+            a.depends_on(&c);
+        });
+
+        let BuildTaskGraphError::GraphCyclic(cycle) =
+            graph_builder.finish().expect_err("should detect cycle")
+        else {
+            panic!("cycle expected")
+        };
+        assert_eq!(
+            HashSet::from_iter(cycle),
+            HashSet::from(["A".to_string(), "B".to_string(), "C".to_string()])
+        )
     }
 }

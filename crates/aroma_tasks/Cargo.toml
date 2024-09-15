@@ -17,3 +17,4 @@ tracing = "0.1.40"
 [dev-dependencies]
 tokio = { version = "1.40.0", features = ["test-util", "macros"] }
 test-log = { version = "0.2.16", features = ["trace"] }
+tokio-test = "0.4.4"

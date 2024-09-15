@@ -6,6 +6,7 @@ use petgraph::prelude::NodeIndex;
 use petgraph::visit::NodeCount;
 use petgraph::Direction;
 use std::collections::{HashMap, HashSet};
+use std::convert::Infallible;
 use std::error::Error;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -13,7 +14,7 @@ use tokio::task::{AbortHandle, JoinSet};
 use tracing::{instrument, trace};
 
 /// The task executor
-pub struct TaskExecutor<S: Send + Sync, E: Send + Sync> {
+pub struct TaskExecutor<S: Send + Sync = (), E: Send + Sync = Infallible> {
     graph: TaskGraph<S, E>,
     state: State<S>,
     executed: HashSet<String>,
@@ -114,6 +115,12 @@ impl<S: Send + Sync + Default + 'static,  E: Send + Sync + Error + 'static> Task
     /// Creates a new executor with default state
     pub fn new(graph: TaskGraph<S, E>) -> Self {
         Self::with_state(graph, S::default())
+    }
+}
+
+impl<S: Send + Sync + Default + 'static,  E: Send + Sync + Error + 'static> From<TaskGraph<S, E>> for TaskExecutor<S, E> {
+    fn from(value: TaskGraph<S, E>) -> Self {
+        Self::new(value)
     }
 }
 

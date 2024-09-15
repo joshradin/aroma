@@ -15,8 +15,3 @@ graph LR
     C[Task C]
 ```
 This means that Task _A_ and Task _B_ could be run simultaneously. 
-
-# Example
-```rust
-let mut task_executor = TaskExecutor::new()
-```
