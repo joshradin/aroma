@@ -167,6 +167,18 @@ name = "aroma_files"
 version = "0.0.0"
 
 [[package]]
+name = "aroma_tasks"
+version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "petgraph",
+ "test-log",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "aroma_tokens"
 version = "0.0.0"
 dependencies = [
@@ -295,6 +307,17 @@ name = "async-stream-impl"
 version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "16e62a023e7c117e27523144c5d2459f4397fcc3cab0085af8e2224f643a0193"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "async-trait"
+version = "0.1.82"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a27b8a3a6e1a44fa4c8baf1f653e4172e81486d4941f2237e20dc2d0cf4ddff1"
 dependencies = [
  "proc-macro2",
  "quote",

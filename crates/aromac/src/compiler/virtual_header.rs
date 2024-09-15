@@ -46,17 +46,19 @@ impl VirtualHeader {
 #[derive(Debug, Clone, PartialEq, From)]
 pub enum Declaration {
     /// An ID with an actual form, this has a type signature
-    IdValue(IdValueDeclaration),
+    IdValue(VIdValueDeclaration),
+    /// A class declaration
+    Class(VClassDeclaration)
 }
 
 /// An ID with an associated type
 #[derive(Debug, Clone, PartialEq)]
-pub struct IdValueDeclaration {
+pub struct VIdValueDeclaration {
     id: Id,
     ts: TypeSignature,
 }
 
-impl IdValueDeclaration {
+impl VIdValueDeclaration {
     /// Creates a new declaration
     pub fn new(id: Id, ts: TypeSignature) -> Self {
         Self { id, ts }
@@ -74,18 +76,18 @@ impl IdValueDeclaration {
 
 /// A class declaration.
 #[derive(Debug, Clone, PartialEq)]
-struct ClassDeclaration {
+struct VClassDeclaration {
     id: Id,
     generic_declarations: Vec<GenericDeclaration>,
-    class_declarations: Vec<ClassMemberDeclaration>,
+    class_declarations: Vec<VClassMemberDeclaration>,
 }
 
-impl ClassDeclaration {
+impl VClassDeclaration {
     /// Creates a new class declaration with a given id and it's declarations
     pub fn new(
         id: Id,
         generic_declarations: impl IntoIterator<Item = GenericDeclaration>,
-        class_declarations: impl IntoIterator<Item = ClassMemberDeclaration>,
+        class_declarations: impl IntoIterator<Item =VClassMemberDeclaration>,
     ) -> Self {
         Self {
             id,
@@ -105,7 +107,7 @@ impl ClassDeclaration {
     }
 
     /// The class members
-    pub fn class_declarations(&self) -> &Vec<ClassMemberDeclaration> {
+    pub fn class_declarations(&self) -> &Vec<VClassMemberDeclaration> {
         &self.class_declarations
     }
     /// Gets a [ClassRef] representation for this class
@@ -127,18 +129,18 @@ impl ClassDeclaration {
 
 /// A member within a class declaration
 #[derive(Debug, Clone, PartialEq, From)]
-pub enum ClassMemberDeclaration {
-    IdValue(IdValueDeclaration),
-    Constructor(ConstructorDeclaration),
+pub enum VClassMemberDeclaration {
+    IdValue(VIdValueDeclaration),
+    Constructor(VConstructorDeclaration),
     /// A non-static subclass
-    ClassDeclaration(ClassDeclaration),
+    ClassDeclaration(VClassDeclaration),
 }
 
 /// A constructor declaration, describing the function signature of the constructor.
 #[derive(Debug, Clone, PartialEq, From)]
-pub struct ConstructorDeclaration(TypeSignature);
+pub struct VConstructorDeclaration(TypeSignature);
 
-impl ConstructorDeclaration {
+impl VConstructorDeclaration {
     /// Creates a new constructor declaration with a given type signature
     pub fn new(ts: TypeSignature) -> Self {
         Self(ts)
@@ -152,12 +154,12 @@ impl ConstructorDeclaration {
 
 /// A simple function declaration
 #[derive(Debug, Clone, PartialEq)]
-pub struct FunctionDeclaration {
+pub struct VFunctionDeclaration {
     id: Id,
     function_signature: FunctionSignature,
 }
 
-impl FunctionDeclaration {
+impl VFunctionDeclaration {
     /// Creates a new function declaration
     pub fn new(
         id: Id,

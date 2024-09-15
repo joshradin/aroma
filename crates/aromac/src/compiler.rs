@@ -82,20 +82,22 @@ impl AromaC {
         &mut self,
         translation_units: Vec<TranslationUnit>,
     ) -> AromaCResult<Vec<TranslationUnit>> {
-        async {
+        let span = error_span!("fully-qualify-set", count=translation_units.len());
+        let span_clone =span.clone();
+        async move {
             let mut join_set = JoinSet::new();
             for mut tu in translation_units {
                 join_set.spawn(
                     async move {
                         fully_qualify(&mut tu)?;
                         Ok(tu)
-                    }
-                    .instrument(error_span!("full-qualify")),
+                    }.instrument(span.clone())
                 );
             }
-            finish_join_set(join_set).await
+            finish_join_set(join_set)
+                .instrument(span.clone()).await
         }
-        .instrument(error_span!("fully-qualify"))
+        .instrument(span_clone)
         .await
     }
 }

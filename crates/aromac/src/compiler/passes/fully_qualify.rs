@@ -17,7 +17,7 @@ use std::collections::HashSet;
 use tracing::{debug, error, instrument, trace, warn};
 
 /// Attempts to fully qualify a translation unit
-#[instrument(skip_all)]
+#[instrument(skip_all, fields(path=?translation_unit.span().file()))]
 pub fn fully_qualify(mut translation_unit: &mut TranslationUnit) -> AromaCResult<()> {
     let namespace = translation_unit
         .namespace

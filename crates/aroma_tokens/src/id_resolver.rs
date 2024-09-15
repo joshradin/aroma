@@ -57,7 +57,7 @@ impl IdResolver {
     /// Merges the entries of another id resolver into this id resolver
     pub fn merge(&mut self, other: &Self) {
         for (id, map) in &other.namespaces {
-            let mut namespace_map = self.namespaces.entry(id.clone()).or_default();
+            let namespace_map = self.namespaces.entry(id.clone()).or_default();
             for (short, d) in map {
                 namespace_map.insert(short.clone(), d.clone());
             }

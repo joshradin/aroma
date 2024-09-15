@@ -1,0 +1,19 @@
+[package]
+name = "aroma_tasks"
+authors.workspace = true
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+readme.workspace = true
+repository.workspace = true
+
+[dependencies]
+async-trait = "0.1.82"
+petgraph.workspace = true
+thiserror.workspace = true
+tokio = "1.40.0"
+tracing = "0.1.40"
+
+[dev-dependencies]
+tokio = { version = "1.40.0", features = ["test-util", "macros"] }
+test-log = { version = "0.2.16", features = ["trace"] }

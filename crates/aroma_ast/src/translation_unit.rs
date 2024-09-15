@@ -2,7 +2,7 @@
 
 use crate::items::Item;
 use aroma_tokens::id::Id;
-use aroma_tokens::spanned::Span;
+use aroma_tokens::spanned::{Span, Spanned};
 
 /// A translation unit
 #[derive(Debug)]
@@ -22,5 +22,11 @@ impl TranslationUnit {
             imports,
             items,
         }
+    }
+}
+
+impl Spanned for TranslationUnit {
+    fn span(&self) -> Span {
+        self.span.clone()
     }
 }
