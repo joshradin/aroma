@@ -1,9 +1,9 @@
+use crate::parser::hir::items as parser_items;
 use crate::parser::hir::items::ItemFn;
 use crate::parser::hir::items::Visibility;
 use crate::parser::hir::items::{ClassField, ClassMember};
 use crate::parser::hir::singletons::Static;
 use crate::parser::hir::translation_unit::TranslationUnit as ParsedTranslationUnit;
-use crate::parser::hir::items as parser_items;
 use crate::parser::hir::Punctuated;
 use crate::parser::SyntaxError;
 use aroma_ast::items::{ClassItem, Item};
