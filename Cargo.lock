@@ -260,18 +260,30 @@ dependencies = [
  "aroma_visitor_gen",
  "cfg-if",
  "chrono",
- "clap",
- "clap_complete",
- "color-eyre",
  "derive_more",
- "eyre",
  "itertools",
  "num_cpus",
- "owo-colors 4.0.0",
  "parking_lot",
  "regex",
  "test-log",
  "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "aromac_cli"
+version = "0.0.0"
+dependencies = [
+ "aroma_files",
+ "aromac",
+ "cfg-if",
+ "chrono",
+ "clap",
+ "clap_complete",
+ "color-eyre",
+ "eyre",
+ "owo-colors 4.0.0",
  "tokio",
  "tracing",
  "tracing-error",

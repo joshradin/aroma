@@ -1,13 +1,13 @@
+use crate::parser::blocking::{remove_nl, BlockingParser};
 use crate::parser::hir::constants::Constant;
 use crate::parser::hir::singletons::*;
 use crate::parser::hir::statement::StatementList;
 use crate::parser::hir::{Err, ErrorKind, Punctuated0, Punctuated1, SyntaxError};
+use crate::parser::hir_parser::blocking::{CouldParse, Parsable};
 use crate::parser::SyntaxResult;
 use aroma_tokens::id::Id;
 use aroma_tokens::token::{ToTokens, TokenKind};
 use std::io::Read;
-use crate::parser::blocking::{remove_nl, BlockingParser};
-use crate::parser::hir_parser::blocking::{CouldParse, Parsable};
 
 #[derive(Debug, ToTokens)]
 pub struct ExprUnary {
@@ -620,11 +620,11 @@ fn parse_primary(parser: &mut BlockingParser<impl Read>) -> Result<Expr, Err<Syn
 
 #[cfg(test)]
 mod tests {
-    use crate::parser::hir_parser::tests::test_parser;
+    use crate::parser::hir::expr::Expr;
     use crate::parser::hir_parser::blocking::Parsable;
+    use crate::parser::hir_parser::tests::test_parser;
     use aroma_tokens::id::Id;
     use aroma_tokens::token::ToTokens;
-    use crate::parser::hir::expr::Expr;
 
     #[test]
     fn test_parse_identifier() {

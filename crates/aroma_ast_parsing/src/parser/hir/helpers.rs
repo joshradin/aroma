@@ -1,10 +1,10 @@
 use crate::parser::blocking::BlockingParser;
 use crate::parser::hir::singletons::{Nl, SemiC};
+use crate::parser::hir_parser::blocking::{CouldParse, Parsable, Parser};
 use crate::parser::{Err, ErrorKind, SyntaxError, SyntaxResult};
 use aroma_tokens::token::TokenStream;
 use aroma_tokens::token::{ToTokens, TokenKind};
 use std::io::Read;
-use crate::parser::hir_parser::blocking::{CouldParse, Parsable, Parser};
 
 pub trait Punctuated<T> {
     /// Gets the items in this

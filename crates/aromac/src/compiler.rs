@@ -6,6 +6,8 @@ use crate::resolution::TranslationData;
 use aroma_ast::translation_unit::TranslationUnit;
 use aroma_ast_parsing::parse_file;
 use aroma_ast_parsing::parser::SyntaxError;
+use aroma_tasks::{TaskExecutor, TaskGraph};
+use aroma_tokens::spanned::Spanned;
 use itertools::Itertools;
 use prelude::*;
 use std::io;
@@ -13,8 +15,6 @@ use std::path::{Path, PathBuf};
 use thiserror::Error;
 use tokio::task::JoinSet;
 use tracing::{debug, error, error_span, info_span, Instrument};
-use aroma_tasks::{TaskExecutor, TaskGraph};
-use aroma_tokens::spanned::Spanned;
 
 pub mod error;
 mod passes;

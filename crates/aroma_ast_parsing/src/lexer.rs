@@ -37,8 +37,8 @@ pub enum LexingError {
 
 #[cfg(test)]
 mod tests {
-    use crate::lexer::blocking::Lexer;
     use super::*;
+    use crate::lexer::blocking::Lexer;
 
     #[test]
     fn test_lexer() {

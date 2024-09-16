@@ -1,10 +1,10 @@
-use std::io::Read;
-use std::error::Error;
-use aroma_tokens::token::ToTokens;
-use std::any::type_name;
 use crate::parser;
 use crate::parser::blocking::BlockingParser;
 use crate::parser::SyntaxError;
+use aroma_tokens::token::ToTokens;
+use std::any::type_name;
+use std::error::Error;
+use std::io::Read;
 
 /// Parser for syntax tree items
 pub trait Parser<R: Read, O, E = SyntaxError>: Clone

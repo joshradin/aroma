@@ -1,12 +1,11 @@
 //! Constructors are used for creating objects
 
-use crate::class::ClassInst;
 use crate::functions::{FunctionId, FunctionSignature, Parameter};
 use crate::generic::GenericDeclaration;
+use crate::type_signature::TypeSignature;
 use crate::vis::Vis;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use crate::type_signature::TypeSignature;
 
 /// Constructors are specialty methods that have no return type
 #[derive(Debug, Clone)]

@@ -1,4 +1,6 @@
 use super::{ErrorKind, SyntaxError};
+use crate::parser::blocking::{remove_nl, BlockingParser};
+use crate::parser::hir_parser::blocking::{CouldParse, Parsable};
 use crate::parser::Err;
 use aroma_tokens::id::Id;
 use aroma_tokens::spanned::Span;
@@ -8,8 +10,6 @@ use aroma_tokens::token::Token;
 use aroma_tokens::token::TokenKind;
 use aroma_tokens::token::TokenStream;
 use std::io::Read;
-use crate::parser::blocking::{remove_nl, BlockingParser};
-use crate::parser::hir_parser::blocking::{CouldParse, Parsable};
 
 /// A variable id, an Id with a signle id
 #[derive(Debug, ToTokens)]

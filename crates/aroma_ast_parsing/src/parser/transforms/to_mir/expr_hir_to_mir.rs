@@ -1,4 +1,5 @@
 use crate::parser::hir::{expr as parsed_exprs, Punctuated};
+use crate::parser::{ErrorKind, SyntaxError};
 use crate::type_resolution::Bindings;
 use aroma_ast::expr::{CallMethodExpr, Expr, ExprThis, FieldExpr, GlobalExpr, VarExpr};
 use aroma_ast::references::{FieldRef, NameType};
@@ -8,7 +9,6 @@ use aroma_tokens::spanned::Spanned;
 use aroma_types::class::ClassInst;
 use parsed_exprs::Expr as ParsedExpr;
 use tracing::debug;
-use crate::parser::{ErrorKind, SyntaxError};
 
 pub fn expr_hir_to_mir(
     expr: ParsedExpr,

@@ -1,9 +1,9 @@
+use crate::parser::blocking::remove_nl;
+use crate::parser::hir_parser::blocking::Parsable;
+use crate::parser::{blocking::BlockingParser, Err, ErrorKind, SyntaxError};
 use aroma_tokens::token::{ToTokens, Token, TokenKind, TokenStream};
 use std::fmt::{Debug, Formatter};
 use std::io::Read;
-use crate::parser::{Err, ErrorKind, blocking::BlockingParser, SyntaxError};
-use crate::parser::blocking::remove_nl;
-use crate::parser::hir_parser::blocking::Parsable;
 
 #[derive(Debug)]
 pub enum ConstantKind {

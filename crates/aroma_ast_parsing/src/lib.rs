@@ -1,12 +1,12 @@
 #![doc = include_str!("../README.md")]
 
+use crate::parser::blocking::BlockingParser;
 use crate::parser::Err;
 use aroma_ast::translation_unit::TranslationUnit;
+use parser::blocking::Parsable;
 use parser::transforms::{transform, Transformer};
 use std::path::Path;
 use tracing::trace;
-use parser::blocking::Parsable;
-use crate::parser::blocking::BlockingParser;
 
 pub mod lexer;
 pub mod parser;

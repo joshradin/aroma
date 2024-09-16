@@ -1,9 +1,9 @@
 use crate::lexer::LexingError;
 use aroma_tokens::id::Id;
-use aroma_tokens::spanned::{LineReader, Span};
+use aroma_tokens::spanned::Span;
 use aroma_tokens::token::Token;
 use aroma_tokens::SpannedError;
-use aroma_types::class::{ClassInst, ClassRef};
+use aroma_types::class::ClassRef;
 use std::fmt::{Display, Formatter};
 use std::io;
 

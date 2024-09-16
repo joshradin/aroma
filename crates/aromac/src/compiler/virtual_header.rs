@@ -2,10 +2,10 @@
 
 use aroma_tokens::id::Id;
 use aroma_types::class::{ClassInst, ClassRef};
+use aroma_types::functions::FunctionSignature;
 use aroma_types::generic::GenericDeclaration;
 use aroma_types::type_signature::TypeSignature;
 use derive_more::From;
-use aroma_types::functions::FunctionSignature;
 
 /// A virtual header is used to create a collection of all declarations within an aroma translation unit.
 #[derive(Debug, Clone, PartialEq)]

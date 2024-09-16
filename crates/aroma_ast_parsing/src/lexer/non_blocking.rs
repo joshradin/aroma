@@ -2,7 +2,7 @@ use crate::lexer::token_parsing::parse_token;
 use crate::lexer::{LexResult, LexingError};
 use aroma_tokens::spanned::Span;
 use aroma_tokens::token::{Token, TokenKind};
-use async_stream::{stream, try_stream};
+use async_stream::try_stream;
 use std::path::{Path, PathBuf};
 use tokio::fs::File;
 use tokio::io;

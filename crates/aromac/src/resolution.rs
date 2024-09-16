@@ -22,10 +22,11 @@ impl TranslationData {
         let hierarchy: Hierarchy = Hierarchy::new();
         let mut resolver: IdResolver = IdResolver::new();
         for class in hierarchy.classes() {
-            resolver.insert_qualified(class.id().clone());
+            resolver.insert_qualified(class.id().clone()).expect("could not insert class");
             resolver
                 .build_namespace(Id::default())
-                .insert_alias(class.id().most_specific(), class.id().clone());
+                .insert_alias(class.id().most_specific(), class.id().clone())
+                .expect("could not insert alias");
         }
 
         Self {

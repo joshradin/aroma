@@ -1,5 +1,4 @@
 use aroma_types::class::ClassInst;
-use aroma_types::hierarchy::intrinsics::{I32_CLASS_NAME, I64_CLASS_NAME};
 use aroma_types::hierarchy::Hierarchy;
 use std::collections::HashMap;
 use std::ptr::NonNull;

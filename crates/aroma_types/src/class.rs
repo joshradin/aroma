@@ -2,6 +2,7 @@ use crate::constructor::Constructor;
 use crate::field::Field;
 use crate::functions::FunctionDeclaration;
 use crate::generic::{GenericDeclaration, GenericParameterBounds, GenericParameterBoundsSlice};
+use crate::type_signature::TypeSignature;
 use crate::vis::{Vis, Visibility};
 use aroma_common::nom_helpers::recognize_identifier;
 use aroma_tokens::id::Id;
@@ -17,7 +18,6 @@ use petgraph::visit::Walker;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::str::FromStr;
-use crate::type_signature::TypeSignature;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum ClassKind {
@@ -374,8 +374,8 @@ pub struct ParseClassInstError(Box<dyn Error>);
 #[cfg(test)]
 mod tests {
     use crate::class::{ClassInst, ClassRef};
-    use std::str::FromStr;
     use crate::type_signature::TypeSignature;
+    use std::str::FromStr;
 
     #[test]
     fn test_parse_basic_class_inst() {

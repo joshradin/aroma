@@ -96,7 +96,6 @@ impl Span {
     pub fn get_line_col(&self) -> io::Result<(usize, usize)> {
         let mut line = 1usize;
         let mut col = 0usize;
-        let mut offset = 0usize;
         let string = std::fs::read_to_string(self.file())?;
         for char in string.chars().take(self.offset) {
             if char == '\n' {
@@ -105,7 +104,6 @@ impl Span {
             } else {
                 col += 1;
             }
-            offset += char.len_utf8();
         }
         Ok((line, col))
     }

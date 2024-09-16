@@ -1,9 +1,9 @@
 use aromac::error::AromaCError;
 use aromac::AromaC;
 use eyre::eyre;
-use tracing::{error, info};
 use std::path::PathBuf;
 use test_log::test;
+use tracing::{error, info};
 
 mod common;
 

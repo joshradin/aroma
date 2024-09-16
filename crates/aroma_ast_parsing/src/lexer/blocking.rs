@@ -1,12 +1,12 @@
-use std::io::{BufReader, Read};
-use std::path::Path;
-use std::io;
+use crate::lexer::token_parsing::parse_token;
+use crate::lexer::{LexResult, LexingError};
 use aroma_tokens::spanned::Span;
 use aroma_tokens::token::{Token, TokenKind};
 use nom::Needed;
 use std::fs::File;
-use crate::lexer::{LexResult, LexingError};
-use crate::lexer::token_parsing::parse_token;
+use std::io;
+use std::io::{BufReader, Read};
+use std::path::Path;
 
 /// Responsible with converting a [Read] obj into a token stream
 #[derive(Debug)]

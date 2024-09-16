@@ -1,7 +1,6 @@
-use crate::class::ClassInst;
+use crate::type_signature::TypeSignature;
 use crate::vis::{Vis, Visibility};
 use std::fmt::{Debug, Formatter};
-use crate::type_signature::TypeSignature;
 
 /// A field in a class
 #[derive(Clone)]

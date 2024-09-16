@@ -1,3 +1,4 @@
+use crate::parser::blocking::BlockingParser;
 use crate::parser::hir::annotation::Annotation;
 use crate::parser::hir::binding::{FnParameters, Type};
 use crate::parser::hir::items::{
@@ -8,12 +9,11 @@ use crate::parser::hir::statement::BlockStatement;
 use crate::parser::hir::{
     cut, singletons, Punctuated1
 };
+use crate::parser::hir_parser::blocking::{CouldParse, Parsable};
+use crate::parser::SyntaxResult;
 use aroma_tokens::token::ToTokens;
 use std::io::Read;
 use tracing::instrument;
-use crate::parser::blocking::BlockingParser;
-use crate::parser::SyntaxResult;
-use crate::parser::hir_parser::blocking::{CouldParse, Parsable};
 
 /// A function declaration
 #[derive(Debug, ToTokens)]

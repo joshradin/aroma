@@ -4,10 +4,10 @@ use crate::parser::hir::{map, Punctuated1};
 use crate::parser::{blocking::BlockingParser, ErrorKind, SyntaxError, SyntaxResult};
 use aroma_tokens::id::Id;
 use aroma_tokens::token::{ToTokens, TokenKind};
+use blocking::{CouldParse, Parsable};
 use std::error::Error;
 use std::future::{Future, IntoFuture};
 use std::io::Read;
-use blocking::{CouldParse, Parsable};
 
 pub(super) mod blocking;
 

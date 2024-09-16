@@ -1,18 +1,18 @@
 //! statements
 
+use crate::parser::blocking::{remove_nl, BlockingParser};
 use crate::parser::hir::binding::OptTypeBinding;
 use crate::parser::hir::expr::Expr;
-use crate::parser::hir::singletons::*;
 use crate::parser::hir::helpers::End;
+use crate::parser::hir::singletons::*;
 use crate::parser::hir::{
     cut, multi1, ErrorKind, SyntaxError
 };
+use crate::parser::hir_parser::blocking::{CouldParse, Parsable};
+use crate::parser::SyntaxResult;
 use aroma_tokens::token::{ToTokens, TokenKind};
 use std::io::Read;
 use tracing::{debug, trace, warn};
-use crate::parser::blocking::{remove_nl, BlockingParser};
-use crate::parser::SyntaxResult;
-use crate::parser::hir_parser::blocking::{CouldParse, Parsable};
 
 /// General statement types
 #[derive(Debug, ToTokens)]

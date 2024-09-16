@@ -66,7 +66,6 @@ impl From<SyntaxError> for Err<SyntaxError> {
 
 #[cfg(test)]
 pub(super) mod tests {
-    use std::fs::File;
     use super::*;
     use crate::parser::blocking::BlockingParser;
     use crate::parser::hir::constants::{Constant, ConstantKind};
@@ -76,6 +75,7 @@ pub(super) mod tests {
     use aroma_ast::items::ClassItem;
     use aroma_tokens::spanned::{Span, Spanned};
     use aroma_tokens::token::{ToTokens, TokenKind};
+    use std::fs::File;
     use std::io::Write as _;
     use tempfile::NamedTempFile;
 

@@ -133,10 +133,10 @@ pub enum TaskExecutionError<E: Send + Sync + Error + 'static> {
 
 #[cfg(test)]
 mod tests {
-    use std::convert::Infallible;
-    use crate::{State, TaskExecutor, TaskGraph, TaskGraphBuilder};
-    use std::sync::atomic::{AtomicI32, Ordering};
     use crate::task_executor::TaskExecutionError;
+    use crate::{State, TaskExecutor, TaskGraph, TaskGraphBuilder};
+    use std::convert::Infallible;
+    use std::sync::atomic::{AtomicI32, Ordering};
 
     fn create_graph() -> TaskGraph<AtomicI32> {
         let mut graph_builder: TaskGraphBuilder<AtomicI32> = TaskGraph::builder();

@@ -1,12 +1,15 @@
 //! items, like functions, and classes
 
+use crate::parser::blocking::{remove_nl, BlockingParser};
 use crate::parser::hir::annotation::Annotation;
 use crate::parser::hir::binding::{FnParameters, Type};
-use crate::parser::hir::singletons::{Private, Protected, Public};
 use crate::parser::hir::helpers::End;
+use crate::parser::hir::singletons::{Private, Protected, Public};
 use crate::parser::hir::{
     cut, singletons::*, ErrorKind, Punctuated1, SyntaxError,
 };
+use crate::parser::hir_parser::blocking::{CouldParse, Parsable};
+use crate::parser::SyntaxResult;
 use aroma_tokens::spanned::Spanned;
 use aroma_tokens::token::{ToTokens, TokenKind};
 use aroma_types::class::AsClassRef;
@@ -14,9 +17,6 @@ use aroma_types::hierarchy::intrinsics::OBJECT_CLASS;
 use aroma_types::vis::Vis;
 use std::io::Read;
 use tracing::{debug, instrument, trace};
-use crate::parser::blocking::{remove_nl, BlockingParser};
-use crate::parser::SyntaxResult;
-use crate::parser::hir_parser::blocking::{CouldParse, Parsable};
 
 mod item_class;
 mod item_function;
