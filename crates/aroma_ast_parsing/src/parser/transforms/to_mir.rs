@@ -58,6 +58,7 @@ pub fn to_mir(translation_unit: ParsedTranslationUnit) -> Result<TranslationUnit
                     trace!("parsed interface {interface:#?}");
                     items.push(Item::Class(interface));
                 }
+                parser_items::Item::NativeFunc(_) => {}
             }
             Ok(items)
         },

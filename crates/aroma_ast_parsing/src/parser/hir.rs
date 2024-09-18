@@ -47,6 +47,7 @@ visitor! {
                 Item::Class(cls) => { v.visit_class(cls)}
                 Item::Func(func) => { v.visit_func(func)}
                 Item::Interface(i) => { v.visit_interface(i) }
+                Item::NativeFunc(_) => { Ok(()) }
             }
         }
 

@@ -28,7 +28,7 @@ async fn main() -> eyre::Result<()> {
     trace!("starting aromac with args: {args:?}");
     debug!("aromac version: {}", env!("CARGO_PKG_VERSION"));
 
-    let mut aroma_compiler_builder = AromaC::builder();
+    let aroma_compiler_builder = AromaC::builder();
 
     let included = args
         .included()

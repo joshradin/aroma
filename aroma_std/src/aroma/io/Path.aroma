@@ -1,0 +1,5 @@
+namespace aroma.io
+
+public class Path {
+    private final segments: Array[Path]
+}

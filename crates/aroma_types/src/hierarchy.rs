@@ -4,9 +4,8 @@ use crate::class::{AsClassRef, Class, ClassInst, ClassRef};
 use crate::generic::{GenericDeclaration, GenericParameterBounds};
 use crate::type_signature::TypeSignature;
 use aroma_tokens::id::Id;
-use aroma_tokens::id_resolver::{IdQueries, IdResolver};
+use aroma_tokens::id_resolver::IdResolver;
 use intrinsics::*;
-use itertools::Itertools;
 use log::{debug, trace, warn};
 use parking_lot::RwLock;
 use petgraph::prelude::*;
@@ -44,7 +43,6 @@ impl Hierarchy {
         let ref id_resolver = IdResolver::new();
         hierarchy.unchecked_insert(OBJECT_CLASS.clone());
         hierarchy.unchecked_insert(CLASS_CLASS.clone());
-        let ref queries = id_resolver.query(Id::default());
         hierarchy
             .insert(ARRAY_CLASS.clone())
             .expect("could not insert array class");

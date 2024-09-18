@@ -7,5 +7,4 @@ public interface Write {
 
     /// Writes values from the given buffer
     fn write(buffer: Array[out Char]) -> Int throws IOException;
-
 }

@@ -244,6 +244,7 @@ token_singleton!(Private, TokenKind::Private);
 token_singleton!(Extends, TokenKind::Extends);
 token_singleton!(Implements, TokenKind::Implements);
 token_singleton!(Static, TokenKind::Static);
+token_singleton!(Native, TokenKind::Native);
 token_singleton!(Fn, TokenKind::Fn);
 token_singleton!(Final, TokenKind::Final);
 token_singleton!(Throws, TokenKind::Throws);

@@ -1,0 +1,24 @@
+namespace aroma.io
+
+import aroma.io.IOException
+import aroma.io.Path
+
+public class File {
+    public static stdin: File = File(0);
+    public static stdout: File = File(1);
+    public static stderr: File = File(2);
+
+    private final path: Path?
+    private final fd: Int
+
+    public constructor(path: Path) {
+        this.path = path
+        this.fd = File.open(path.toString(), "rw")
+    }
+
+    private constructor(fd: int) {
+        this.fd = fd;
+    }
+}
+
+private native("open/2") fn open(path: String, perm: String) -> Int throws IOException;

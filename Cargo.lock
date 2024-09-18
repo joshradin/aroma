@@ -167,6 +167,10 @@ name = "aroma_files"
 version = "0.0.0"
 
 [[package]]
+name = "aroma_language_server"
+version = "0.0.0"
+
+[[package]]
 name = "aroma_tasks"
 version = "0.0.0"
 dependencies = [
@@ -261,6 +265,7 @@ dependencies = [
  "cfg-if",
  "chrono",
  "derive_more",
+ "eyre",
  "itertools",
  "num_cpus",
  "parking_lot",

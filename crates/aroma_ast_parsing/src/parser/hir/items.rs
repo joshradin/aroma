@@ -21,8 +21,9 @@ use tracing::{debug, instrument, trace};
 mod item_class;
 mod item_function;
 mod item_interface;
+mod item_native_function;
 
-pub use self::{item_class::*, item_function::*, item_interface::*};
+pub use self::{item_class::*, item_function::*, item_interface::*, item_native_function::*};
 
 #[derive(Debug, Clone, ToTokens)]
 pub enum Visibility {
@@ -137,6 +138,7 @@ pub struct DelegateReceiver {
 pub enum Item {
     Class(ItemClass),
     Func(ItemFn),
+    NativeFunc(ItemNativeFn),
     Interface(ItemInterface),
 }
 
@@ -182,6 +184,10 @@ fn parse_item<'p, R: Read>(parser: &mut BlockingParser<'_, R>) -> SyntaxResult<I
             let func = parse_function(annotations, vis, parser).map_err(|e| e.cut())?;
             Item::Func(func)
         }
+        TokenKind::Native => {
+            let native_func = parse_native_function(annotations, vis, parser).map_err(|e| e.cut())?;
+            Item::NativeFunc(native_func)
+        }
         TokenKind::Delegate => {
             // delegate parsing
             todo!("delegate parsing")
@@ -190,7 +196,7 @@ fn parse_item<'p, R: Read>(parser: &mut BlockingParser<'_, R>) -> SyntaxResult<I
             let span = lookahead.span();
             return Err(parser
                 .error_with_span(
-                    ErrorKind::expected_token(["abstract", "class", "interface", "fn"], lookahead),
+                    ErrorKind::expected_token(["abstract", "class", "interface", "fn", "native"], lookahead),
                     None,
                     span,
                 )
