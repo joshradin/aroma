@@ -1,0 +1,19 @@
+[package]
+name = "aroma_cli_common"
+description = "common structures used for cli"
+authors.workspace = true
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+readme.workspace = true
+repository.workspace = true
+
+[features]
+default = []
+tracing = [
+    "dep:tracing"
+]
+
+[dependencies]
+clap = { workspace = true, features = ["derive"] }
+tracing = { version = "0.1.40", optional = true }

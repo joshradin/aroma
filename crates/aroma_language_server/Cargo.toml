@@ -8,3 +8,11 @@ readme.workspace = true
 repository.workspace = true
 
 [dependencies]
+tokio = { workspace = true }
+tower-lsp = { workspace = true }
+async-trait.workspace = true
+tracing.workspace = true
+
+# aroma packages
+aroma_ast = { version = "0.0.0", path = "../aroma_ast" }
+aromac = { version = "0.0.0", path = "../aromac" }

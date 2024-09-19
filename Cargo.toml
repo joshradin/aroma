@@ -52,6 +52,7 @@ async-stream = "0.3.5"
 async-trait = "0.1.82"
 tokio-stream = "0.1.16"
 tokio-test = "0.4.4"
+tower-lsp = "0.20.0"
 
 [profile.release]
 debug = true

@@ -1,14 +1,18 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
+#![doc = include_str!("../README.md")]
+
+mod language_server;
+
+pub use language_server::AromaLanguageServer;
+use tokio::io::{AsyncRead, AsyncWrite};
+use tower_lsp::{ClientSocket, LspService, Server};
+
+/// Creates a new lsp service and associated client socket
+pub fn new() -> (LspService<AromaLanguageServer>, ClientSocket) {
+    LspService::new(|client| AromaLanguageServer::new(client))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
+/// Runs the server, serving the LSP for aroma with the given input and output
+pub async fn serve<I: AsyncRead + Unpin, O: AsyncWrite>(input: I, output: O) {
+    let (service, socket) = new();
+    Server::new(input, output, socket).serve(service).await;
 }

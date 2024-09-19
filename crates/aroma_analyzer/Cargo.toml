@@ -1,0 +1,23 @@
+[package]
+name = "aroma_analyzer"
+authors.workspace = true
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+readme.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "aroma-analyzer"
+path = "src/main.rs"
+
+[dependencies]
+aroma_language_server = { version = "0.0.0", path = "../aroma_language_server" }
+tokio = { workspace = true, features = ["full"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+clap = { version = "4.5.17", features = ["derive"] }
+aroma_cli_common = { version = "0.0.0", path = "../aroma_cli_common", features = ["tracing"] }
+tracing-error.workspace = true
+eyre.workspace = true
+color-eyre.workspace = true

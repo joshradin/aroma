@@ -35,4 +35,4 @@ aroma_tasks = { version = "0.0.0", path = "../aroma_tasks" }
 
 [dev-dependencies]
 test-log = { workspace = true }
-eyre = "0.6.12"
+eyre = { workspace = true }

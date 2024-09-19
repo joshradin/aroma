@@ -24,7 +24,7 @@ mod args;
 async fn main() -> eyre::Result<()> {
     color_eyre::install()?;
     let args = Args::parse();
-    init_logging(args.log_level_filter())?;
+    init_logging(args.logging().log_level_filter())?;
     trace!("starting aromac with args: {args:?}");
     debug!("aromac version: {}", env!("CARGO_PKG_VERSION"));
 

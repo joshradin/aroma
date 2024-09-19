@@ -1,20 +1,15 @@
 //! the args for running aromac
 
-use clap::value_parser;
-use clap::ArgAction;
-use std::path::{Path, PathBuf};
-use tracing::metadata::LevelFilter;
-
+use aroma_cli_common::LoggingArgs;
 use aromac::os::PATH_DELIMITER;
+use std::path::{Path, PathBuf};
 
 /// The args struct
 #[derive(Debug, clap::Parser)]
 #[clap(author, version, about = "Compiles aroma code into aroma bytecode")]
 pub struct Args {
-    #[clap(short = 'v', value_parser = value_parser!(u8).range(0..=2), action=ArgAction::Count, conflicts_with="quiet")]
-    verbose: u8,
-    #[clap(short = 'q', value_parser = value_parser!(u8).range(0..=2), action=ArgAction::Count, conflicts_with="verbose")]
-    quiet: u8,
+    #[command(flatten)]
+    logging: LoggingArgs,
 
     /// Specify which source files to compile
     #[clap(required = true, value_name="source file", value_hint=clap::ValueHint::FilePath)]
@@ -30,18 +25,7 @@ pub struct Args {
 }
 
 impl Args {
-    /// Gets the logging level based on whether `-v[v]` or `-q[q]` has been used.
-    pub fn log_level_filter(&self) -> LevelFilter {
-        let sum = self.verbose as i8 - self.quiet as i8;
-        match sum {
-            -2 => LevelFilter::OFF,
-            -1 => LevelFilter::ERROR,
-            0 => LevelFilter::INFO,
-            1 => LevelFilter::DEBUG,
-            2 => LevelFilter::TRACE,
-            _ => unreachable!(),
-        }
-    }
+
 
     /// Gets files to be included in the compilation process
     pub fn included(&self) -> Vec<&Path> {
@@ -50,6 +34,10 @@ impl Args {
             .flat_map(|s| s.split(PATH_DELIMITER))
             .map(|s| Path::new(s))
             .collect()
+    }
+
+    pub fn logging(&self) -> &LoggingArgs {
+        &self.logging
     }
 }
 

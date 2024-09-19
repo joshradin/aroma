@@ -16,6 +16,7 @@ tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 tracing-subscriber = { workspace = true }
 tracing-error = { workspace = true }
+
 # cli
 clap = { workspace = true, features = ["derive", "env"] }
 color-eyre = { workspace = true }
@@ -24,7 +25,8 @@ owo-colors = { workspace = true, features = ["supports-colors"] }
 clap_complete = { workspace = true }
 aromac = { version = "0.0.0", path = "../aromac" }
 aroma_files = { version = "0.0.0", path = "../aroma_files" }
-cfg-if = "1.0.0"
+aroma_cli_common = { version = "0.0.0", path="../aroma_cli_common"}
+cfg-if = { workspace = true }
 chrono.workspace = true
 
 # inter-dependencies
