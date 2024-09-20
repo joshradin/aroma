@@ -8,6 +8,9 @@ use tracing_subscriber::fmt::format;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::{Layer, Registry};
 
+const LSP_ADDR: &'static str = "127.0.0.1";
+const LSP_PORT: u16 = 9257;
+
 #[derive(Debug, Parser)]
 struct Args {
     #[command(flatten)]
@@ -16,11 +19,13 @@ struct Args {
     #[arg(long)]
     listen: bool,
     /// The port to connect to/with
-    #[clap(long, default_value_t = 9257)]
-    port: u16
+    #[clap(long, default_value_t = LSP_PORT, alias = "socket")]
+    port: u16,
+    /// If no ansi, uses no ansi code
+    #[clap(long = "no-ansi")]
+    no_ansi: bool
 }
 
-const LSP_ADDR: &'static str = "127.0.0.1";
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
@@ -32,6 +37,8 @@ async fn main() -> eyre::Result<()> {
     let registry = Registry::default()
         .with(
             tracing_subscriber::fmt::layer()
+                .with_ansi(!args.no_ansi)
+                .with_writer(std::io::stderr)
                 .event_format(format().with_thread_ids(true))
                 .with_filter(log_level_filter),
         )
@@ -40,10 +47,9 @@ async fn main() -> eyre::Result<()> {
     tracing::subscriber::set_global_default(registry).expect("could not initialize tracing");
 
     let stream = if args.listen {
-        trace!("listening on {}:{}", LSP_ADDR, args.port);
-        let listener = TcpListener::bind(
-            (LSP_ADDR, args.port)
-        ).await?;
+
+        let listener = TcpListener::bind((LSP_ADDR, args.port)).await?;
+        trace!("listening on {}:{}", LSP_ADDR, listener.local_addr()?.port());
         let (stream, _) = listener.accept().await?;
         stream
     } else {
@@ -56,4 +62,3 @@ async fn main() -> eyre::Result<()> {
 
     Ok(())
 }
-

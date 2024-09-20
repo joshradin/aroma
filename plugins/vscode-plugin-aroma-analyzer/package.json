@@ -9,11 +9,21 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "onLanguage:plaintext"
-  ],
+  "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
+    "languages": [
+      {
+        "id": "aroma",
+        "aliases": [
+          "aroma"
+        ],
+        "extensions": [
+          "aroma"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

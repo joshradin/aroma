@@ -1,12 +1,15 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
+import { homedir } from 'os';
+import * as path from 'path'
+import { cwd } from 'process';
 import * as vscode from 'vscode';
 import {
 	LanguageClient,
 	LanguageClientOptions,
 	ServerOptions,
 	TransportKind
-} from 'vscode-languageclient/node'
+} from 'vscode-languageclient/node';
 import { workerData } from 'worker_threads';
 
 let client: LanguageClient;
@@ -15,44 +18,42 @@ let client: LanguageClient;
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
 
-	let serverOptions: ServerOptions = { module: "aroma-lsp"}
-
+	let serverOptions: ServerOptions = {
+		command: "cargo",
+		options: {
+			cwd: path.join(homedir(), "Workspace", "aroma")
+		},
+		args: ["run", "--bin=aroma-analyzer", "--", "-vv", "--no-ansi"], transport: {
+			kind: TransportKind.socket,
+			port: 9473
+		}
+	};
 	let clientOptions: LanguageClientOptions = {
-		documentSelector: [{scheme: 'file', language: 'plaintext'}],
+		documentSelector: [{ scheme: 'file', language: 'aroma' }],
 		synchronize: {
 			fileEvents: vscode.workspace.createFileSystemWatcher("**/*.aroma")
 		}
-	}
+
+	};
 
 	client = new LanguageClient(
 		'aroma-ls',
 		'aroma-ls',
 		serverOptions,
-		client
-	)
+		clientOptions
+	);
 
-	client.start()
+	client.start();
 
 	// Use the console to output diagnostic information (console.log) and errors (console.error)
 	// This line of code will only be executed once when your extension is activated
 	console.log('Congratulations, your extension "aroma-analyzer" is now active!');
-
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	const disposable = vscode.commands.registerCommand('aroma-analyzer.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from aroma-analyzer!');
-	});
-
-	context.subscriptions.push(disposable);
 }
 
 // This method is called when your extension is deactivated
-export function deactivate() : Thenable<void> | undefined {
+export function deactivate(): Thenable<void> | undefined {
 	if (!client) {
-		return undefined
+		return undefined;
 	}
-	return client.stop()
+	return client.stop();
 }
