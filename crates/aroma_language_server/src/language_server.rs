@@ -2,8 +2,8 @@
 
 use async_trait::async_trait;
 
-use tower_lsp::lsp_types::*;
 use tower_lsp::jsonrpc::Result;
+use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer};
 use tracing::{info, instrument};
 
@@ -25,8 +25,16 @@ impl LanguageServer for AromaLanguageServer {
     #[instrument]
     async fn initialize(&self, _: InitializeParams) -> Result<InitializeResult> {
         info!("initializing server...");
-        Ok(InitializeResult::default())
+        Ok(InitializeResult {
+            server_info: None,
+            capabilities: ServerCapabilities {
+                ..ServerCapabilities::default()
+            },
+            ..InitializeResult::default()
+        })
     }
+
+
 
     #[instrument]
     async fn shutdown(&self) -> Result<()> {
